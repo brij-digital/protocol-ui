@@ -1,0 +1,15 @@
+{
+  "version": "0.1.0",
+  "protocols": [
+    {
+      "id": "jupiter-v6-mainnet",
+      "name": "Jupiter V6",
+      "network": "mainnet-beta",
+      "programId": "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+      "idlPath": "/idl/jupiter_v6.json",
+      "transport": "jupiter-lite-api",
+      "supportedCommands": ["/swap"],
+      "status": "active"
+    }
+  ]
+}
