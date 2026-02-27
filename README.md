@@ -66,6 +66,10 @@ Meta IDL v0.1 resolver primitives currently implemented in runtime:
 - `orca_swap_quote`
 - `lookup` (query indexed relation from local/remote JSON directory)
 
+Meta IDL execution supports optional declarative `post` steps:
+- current built-in: `spl_token_close_account`
+- used to auto-unwrap WSOL output (close WSOL ATA after swap when output mint is SOL)
+
 Example pattern for DB-backed fast discovery:
 
 ```json

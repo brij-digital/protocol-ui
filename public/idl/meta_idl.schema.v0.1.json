@@ -126,6 +126,66 @@
       },
       "additionalProperties": false
     },
+    "metaCondition": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["equals"],
+          "properties": {
+            "equals": {
+              "type": "array",
+              "items": {},
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["all"],
+          "properties": {
+            "all": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/metaCondition" }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["any"],
+          "properties": {
+            "any": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/metaCondition" }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["not"],
+          "properties": {
+            "not": { "$ref": "#/$defs/metaCondition" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "postStep": {
+      "type": "object",
+      "required": ["kind", "account", "destination", "owner"],
+      "properties": {
+        "kind": { "const": "spl_token_close_account" },
+        "account": {},
+        "destination": {},
+        "owner": {},
+        "token_program": {},
+        "when": { "$ref": "#/$defs/metaCondition" }
+      },
+      "additionalProperties": false
+    },
     "actionSpec": {
       "type": "object",
       "required": ["instruction", "inputs", "derive", "args", "accounts"],
@@ -146,6 +206,10 @@
         "accounts": {
           "type": "object",
           "additionalProperties": {}
+        },
+        "post": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/postStep" }
         }
       },
       "additionalProperties": false
