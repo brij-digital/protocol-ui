@@ -1,8 +1,0 @@
-{
-  "deprecated": true,
-  "message": "Use /idl/orca_whirlpool.directory.db.json",
-  "version": "0.1.0",
-  "network": "mainnet-beta",
-  "generatedAt": "2026-02-27T00:00:00Z",
-  "pools": []
-}

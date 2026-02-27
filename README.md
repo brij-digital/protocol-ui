@@ -103,4 +103,5 @@ npm run build
 - The app targets `mainnet-beta` by default.
 - Swap execution requires a connected Phantom wallet.
 - `/swap` and `/quote` are strict declarative wrappers: they resolve accounts/PDAs/tick arrays from meta IDL, then call `write-raw/read-raw` under the hood.
+- SOL output is auto-unwrapped by default via declarative meta `post` step (`spl_token_close_account`).
 - `/swap-old` keeps the legacy Orca SDK flow only for comparison.
