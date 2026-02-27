@@ -4,6 +4,7 @@ export type ProtocolManifest = {
   network: string;
   programId: string;
   idlPath: string;
+  metaPath?: string;
   transport: 'local-orca-whirlpool';
   supportedCommands: string[];
   status: 'active' | 'inactive';
@@ -39,6 +40,17 @@ export async function getPrimarySwapProtocol(): Promise<ProtocolManifest> {
 
   if (!manifest) {
     throw new Error('No active swap protocol found in registry.');
+  }
+
+  return manifest;
+}
+
+export async function getProtocolById(protocolId: string): Promise<ProtocolManifest> {
+  const registry = await loadRegistry();
+  const manifest = registry.protocols.find((protocol) => protocol.id === protocolId);
+
+  if (!manifest) {
+    throw new Error(`Protocol ${protocolId} not found in local IDL registry.`);
   }
 
   return manifest;

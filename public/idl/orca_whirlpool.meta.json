@@ -1,0 +1,121 @@
+{
+  "schema": "meta-idl.v0.1",
+  "version": "0.1.0",
+  "protocolId": "orca-whirlpool-mainnet",
+  "sources": {
+    "orca_whirlpool_directory": {
+      "kind": "http_json",
+      "url": "/idl/orca_whirlpool.directory.db.json",
+      "items_path": "pools",
+      "ttl_ms": 15000
+    }
+  },
+  "actions": {
+    "swap_exact_in": {
+      "instruction": "swap",
+      "inputs": {
+        "token_in_mint": { "type": "pubkey", "required": true },
+        "token_out_mint": { "type": "pubkey", "required": true },
+        "amount_in": { "type": "u64", "required": true },
+        "slippage_bps": { "type": "u16", "required": false, "default": 50 },
+        "unwrap_sol_output": { "type": "bool", "required": false, "default": true }
+      },
+      "derive": [
+        {
+          "name": "wallet",
+          "resolver": "wallet_pubkey"
+        },
+        {
+          "name": "selected_pool",
+          "resolver": "lookup",
+          "source": "orca_whirlpool_directory",
+          "where": {
+            "tokenInMint": "$input.token_in_mint",
+            "tokenOutMint": "$input.token_out_mint"
+          },
+          "mode": "first"
+        },
+        {
+          "name": "whirlpool_data",
+          "resolver": "decode_account",
+          "address": "$selected_pool.whirlpool",
+          "account_type": "Whirlpool"
+        },
+        {
+          "name": "token_owner_account_a",
+          "resolver": "ata",
+          "owner": "$wallet",
+          "mint": "$whirlpool_data.token_mint_a"
+        },
+        {
+          "name": "token_owner_account_b",
+          "resolver": "ata",
+          "owner": "$wallet",
+          "mint": "$whirlpool_data.token_mint_b"
+        },
+        {
+          "name": "oracle",
+          "resolver": "pda",
+          "program_id": "$protocol.programId",
+          "seeds": ["utf8:oracle", "$selected_pool.whirlpool"]
+        },
+        {
+          "name": "quote",
+          "resolver": "orca_swap_quote",
+          "whirlpool": "$selected_pool.whirlpool",
+          "amount": "$input.amount_in",
+          "a_to_b": "$selected_pool.aToB",
+          "slippage_bps": "$input.slippage_bps"
+        }
+      ],
+      "args": {
+        "amount": "$input.amount_in",
+        "other_amount_threshold": "$quote.otherAmountThreshold",
+        "sqrt_price_limit": "$quote.sqrtPriceLimit",
+        "amount_specified_is_input": true,
+        "a_to_b": "$selected_pool.aToB"
+      },
+      "accounts": {
+        "token_program": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "token_authority": "$wallet",
+        "whirlpool": "$selected_pool.whirlpool",
+        "token_owner_account_a": "$token_owner_account_a",
+        "token_vault_a": "$whirlpool_data.token_vault_a",
+        "token_owner_account_b": "$token_owner_account_b",
+        "token_vault_b": "$whirlpool_data.token_vault_b",
+        "tick_array_0": "$quote.tickArray0",
+        "tick_array_1": "$quote.tickArray1",
+        "tick_array_2": "$quote.tickArray2",
+        "oracle": "$oracle"
+      },
+      "post": [
+        {
+          "kind": "spl_token_close_account",
+          "account": "$token_owner_account_a",
+          "destination": "$wallet",
+          "owner": "$wallet",
+          "when": {
+            "all": [
+              { "equals": ["$input.unwrap_sol_output", true] },
+              { "equals": ["$selected_pool.aToB", false] },
+              { "equals": ["$selected_pool.tokenOutMint", "So11111111111111111111111111111111111111112"] }
+            ]
+          }
+        },
+        {
+          "kind": "spl_token_close_account",
+          "account": "$token_owner_account_b",
+          "destination": "$wallet",
+          "owner": "$wallet",
+          "when": {
+            "all": [
+              { "equals": ["$input.unwrap_sol_output", true] },
+              { "equals": ["$selected_pool.aToB", true] },
+              { "equals": ["$selected_pool.tokenOutMint", "So11111111111111111111111111111111111111112"] }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

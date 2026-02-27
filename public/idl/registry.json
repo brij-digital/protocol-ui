@@ -7,8 +7,9 @@
       "network": "mainnet-beta",
       "programId": "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc",
       "idlPath": "/idl/orca_whirlpool.json",
+      "metaPath": "/idl/orca_whirlpool.meta.json",
       "transport": "local-orca-whirlpool",
-      "supportedCommands": ["/swap"],
+      "supportedCommands": ["/swap", "/swap-old", "/quote", "/write-raw", "/read-raw", "/idl-view", "/idl-send"],
       "status": "active"
     }
   ]

@@ -1,0 +1,35 @@
+{
+  "version": "0.1.0",
+  "network": "mainnet-beta",
+  "updatedAt": "2026-02-27T13:55:00Z",
+  "pools": [
+    {
+      "protocol": "orca-whirlpool",
+      "label": "SOL/USDC (A->B)",
+      "whirlpool": "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE",
+      "tokenInMint": "So11111111111111111111111111111111111111112",
+      "tokenOutMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "aToB": true,
+      "tickSpacing": 4,
+      "feeRate": 400,
+      "tokenMintA": "So11111111111111111111111111111111111111112",
+      "tokenMintB": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "tokenVaultA": "EUuUbDcafPrmVTD5M6qoJAoyyNbihBhugADAxRMn5he9",
+      "tokenVaultB": "2WLWEuKDgkDUccTpbwYp1GToYktiSB1cXvreHUwiSUVP"
+    },
+    {
+      "protocol": "orca-whirlpool",
+      "label": "USDC/SOL (B->A)",
+      "whirlpool": "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE",
+      "tokenInMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "tokenOutMint": "So11111111111111111111111111111111111111112",
+      "aToB": false,
+      "tickSpacing": 4,
+      "feeRate": 400,
+      "tokenMintA": "So11111111111111111111111111111111111111112",
+      "tokenMintB": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "tokenVaultA": "EUuUbDcafPrmVTD5M6qoJAoyyNbihBhugADAxRMn5he9",
+      "tokenVaultB": "2WLWEuKDgkDUccTpbwYp1GToYktiSB1cXvreHUwiSUVP"
+    }
+  ]
+}
