@@ -9,7 +9,7 @@ import type { Idl } from '@coral-xyz/anchor';
 import { getProtocolById } from './idlRegistry';
 import { previewIdlInstruction } from './idlDeclarativeRuntime';
 
-const META_IDL_SCHEMA = 'meta-idl.v0.1';
+const SUPPORTED_META_IDL_SCHEMAS = new Set(['meta-idl.v0.1', 'meta-idl.v0.2']);
 const DEFAULT_SPL_TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 const ORCA_TICK_ARRAY_SIZE = 88;
 const ORCA_MIN_SQRT_PRICE = '4295048016';
@@ -56,12 +56,40 @@ type ActionInputSpec = {
 };
 
 type ActionSpec = {
+  instruction?: string;
+  inputs?: Record<string, ActionInputSpec>;
+  derive?: DeriveStep[];
+  args?: Record<string, unknown>;
+  accounts?: Record<string, unknown>;
+  post?: PostInstructionSpec[];
+  use?: MacroUseSpec[];
+};
+
+type MaterializedActionSpec = {
   instruction: string;
   inputs: Record<string, ActionInputSpec>;
   derive: DeriveStep[];
   args: Record<string, unknown>;
   accounts: Record<string, unknown>;
   post?: PostInstructionSpec[];
+};
+
+type MacroParamSpec =
+  | string
+  | {
+      type?: string;
+      required?: boolean;
+      default?: unknown;
+    };
+
+type MacroSpec = {
+  params?: Record<string, MacroParamSpec>;
+  expand: Omit<ActionSpec, 'use'>;
+};
+
+type MacroUseSpec = {
+  macro: string;
+  with?: Record<string, unknown>;
 };
 
 type MetaCondition =
@@ -88,6 +116,7 @@ type MetaIdlSpec = {
   version: string;
   protocolId: string;
   sources?: Record<string, LookupSourceSpec>;
+  macros?: Record<string, MacroSpec>;
   actions: Record<string, ActionSpec>;
 };
 
@@ -565,8 +594,10 @@ function readItemsByPath(value: unknown, path?: string): unknown[] {
 }
 
 function assertMetaSpec(meta: MetaIdlSpec, protocolId: string): MetaIdlSpec {
-  if (meta.schema && meta.schema !== META_IDL_SCHEMA) {
-    throw new Error(`Unsupported meta IDL schema for ${protocolId}: ${meta.schema}. Expected ${META_IDL_SCHEMA}.`);
+  if (meta.schema && !SUPPORTED_META_IDL_SCHEMAS.has(meta.schema)) {
+    throw new Error(
+      `Unsupported meta IDL schema for ${protocolId}: ${meta.schema}. Supported: ${[...SUPPORTED_META_IDL_SCHEMAS].join(', ')}.`,
+    );
   }
 
   if (meta.protocolId !== protocolId) {
@@ -578,6 +609,155 @@ function assertMetaSpec(meta: MetaIdlSpec, protocolId: string): MetaIdlSpec {
   }
 
   return meta;
+}
+
+function cloneJsonLike<T>(value: T): T {
+  if (value === undefined) {
+    return value;
+  }
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function resolveMacroTemplateValue(value: unknown, paramScope: Record<string, unknown>): unknown {
+  if (typeof value === 'string' && value.startsWith('$param.')) {
+    return resolvePath(paramScope, value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => resolveMacroTemplateValue(item, paramScope));
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, nested]) => [
+        key,
+        resolveMacroTemplateValue(nested, paramScope),
+      ]),
+    );
+  }
+
+  return value;
+}
+
+function resolveMacroParams(macroName: string, macro: MacroSpec, use: MacroUseSpec): Record<string, unknown> {
+  const provided = use.with ?? {};
+  if (macro.params && typeof macro.params !== 'object') {
+    throw new Error(`Macro ${macroName} params must be an object.`);
+  }
+
+  const resolved: Record<string, unknown> = {};
+  if (macro.params) {
+    for (const [name, rawSpec] of Object.entries(macro.params)) {
+      const spec = typeof rawSpec === 'string' ? { type: rawSpec } : rawSpec;
+      if (provided[name] !== undefined) {
+        resolved[name] = provided[name];
+        continue;
+      }
+      if (spec.default !== undefined) {
+        resolved[name] = spec.default;
+        continue;
+      }
+      if (spec.required !== false) {
+        throw new Error(`Macro ${macroName} missing required param ${name}.`);
+      }
+    }
+
+    for (const key of Object.keys(provided)) {
+      if (!(key in macro.params)) {
+        throw new Error(`Macro ${macroName} received unknown param ${key}.`);
+      }
+    }
+  } else {
+    Object.assign(resolved, provided);
+  }
+
+  return resolved;
+}
+
+function mergeActionFragment(target: MaterializedActionSpec, fragment: Omit<ActionSpec, 'use'>, label: string): void {
+  if (fragment.instruction) {
+    if (target.instruction && target.instruction !== fragment.instruction) {
+      throw new Error(
+        `Conflicting instruction while materializing action (${label}): ${target.instruction} vs ${fragment.instruction}.`,
+      );
+    }
+    target.instruction = fragment.instruction;
+  }
+
+  if (fragment.inputs) {
+    target.inputs = {
+      ...target.inputs,
+      ...cloneJsonLike(fragment.inputs),
+    };
+  }
+
+  if (fragment.derive) {
+    target.derive.push(...cloneJsonLike(fragment.derive));
+  }
+
+  if (fragment.args) {
+    target.args = {
+      ...target.args,
+      ...cloneJsonLike(fragment.args),
+    };
+  }
+
+  if (fragment.accounts) {
+    target.accounts = {
+      ...target.accounts,
+      ...cloneJsonLike(fragment.accounts),
+    };
+  }
+
+  if (fragment.post && fragment.post.length > 0) {
+    target.post = [...(target.post ?? []), ...cloneJsonLike(fragment.post)];
+  }
+}
+
+function materializeAction(actionId: string, action: ActionSpec, meta: MetaIdlSpec): MaterializedActionSpec {
+  const materialized: MaterializedActionSpec = {
+    instruction: '',
+    inputs: {},
+    derive: [],
+    args: {},
+    accounts: {},
+    post: [],
+  };
+
+  for (const use of action.use ?? []) {
+    if (!use.macro) {
+      throw new Error(`Action ${actionId} contains macro use without macro name.`);
+    }
+
+    const macro = meta.macros?.[use.macro];
+    if (!macro) {
+      throw new Error(`Action ${actionId} references unknown macro ${use.macro}.`);
+    }
+
+    const params = resolveMacroParams(use.macro, macro, use);
+    const expanded = resolveMacroTemplateValue(cloneJsonLike(macro.expand), { param: params }) as Omit<ActionSpec, 'use'>;
+    mergeActionFragment(materialized, expanded, `macro ${use.macro}`);
+  }
+
+  const actionDirectFragment = cloneJsonLike({
+    instruction: action.instruction,
+    inputs: action.inputs,
+    derive: action.derive,
+    args: action.args,
+    accounts: action.accounts,
+    post: action.post,
+  });
+  mergeActionFragment(materialized, actionDirectFragment, `action ${actionId}`);
+
+  if (!materialized.instruction) {
+    throw new Error(`Action ${actionId} has no instruction after macro expansion.`);
+  }
+
+  if (!materialized.accounts || Object.keys(materialized.accounts).length === 0) {
+    throw new Error(`Action ${actionId} has no accounts mapping after macro expansion.`);
+  }
+
+  return materialized;
 }
 
 function evaluateCondition(condition: MetaCondition, scope: Record<string, unknown>): boolean {
@@ -1029,13 +1209,14 @@ export async function prepareMetaInstruction(options: {
   const meta = await loadMetaSpec(options.protocolId);
   const idl = await loadProtocolIdl(options.protocolId);
 
-  const action = meta.actions[options.actionId];
-  if (!action) {
+  const actionSpec = meta.actions[options.actionId];
+  if (!actionSpec) {
     throw new Error(`Action ${options.actionId} not found in meta IDL for ${options.protocolId}.`);
   }
+  const action = materializeAction(options.actionId, actionSpec, meta);
 
   const hydratedInput: Record<string, unknown> = {};
-  for (const [key, spec] of Object.entries(action.inputs)) {
+  for (const [key, spec] of Object.entries(action.inputs ?? {})) {
     if (options.input[key] !== undefined) {
       hydratedInput[key] = options.input[key];
       continue;
@@ -1076,7 +1257,7 @@ export async function prepareMetaInstruction(options: {
     scope,
   };
 
-  for (const step of action.derive) {
+  for (const step of action.derive ?? []) {
     if (!step.name) {
       throw new Error(`Action ${options.actionId} has derive step without name.`);
     }
@@ -1086,8 +1267,8 @@ export async function prepareMetaInstruction(options: {
     scope[step.name] = value;
   }
 
-  const resolvedArgs = normalizeRuntimeValue(resolveTemplateValue(action.args, scope));
-  const resolvedAccounts = normalizeRuntimeValue(resolveTemplateValue(action.accounts, scope));
+  const resolvedArgs = normalizeRuntimeValue(resolveTemplateValue(action.args ?? {}, scope));
+  const resolvedAccounts = normalizeRuntimeValue(resolveTemplateValue(action.accounts ?? {}, scope));
   const postInstructions = resolvePostInstructions(action.post, scope);
 
   return {

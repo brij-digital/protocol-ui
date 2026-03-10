@@ -5,7 +5,7 @@ This repository is a command-driven web demo for an Espresso Cash AI Wallet MVP.
 Current scope:
 - Single-signature wallet approval (no Swig/passkeys yet)
 - One active swap integration via Orca Whirlpools on Solana mainnet
-- One base IDL + one Meta IDL (`meta-idl.v0.1`) for declarative action derivation
+- One base IDL + one Meta IDL (`meta-idl.v0.2`) for declarative action derivation
 - Chat-style command input with deterministic command parsing
 
 ## Commands
@@ -41,7 +41,7 @@ Supported token aliases for `/swap` and `/quote`:
 
 - Base IDL: `public/idl/orca_whirlpool.json`
 - Meta IDL: `public/idl/orca_whirlpool.meta.json`
-- Meta IDL schema: `public/idl/meta_idl.schema.v0.1.json`
+- Meta IDL schema: `public/idl/meta_idl.schema.v0.2.json`
 - Local pool directory DB: `public/idl/orca_whirlpool.directory.db.json`
 - Registry: `public/idl/registry.json`
 
@@ -54,7 +54,7 @@ Directory DB rows are directional for fast lookup:
 Meta action used by `/swap` and `/quote`:
 - `swap_exact_in`
 
-Meta IDL v0.1 resolver primitives currently implemented in runtime:
+Meta IDL v0.2 resolver primitives currently implemented in runtime:
 - `wallet_pubkey`
 - `decode_account`
 - `ata`
@@ -75,6 +75,10 @@ Meta IDL v0.1 resolver primitives currently implemented in runtime:
   }
 }
 ```
+
+Meta IDL v0.2 also supports macro expansion:
+- `macros.<name>.expand` defines reusable declarative blocks.
+- `actions.<action>.use[]` applies macros with parameter mapping via `$param.*`.
 
 Meta IDL execution supports optional declarative `post` steps:
 - current built-in: `spl_token_close_account`
