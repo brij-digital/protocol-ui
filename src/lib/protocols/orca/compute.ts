@@ -5,6 +5,15 @@ import {
   type WhirlpoolFacade,
 } from '@orca-so/whirlpools-core';
 import type { ComputeRuntimeContext, ComputeStepResolved } from '../../metaComputeRegistry';
+import {
+  asBigInt,
+  asBool,
+  asRecord,
+  asSafeInteger,
+  asString,
+  asU64String,
+  getRecordValue,
+} from '../../sdk/coerce';
 
 const ORCA_TICK_ARRAY_SIZE = 88;
 const ORCA_MIN_SQRT_PRICE = '4295048016';
@@ -12,76 +21,6 @@ const ORCA_MAX_SQRT_PRICE = '79226673515401279992447579055';
 
 // Whirlpool instruction still expects SPL Token program in this MVP.
 const DEFAULT_TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
-
-function asBool(value: unknown, label: string): boolean {
-  if (typeof value === 'boolean') {
-    return value;
-  }
-  throw new Error(`${label} must be boolean.`);
-}
-
-function asIntegerString(value: unknown, label: string): string {
-  const normalized = typeof value === 'number' || typeof value === 'bigint' ? value.toString() : value;
-  if (typeof normalized !== 'string' || !/^-?\d+$/.test(normalized)) {
-    throw new Error(`${label} must be an integer string.`);
-  }
-  return normalized;
-}
-
-function asString(value: unknown, label: string): string {
-  if (typeof value === 'string') {
-    return value;
-  }
-  throw new Error(`${label} must be a string.`);
-}
-
-function asU64String(value: unknown, label: string): string {
-  const normalized = asIntegerString(value, label);
-  if (!/^\d+$/.test(normalized)) {
-    throw new Error(`${label} must be an unsigned integer string.`);
-  }
-  return normalized;
-}
-
-function asSafeInteger(value: unknown, label: string): number {
-  const parsed = Number(asIntegerString(value, label));
-  if (!Number.isSafeInteger(parsed)) {
-    throw new Error(`${label} must be a safe integer.`);
-  }
-  return parsed;
-}
-
-function asBigInt(value: unknown, label: string): bigint {
-  if (typeof value === 'bigint') {
-    return value;
-  }
-  if (typeof value === 'number') {
-    if (!Number.isSafeInteger(value)) {
-      throw new Error(`${label} must be a safe integer.`);
-    }
-    return BigInt(value);
-  }
-  if (typeof value === 'string' && /^-?\d+$/.test(value)) {
-    return BigInt(value);
-  }
-  throw new Error(`${label} must be an integer-like value.`);
-}
-
-function asRecord(value: unknown, label: string): Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(`${label} must resolve to an object.`);
-  }
-  return value as Record<string, unknown>;
-}
-
-function getRecordValue(record: Record<string, unknown>, candidates: string[], label: string): unknown {
-  for (const candidate of candidates) {
-    if (record[candidate] !== undefined) {
-      return record[candidate];
-    }
-  }
-  throw new Error(`Missing field ${label}. Expected one of: ${candidates.join(', ')}`);
-}
 
 function toWhirlpoolFacade(whirlpoolData: Record<string, unknown>, label: string): WhirlpoolFacade {
   const rewardInfosRaw = getRecordValue(whirlpoolData, ['reward_infos', 'rewardInfos'], 'reward_infos');

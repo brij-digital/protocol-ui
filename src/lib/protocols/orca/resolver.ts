@@ -1,78 +1,9 @@
-import { BN, BorshAccountsCoder } from '@coral-xyz/anchor';
+import { BorshAccountsCoder } from '@coral-xyz/anchor';
 import { getTickArrayStartTickIndex } from '@orca-so/whirlpools-core';
 import { PublicKey } from '@solana/web3.js';
 import type { ResolverRuntimeContext, ResolverStepResolved } from '../../metaResolverRegistry';
-
-function normalizeRuntimeValue(value: unknown): unknown {
-  if (BN.isBN(value)) {
-    return (value as BN).toString();
-  }
-
-  if (value instanceof PublicKey) {
-    return value.toBase58();
-  }
-
-  if (Array.isArray(value)) {
-    return value.map(normalizeRuntimeValue);
-  }
-
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>).map(([key, nested]) => [key, normalizeRuntimeValue(nested)]),
-    );
-  }
-
-  return value;
-}
-
-function asPubkey(value: unknown, label: string): PublicKey {
-  if (value instanceof PublicKey) {
-    return value;
-  }
-  if (typeof value === 'string') {
-    return new PublicKey(value);
-  }
-  throw new Error(`${label} must be a public key.`);
-}
-
-function asBool(value: unknown, label: string): boolean {
-  if (typeof value === 'boolean') {
-    return value;
-  }
-  throw new Error(`${label} must be boolean.`);
-}
-
-function asRecord(value: unknown, label: string): Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(`${label} must resolve to an object.`);
-  }
-  return value as Record<string, unknown>;
-}
-
-function asIntegerString(value: unknown, label: string): string {
-  const normalized = typeof value === 'number' || typeof value === 'bigint' ? value.toString() : value;
-  if (typeof normalized !== 'string' || !/^-?\d+$/.test(normalized)) {
-    throw new Error(`${label} must be an integer string.`);
-  }
-  return normalized;
-}
-
-function asSafeInteger(value: unknown, label: string): number {
-  const parsed = Number(asIntegerString(value, label));
-  if (!Number.isSafeInteger(parsed)) {
-    throw new Error(`${label} must be a safe integer.`);
-  }
-  return parsed;
-}
-
-function getRecordValue(record: Record<string, unknown>, candidates: string[], label: string): unknown {
-  for (const candidate of candidates) {
-    if (record[candidate] !== undefined) {
-      return record[candidate];
-    }
-  }
-  throw new Error(`Missing field ${label}. Expected one of: ${candidates.join(', ')}`);
-}
+import { asBool, asPubkey, asRecord, asSafeInteger, getRecordValue } from '../../sdk/coerce';
+import { normalizeRuntimeValue } from '../../sdk/runtimeValue';
 
 function deriveOrcaTickArrayPda(programId: PublicKey, whirlpool: PublicKey, startTickIndex: number): PublicKey {
   return PublicKey.findProgramAddressSync(
