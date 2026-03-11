@@ -828,6 +828,7 @@ async function runContextStep(step: ContextStep, ctx: ResolverContext): Promise<
       programId: ctx.protocol.programId,
       connection: ctx.connection,
       walletPublicKey: ctx.walletPublicKey,
+      idl: ctx.idl,
       scope: ctx.scope,
     },
   );

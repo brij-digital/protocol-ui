@@ -90,6 +90,23 @@
   color: #634e0a;
 }
 
+.option-list {
+  margin-top: 0.75rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.option-list button {
+  text-align: left;
+  border: 1px solid #e0bf6e;
+  background: #fff;
+  color: #4f3f0a;
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.83rem;
+}
+
 .command-form {
   margin-top: 1rem;
   display: grid;

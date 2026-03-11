@@ -1,4 +1,6 @@
+import type { Idl } from '@coral-xyz/anchor';
 import type { Connection, PublicKey } from '@solana/web3.js';
+import { ORCA_CONTEXT_EXECUTORS } from '../protocols/orca/contextResolvers';
 
 export type ContextStepResolved = {
   name: string;
@@ -11,10 +13,11 @@ export type ContextRuntimeContext = {
   programId: string;
   connection: Connection;
   walletPublicKey: PublicKey;
+  idl: Idl;
   scope: Record<string, unknown>;
 };
 
-type ContextExecutor = (step: ContextStepResolved, ctx: ContextRuntimeContext) => Promise<unknown>;
+export type ContextExecutor = (step: ContextStepResolved, ctx: ContextRuntimeContext) => Promise<unknown>;
 
 const contextHttpCache = new Map<string, { expiresAt: number; value: unknown }>();
 
@@ -200,10 +203,26 @@ async function runContextCompareValues(step: ContextStepResolved): Promise<unkno
   return selected;
 }
 
+async function runContextPickListItem(step: ContextStepResolved): Promise<unknown> {
+  const items = asArray(step.items, `context:${step.name}:items`);
+  if (items.length === 0) {
+    throw new Error(`context:${step.name}:items must not be empty.`);
+  }
+
+  const indexRaw = step.index === undefined ? 0 : asSafeInteger(step.index, `context:${step.name}:index`);
+  if (indexRaw < 0 || indexRaw >= items.length) {
+    throw new Error(`context:${step.name}:index ${indexRaw} is out of bounds for ${items.length} item(s).`);
+  }
+
+  return items[indexRaw];
+}
+
 const CONTEXT_EXECUTORS: Record<string, ContextExecutor> = {
   'context.mock': runContextMock,
   'context.query_http_json': runContextQueryHttpJson,
   'context.compare_values': runContextCompareValues,
+  'context.pick_list_item': runContextPickListItem,
+  ...ORCA_CONTEXT_EXECUTORS,
 };
 
 export async function runRegisteredContextStep(step: ContextStepResolved, ctx: ContextRuntimeContext): Promise<unknown> {

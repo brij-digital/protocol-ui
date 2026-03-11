@@ -3,14 +3,6 @@
   "schema": "meta-idl.v0.3",
   "version": "0.3.0",
   "protocolId": "orca-whirlpool-mainnet",
-  "sources": {
-    "orca_whirlpool_directory": {
-      "kind": "http_json",
-      "url": "/idl/orca_whirlpool.directory.db.json",
-      "items_path": "pools",
-      "ttl_ms": 15000
-    }
-  },
   "templates": {
     "orca.swap_exact_in.v1": {
       "params": {
@@ -23,33 +15,24 @@
         "instruction": "swap_v2",
         "context": [
           {
-            "name": "market_context",
-            "context": "context.mock",
-            "value": {
-              "mode": "mock",
-              "provider": "local-demo",
-              "pair": {
-                "token_in_mint": "$param.token_in_mint",
-                "token_out_mint": "$param.token_out_mint"
-              },
-              "note": "Replace with online provider comparison in a future context step."
-            }
+            "name": "pool_candidates",
+            "context": "context.orca_whirlpool_pools_for_pair",
+            "token_in_mint": "$param.token_in_mint",
+            "token_out_mint": "$param.token_out_mint",
+            "account_type": "Whirlpool",
+            "commitment": "confirmed"
+          },
+          {
+            "name": "selected_pool",
+            "context": "context.pick_list_item",
+            "items": "$pool_candidates",
+            "index": "$input.pool_index"
           }
         ],
         "derive": [
           {
             "name": "wallet",
             "resolver": "wallet_pubkey"
-          },
-          {
-            "name": "selected_pool",
-            "resolver": "lookup",
-            "source": "orca_whirlpool_directory",
-            "where": {
-              "tokenInMint": "$param.token_in_mint",
-              "tokenOutMint": "$param.token_out_mint"
-            },
-            "mode": "first"
           },
           {
             "name": "whirlpool_data",
@@ -180,6 +163,7 @@
         "token_out_mint": { "type": "pubkey", "required": true },
         "amount_in": { "type": "u64", "required": true },
         "slippage_bps": { "type": "u16", "required": false, "default": 50 },
+        "pool_index": { "type": "u16", "required": false, "default": 0 },
         "unwrap_sol_output": { "type": "bool", "required": false, "default": true }
       },
       "use": [

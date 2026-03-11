@@ -284,6 +284,31 @@
             "metric_path": { "type": "string" }
           },
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["name", "context", "token_in_mint", "token_out_mint"],
+          "properties": {
+            "name": { "type": "string" },
+            "context": { "const": "context.orca_whirlpool_pools_for_pair" },
+            "program_id": {},
+            "account_type": { "type": "string" },
+            "commitment": { "enum": ["processed", "confirmed", "finalized"] },
+            "token_in_mint": {},
+            "token_out_mint": {}
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["name", "context", "items"],
+          "properties": {
+            "name": { "type": "string" },
+            "context": { "const": "context.pick_list_item" },
+            "items": { "type": "array", "items": {}, "minItems": 1 },
+            "index": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
         }
       ]
     },
