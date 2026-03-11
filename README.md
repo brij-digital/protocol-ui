@@ -5,7 +5,7 @@ This repository is a command-driven web demo for an Espresso Cash AI Wallet MVP.
 Current scope:
 - Single-signature wallet approval (no Swig/passkeys yet)
 - One active swap integration via Orca Whirlpools on Solana mainnet
-- One base IDL + one Meta IDL (`meta-idl.v0.2`) for declarative action derivation
+- One base IDL + one Meta IDL (`meta-idl.v0.3`) for declarative action derivation
 - Chat-style command input with deterministic command parsing
 
 ## Commands
@@ -41,14 +41,13 @@ Supported token aliases for `/swap` and `/quote`:
 
 - Base IDL: `public/idl/orca_whirlpool.json`
 - Meta IDL: `public/idl/orca_whirlpool.meta.json`
-- Meta IDL schema: `public/idl/meta_idl.schema.v0.2.json`
+- Meta IDL schema: `public/idl/meta_idl.schema.v0.3.json`
 - Tutorial: `docs/meta-idl-tutorial.md`
 - Local pool directory DB: `public/idl/orca_whirlpool.directory.db.json`
 - Registry: `public/idl/registry.json`
-- Resolver registry (plugin dispatch): `src/lib/metaResolverRegistry.ts`
-- Orca resolver plugin: `src/lib/protocols/orca/resolver.ts`
 - Compute registry (plugin dispatch): `src/lib/metaComputeRegistry.ts`
-- Orca compute plugin: `src/lib/protocols/orca/compute.ts`
+- Shared SDK coercion helpers: `src/lib/sdk/coerce.ts`
+- Shared runtime value normalizer: `src/lib/sdk/runtimeValue.ts`
 
 Directory DB rows are directional for fast lookup:
 - `tokenInMint`
@@ -59,37 +58,40 @@ Directory DB rows are directional for fast lookup:
 Meta action used by `/swap` and `/quote`:
 - `swap_exact_in`
 
-Meta IDL v0.2 resolver primitives currently implemented in runtime:
+Meta IDL v0.3 resolver primitives currently implemented in runtime:
 - `wallet_pubkey`
 - `decode_account`
 - `ata`
 - `pda`
 - `lookup` (query indexed relation from local/remote JSON directory)
-- `orca_quote_data` (fetch+decode Whirlpool/Oracle/TickArray quote inputs)
+- `unix_timestamp`
+- `clmm_tick_arrays_contiguous` (derive contiguous CLMM tick array PDAs)
 
-Meta IDL v0.2 compute primitives currently implemented in runtime:
-- `orca_swap_quote` (pure Orca core math compute over resolver output)
+Meta IDL v0.3 compute primitives currently implemented in runtime:
+- none in active swap flow (`/swap` and `/quote` are simulation-first)
 
-`orca_quote_data` + `orca_swap_quote` pattern:
+`clmm_tick_arrays_contiguous` pattern:
 
 ```json
 {
-  "name": "quote_data",
-  "resolver": "orca_quote_data",
+  "name": "tick_arrays",
+  "resolver": "clmm_tick_arrays_contiguous",
+  "program_id": "$protocol.programId",
   "whirlpool": "$selected_pool.whirlpool",
+  "tick_current_index": "$whirlpool_data.tick_current_index",
+  "tick_spacing": "$whirlpool_data.tick_spacing",
   "a_to_b": "$selected_pool.aToB"
 }
 ```
 
 ```json
 {
-  "name": "quote",
-  "compute": "orca_swap_quote",
-  "quote_data": "$quote_data"
+  "name": "tick_arrays",
+  "resolver": "clmm_tick_arrays_contiguous"
 }
 ```
 
-Meta IDL v0.2 also supports macro expansion:
+Meta IDL v0.3 supports macro expansion:
 - `macros.<name>.expand` defines reusable declarative blocks.
 - `actions.<action>.use[]` applies macros with parameter mapping via `$param.*`.
 
@@ -129,6 +131,6 @@ npm run build
 
 - The app targets `mainnet-beta` by default.
 - Swap execution requires a connected Phantom wallet.
-- `/swap` and `/quote` are strict declarative wrappers: derive resolvers fetch account state first, compute runs pure quote math, then app calls `write-raw/read-raw` under the hood.
+- `/swap` and `/quote` are strict declarative wrappers: derive resolvers fetch account state, then app uses RPC simulation to estimate output and compute slippage threshold before send.
 - Meta execution pipeline is split into phases: `derive` (data gather) -> `compute` (quote/evaluation) -> IDL build -> `simulate` or `send`.
 - SOL output is auto-unwrapped by default via declarative meta `post` step (`spl_token_close_account`).

@@ -19,12 +19,9 @@ In this MVP:
 
 - Base IDL: `public/idl/orca_whirlpool.json`
 - Meta IDL: `public/idl/orca_whirlpool.meta.json`
-- Meta schema: `public/idl/meta_idl.schema.v0.2.json`
+- Meta schema: `public/idl/meta_idl.schema.v0.3.json`
 - Runtime: `src/lib/metaIdlRuntime.ts`
-- Resolver registry: `src/lib/metaResolverRegistry.ts`
-- Orca resolver plugin: `src/lib/protocols/orca/resolver.ts`
 - Compute registry: `src/lib/metaComputeRegistry.ts`
-- Orca compute plugin: `src/lib/protocols/orca/compute.ts`
 - App command handling: `src/App.tsx`
 
 ---
@@ -44,10 +41,11 @@ In this MVP:
 - `decode_account`
 - `ata`
 - `pda`
-- `orca_quote_data`
+- `unix_timestamp`
+- `clmm_tick_arrays_contiguous`
 
 ### Implemented compute steps
-- `orca_swap_quote`
+- none in current swap flow
 
 ### Template variables
 - `$input.*`: action input values
@@ -77,7 +75,7 @@ Example command:
    - expands macro with `$param.*`
 4. Hydrates missing input defaults (e.g., `slippage_bps: 50`).
 5. Executes `derive[]` resolvers (data only) in order.
-6. Executes `compute[]` steps (quote/evaluate) in order.
+6. Executes optional `compute[]` steps in order (none used in current swap macro).
 7. Produces final:
    - `instructionName`
    - `args`
@@ -114,42 +112,43 @@ From `macros.orca.swap_exact_in.v1.expand.derive`:
 5. `oracle` (`pda`)
 - Derives Orca oracle PDA with seeds.
 
-6. `quote_data` (`orca_quote_data`)
-- Fetches and decodes quote inputs before compute:
-  - Whirlpool state (if not already provided)
-  - Oracle state (if initialized)
-  - Deterministic 3 contiguous tick arrays from current tick + swap direction
-- Requires all 3 tick arrays to exist on-chain (no fallback)
-- Returns `quote_data` for pure compute.
+6. `tick_arrays` (`clmm_tick_arrays_contiguous`)
+- Derives deterministic 3 contiguous tick-array PDAs from:
+  - program id
+  - whirlpool pubkey
+  - tick current index
+  - tick spacing
+  - direction (`a_to_b`)
 
-## 6) What Compute Step Does (Orca macro)
+7. `tick_array_data_0/1/2` (`decode_account`)
+- Decodes all 3 derived tick-array accounts.
 
-From `macros.orca.swap_exact_in.v1.expand.compute`:
+## 6) Quote/Swap Threshold Flow (No Kernel)
 
-1. `quote` (`orca_swap_quote`)
-- Consumes pre-resolved `quote_data` from derive phase
-- Runs Orca core quote math (`swapQuoteByInputToken`) with no RPC reads
-- Computes `other_amount_threshold` (slippage-protected min out)
-- Returns final quote fields (`tickArray0/1/2`, `sqrtPriceLimit`, thresholds, estimates)
+- Meta derive resolves accounts/PDAs/tick arrays.
+- App simulates the candidate swap tx with `other_amount_threshold = 1`.
+- App reads simulated output token delta.
+- App computes `min_out` from user slippage bps.
+- `/quote` displays estimate + min out.
+- `/swap` sends tx with computed `other_amount_threshold`.
 
 ---
 
-## 7) Why `orca_swap_quote` Exists
+## 7) Why Simulation-First
 
 For Whirlpool swap, you still need runtime values that are not directly user inputs:
 - `tick_array_0/1/2`
 - `sqrt_price_limit`
 - `other_amount_threshold`
 
-The resolver+compute split derives these deterministically:
-- resolver gathers chain state
-- compute performs pure math over resolved state.
+Execution from IDL does not require protocol quote kernels.
+Simulation gives a protocol-agnostic output estimate and lets the app compute slippage threshold before send.
 
 ---
 
-## 8) Macro System (v0.2)
+## 8) Macro System (v0.3)
 
-In Meta IDL v0.2:
+In Meta IDL v0.3:
 - `macros.<name>.expand` stores reusable action fragments.
 - `actions.<id>.use[]` applies those macros.
 
@@ -189,7 +188,7 @@ If `/quote` or `/swap` fails:
 1. Check command input mint order and amount.
 2. Verify pool exists in `orca_whirlpool.directory.db.json`.
 3. Verify resolved Whirlpool account decodes correctly.
-4. Check `quote_data` resolver errors (missing primary tick array / decode issues).
+4. Check tick-array/oracle decode errors in derive steps.
 5. Check compute/quote errors (tick array availability, math preconditions, slippage constraints).
 6. Validate final args/accounts preview.
 

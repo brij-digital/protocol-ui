@@ -5,18 +5,20 @@ import type { Idl } from '@coral-xyz/anchor';
 import { getProtocolById } from './idlRegistry';
 import { previewIdlInstruction } from './idlDeclarativeRuntime';
 import { runRegisteredComputeStep } from './metaComputeRegistry';
-import { runRegisteredResolverStep } from './metaResolverRegistry';
 
-const SUPPORTED_META_IDL_SCHEMAS = new Set(['meta-idl.v0.1', 'meta-idl.v0.2']);
+const SUPPORTED_META_IDL_SCHEMAS = new Set(['meta-idl.v0.1', 'meta-idl.v0.2', 'meta-idl.v0.3']);
 const DEFAULT_SPL_TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+const DEFAULT_TICKS_PER_ARRAY = 88;
 
 type BuiltinResolverName =
   | 'wallet_pubkey'
   | 'decode_account'
   | 'ata'
   | 'pda'
-  | 'lookup';
-type ResolverName = BuiltinResolverName | string;
+  | 'lookup'
+  | 'unix_timestamp'
+  | 'clmm_tick_arrays_contiguous';
+type ResolverName = BuiltinResolverName;
 
 type LookupMode = 'first' | 'all';
 type ComputeKind = string;
@@ -33,6 +35,12 @@ type ResolverStepFallback = {
   where?: unknown;
   select?: unknown;
   mode?: LookupMode;
+  tick_current_index?: unknown;
+  tick_spacing?: unknown;
+  a_to_b?: unknown;
+  whirlpool?: unknown;
+  ticks_per_array?: unknown;
+  count?: unknown;
   [key: string]: unknown;
 };
 
@@ -294,6 +302,30 @@ function asRecord(value: unknown, label: string): Record<string, unknown> {
   }
 
   return value as Record<string, unknown>;
+}
+
+function asSafeInteger(value: unknown, label: string): number {
+  const normalized = normalizeRuntimeValue(value);
+  const parsed =
+    typeof normalized === 'number'
+      ? normalized
+      : typeof normalized === 'string'
+        ? Number(normalized)
+        : Number.NaN;
+
+  if (!Number.isSafeInteger(parsed)) {
+    throw new Error(`${label} must be a safe integer.`);
+  }
+
+  return parsed;
+}
+
+function asBool(value: unknown, label: string): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  throw new Error(`${label} must be boolean.`);
 }
 
 function resolveWhereFilter(where: unknown, scope: Record<string, unknown>, label: string): Record<string, unknown> {
@@ -750,23 +782,84 @@ async function runResolver(step: DeriveStep, ctx: ResolverContext): Promise<unkn
     return normalizeRuntimeValue(candidates[0]);
   }
 
-  const resolvedStep = asRecord(normalizeRuntimeValue(resolveTemplateValue(step, ctx.scope)), `resolver:${step.name}`);
-  const resolver = asString(resolvedStep.resolver, `resolver:${step.name}:resolver`);
-  return runRegisteredResolverStep(
-    {
-      ...resolvedStep,
-      name: step.name,
-      resolver,
-    },
-    {
-      protocolId: ctx.protocol.id,
-      programId: ctx.protocol.programId,
-      connection: ctx.connection,
-      walletPublicKey: ctx.walletPublicKey,
-      idl: ctx.idl,
-      scope: ctx.scope,
-    },
-  );
+  if (step.resolver === 'unix_timestamp') {
+    return Math.floor(Date.now() / 1000);
+  }
+
+  if (step.resolver === 'clmm_tick_arrays_contiguous') {
+    if (!step.program_id || !step.whirlpool || step.tick_current_index === undefined || step.tick_spacing === undefined || step.a_to_b === undefined) {
+      throw new Error(
+        `Resolver clmm_tick_arrays_contiguous for ${step.name} missing required fields (program_id, whirlpool, tick_current_index, tick_spacing, a_to_b).`,
+      );
+    }
+
+    const programId = asPubkey(
+      resolveTemplateValue(step.program_id, ctx.scope),
+      `clmm_tick_arrays_contiguous:${step.name}:program_id`,
+    );
+    const whirlpool = asPubkey(
+      resolveTemplateValue(step.whirlpool, ctx.scope),
+      `clmm_tick_arrays_contiguous:${step.name}:whirlpool`,
+    );
+    const tickCurrentIndex = asSafeInteger(
+      resolveTemplateValue(step.tick_current_index, ctx.scope),
+      `clmm_tick_arrays_contiguous:${step.name}:tick_current_index`,
+    );
+    const tickSpacing = asSafeInteger(
+      resolveTemplateValue(step.tick_spacing, ctx.scope),
+      `clmm_tick_arrays_contiguous:${step.name}:tick_spacing`,
+    );
+    const aToB = asBool(resolveTemplateValue(step.a_to_b, ctx.scope), `clmm_tick_arrays_contiguous:${step.name}:a_to_b`);
+
+    const ticksPerArray = step.ticks_per_array !== undefined
+      ? asSafeInteger(
+          resolveTemplateValue(step.ticks_per_array, ctx.scope),
+          `clmm_tick_arrays_contiguous:${step.name}:ticks_per_array`,
+        )
+      : DEFAULT_TICKS_PER_ARRAY;
+    const count = step.count !== undefined
+      ? asSafeInteger(resolveTemplateValue(step.count, ctx.scope), `clmm_tick_arrays_contiguous:${step.name}:count`)
+      : 3;
+
+    if (tickSpacing <= 0) {
+      throw new Error(`clmm_tick_arrays_contiguous:${step.name}: invalid tick_current_index/tick_spacing.`);
+    }
+    if (ticksPerArray <= 0) {
+      throw new Error(`clmm_tick_arrays_contiguous:${step.name}: ticks_per_array must be a positive integer.`);
+    }
+    if (count <= 0 || count > 8) {
+      throw new Error(`clmm_tick_arrays_contiguous:${step.name}: count must be between 1 and 8.`);
+    }
+
+    const directionSign = aToB ? -1 : 1;
+    const span = tickSpacing * ticksPerArray;
+    const baseStartTickIndex = Math.floor(tickCurrentIndex / span) * span;
+    const result: Record<string, unknown> = {
+      start_tick_indexes: [],
+      tick_arrays: [],
+    };
+
+    for (let index = 0; index < count; index += 1) {
+      const startTickIndex = baseStartTickIndex + directionSign * index * span;
+      const tickArray = PublicKey.findProgramAddressSync(
+        [
+          new TextEncoder().encode('tick_array'),
+          whirlpool.toBuffer(),
+          new TextEncoder().encode(startTickIndex.toString()),
+        ],
+        programId,
+      )[0].toBase58();
+
+      (result.start_tick_indexes as unknown[]).push(startTickIndex);
+      (result.tick_arrays as unknown[]).push(tickArray);
+      result[`start_tick_index_${index}`] = startTickIndex;
+      result[`tick_array_${index}`] = tickArray;
+    }
+
+    return result;
+  }
+
+  throw new Error(`Unsupported resolver: ${step.resolver}`);
 }
 
 async function runComputeStep(step: ComputeStep, ctx: ResolverContext): Promise<unknown> {

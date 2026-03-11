@@ -1,7 +1,7 @@
 {
-  "$schema": "/idl/meta_idl.schema.v0.2.json",
-  "schema": "meta-idl.v0.2",
-  "version": "0.2.0",
+  "$schema": "/idl/meta_idl.schema.v0.3.json",
+  "schema": "meta-idl.v0.3",
+  "version": "0.3.0",
   "protocolId": "orca-whirlpool-mainnet",
   "sources": {
     "orca_whirlpool_directory": {
@@ -61,28 +61,21 @@
             "seeds": ["utf8:oracle", "$selected_pool.whirlpool"]
           },
           {
-            "name": "quote_data",
-            "resolver": "orca_quote_data",
+            "name": "tick_arrays",
+            "resolver": "clmm_tick_arrays_contiguous",
+            "program_id": "$protocol.programId",
             "whirlpool": "$selected_pool.whirlpool",
-            "whirlpool_data": "$whirlpool_data",
-            "oracle": "$oracle",
-            "a_to_b": "$selected_pool.aToB"
-          }
-        ],
-        "compute": [
-          {
-            "name": "quote",
-            "compute": "orca_swap_quote",
-            "quote_data": "$quote_data",
-            "amount": "$param.amount_in",
+            "tick_current_index": "$whirlpool_data.tick_current_index",
+            "tick_spacing": "$whirlpool_data.tick_spacing",
             "a_to_b": "$selected_pool.aToB",
-            "slippage_bps": "$param.slippage_bps"
+            "ticks_per_array": 88,
+            "count": 3
           }
         ],
         "args": {
           "amount": "$param.amount_in",
-          "other_amount_threshold": "$quote.otherAmountThreshold",
-          "sqrt_price_limit": "$quote.sqrtPriceLimit",
+          "other_amount_threshold": "1",
+          "sqrt_price_limit": "$selected_pool.sqrtPriceLimit",
           "amount_specified_is_input": true,
           "a_to_b": "$selected_pool.aToB"
         },
@@ -94,9 +87,9 @@
           "token_vault_a": "$whirlpool_data.token_vault_a",
           "token_owner_account_b": "$token_owner_account_b",
           "token_vault_b": "$whirlpool_data.token_vault_b",
-          "tick_array_0": "$quote.tickArray0",
-          "tick_array_1": "$quote.tickArray1",
-          "tick_array_2": "$quote.tickArray2",
+          "tick_array_0": "$tick_arrays.tick_array_0",
+          "tick_array_1": "$tick_arrays.tick_array_1",
+          "tick_array_2": "$tick_arrays.tick_array_2",
           "oracle": "$oracle"
         },
         "post": [

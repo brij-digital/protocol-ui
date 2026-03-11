@@ -638,6 +638,7 @@ export async function simulateIdlInstruction(options: {
   accounts: Record<string, string>;
   preInstructions?: TransactionInstruction[];
   postInstructions?: TransactionInstruction[];
+  includeAccounts?: string[];
   connection: Connection;
   wallet: WalletContextState;
 }): Promise<{
@@ -645,15 +646,30 @@ export async function simulateIdlInstruction(options: {
   logs: string[];
   unitsConsumed: number | null;
   error: string | null;
+  accounts: Array<{ address: string; dataBase64: string | null }>;
 }> {
   const { tx } = await prepareSignedIdlTransaction(options);
-  const simulation = await options.connection.simulateTransaction(tx);
+  const includeAccounts = options.includeAccounts?.map((address) => new PublicKey(address));
+  const simulation = await options.connection.simulateTransaction(tx, undefined, includeAccounts);
 
   return {
     ok: simulation.value.err === null,
     logs: simulation.value.logs ?? [],
     unitsConsumed: simulation.value.unitsConsumed ?? null,
     error: simulation.value.err ? JSON.stringify(simulation.value.err) : null,
+    accounts:
+      includeAccounts?.map((pubkey, index) => {
+        const account = simulation.value.accounts?.[index];
+        let dataBase64: string | null = null;
+        if (account?.data && Array.isArray(account.data) && typeof account.data[0] === 'string') {
+          dataBase64 = account.data[0];
+        }
+
+        return {
+          address: pubkey.toBase58(),
+          dataBase64,
+        };
+      }) ?? [],
   };
 }
 

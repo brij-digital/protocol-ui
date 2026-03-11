@@ -95,6 +95,36 @@ function App() {
     return `${text.slice(0, 4)}...${text.slice(-4)}`;
   }
 
+  function readU64Le(data: Uint8Array, offset: number): bigint {
+    if (data.length < offset + 8) {
+      return 0n;
+    }
+
+    let value = 0n;
+    for (let i = 0; i < 8; i += 1) {
+      value |= BigInt(data[offset + i]) << BigInt(i * 8);
+    }
+    return value;
+  }
+
+  function decodeBase64(base64: string): Uint8Array {
+    const binary = atob(base64);
+    const out = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      out[i] = binary.charCodeAt(i);
+    }
+    return out;
+  }
+
+  function readSplTokenAmountFromSimAccount(dataBase64: string | null): bigint {
+    if (!dataBase64) {
+      return 0n;
+    }
+
+    const bytes = decodeBase64(dataBase64);
+    return readU64Le(bytes, 64);
+  }
+
   function buildOwnerAtaPreInstructions(options: {
     owner: PublicKey;
     pairs: Array<{ ata: string; mint: string }>;
@@ -198,17 +228,10 @@ function App() {
           walletPublicKey,
         });
 
-        const derivedQuote = prepared.derived.quote as Record<string, unknown> | undefined;
         const selectedPool = prepared.derived.selected_pool as Record<string, unknown> | undefined;
         const whirlpoolData = prepared.derived.whirlpool_data as Record<string, unknown> | undefined;
         const inputTokenMeta = resolveToken(parsed.value.inputMint);
         const outputTokenMeta = resolveToken(parsed.value.outputMint);
-        const estimatedInAtomic = String(derivedQuote?.estimatedAmountIn ?? parsed.value.amountAtomic);
-        const estimatedOutAtomic = String(derivedQuote?.estimatedAmountOut ?? '0');
-        const estimatedInUi =
-          inputTokenMeta ? formatTokenAmount(estimatedInAtomic, inputTokenMeta.decimals) : estimatedInAtomic;
-        const estimatedOutUi =
-          outputTokenMeta ? formatTokenAmount(estimatedOutAtomic, outputTokenMeta.decimals) : estimatedOutAtomic;
 
         if (!whirlpoolData) {
           throw new Error('Missing derived whirlpool data from meta runtime.');
@@ -231,12 +254,20 @@ function App() {
 
         const aToB = Boolean(selectedPool?.aToB);
         const inputAta = aToB ? prepared.accounts.token_owner_account_a : prepared.accounts.token_owner_account_b;
+        const outputAta = aToB ? prepared.accounts.token_owner_account_b : prepared.accounts.token_owner_account_a;
         let inputBalanceAtomic = '0';
         try {
           const inputBalance = await connection.getTokenAccountBalance(new PublicKey(inputAta), 'confirmed');
           inputBalanceAtomic = inputBalance.value.amount;
         } catch {
           inputBalanceAtomic = '0';
+        }
+        let outputBalanceAtomic = '0';
+        try {
+          const outputBalance = await connection.getTokenAccountBalance(new PublicKey(outputAta), 'confirmed');
+          outputBalanceAtomic = outputBalance.value.amount;
+        } catch {
+          outputBalanceAtomic = '0';
         }
 
         const requiredInputAtomic = BigInt(parsed.value.amountAtomic);
@@ -253,13 +284,15 @@ function App() {
           );
         }
 
-        let rawPreviewCache: Record<string, unknown> | null = null;
-        const getRawPreview = async (): Promise<Record<string, unknown>> => {
-          if (rawPreviewCache) {
-            return rawPreviewCache;
+        const rawPreviewByArgs = new Map<string, Record<string, unknown>>();
+        const getRawPreview = async (args: Record<string, unknown>): Promise<Record<string, unknown>> => {
+          const cacheKey = JSON.stringify(args);
+          const cached = rawPreviewByArgs.get(cacheKey);
+          if (cached) {
+            return cached;
           }
 
-          rawPreviewCache = {
+          const preview = {
             preInstructions: preInstructions.map((ix) => ({
               programId: ix.programId.toBase58(),
               keys: ix.keys.map((key) => ({
@@ -281,50 +314,83 @@ function App() {
             mainInstruction: await previewIdlInstruction({
               protocolId: prepared.protocolId,
               instructionName: prepared.instructionName,
-              args: prepared.args,
+              args,
               accounts: prepared.accounts,
               walletPublicKey,
             }),
           };
 
-          return rawPreviewCache;
+          rawPreviewByArgs.set(cacheKey, preview);
+          return preview;
         };
 
-        if (parsed.kind === 'quote') {
-          let sim: Awaited<ReturnType<typeof simulateIdlInstruction>>;
-          try {
-            sim = await simulateIdlInstruction({
-              protocolId: prepared.protocolId,
-              instructionName: prepared.instructionName,
-              args: prepared.args,
-              accounts: prepared.accounts,
-              preInstructions,
-              postInstructions,
-              connection,
-              wallet,
-            });
-          } catch (error) {
-            const base = error instanceof Error ? error.message : 'Unknown simulation error.';
-            const rawPreview = await getRawPreview();
-            throw new Error(`${base}\n\nRaw instruction preview:\n${asPrettyJson(rawPreview)}`);
-          }
+        const provisionalArgs = prepared.args as Record<string, unknown>;
+        let simulation: Awaited<ReturnType<typeof simulateIdlInstruction>>;
+        try {
+          simulation = await simulateIdlInstruction({
+            protocolId: prepared.protocolId,
+            instructionName: prepared.instructionName,
+            args: provisionalArgs,
+            accounts: prepared.accounts,
+            preInstructions,
+            // Estimate output on token accounts before any optional close-account post steps.
+            postInstructions: [],
+            includeAccounts: [inputAta, outputAta],
+            connection,
+            wallet,
+          });
+        } catch (error) {
+          const base = error instanceof Error ? error.message : 'Unknown simulation error.';
+          const rawPreview = await getRawPreview(provisionalArgs);
+          throw new Error(`${base}\n\nRaw instruction preview:\n${asPrettyJson(rawPreview)}`);
+        }
 
-          const minOutAtomic = String(
-            derivedQuote?.otherAmountThreshold ??
-              derivedQuote?.other_amount_threshold ??
-              prepared.args.other_amount_threshold ??
-              '0',
+        if (!simulation.ok) {
+          const rawPreview = await getRawPreview(provisionalArgs);
+          const simError = simulation.error ?? 'unknown';
+          const logs = simulation.logs.join('\n');
+          throw new Error(
+            `Simulation failed: ${simError}\n${logs}\n\nRaw instruction preview:\n${asPrettyJson(rawPreview)}`,
           );
-          const minOutUi = outputTokenMeta ? formatTokenAmount(minOutAtomic, outputTokenMeta.decimals) : minOutAtomic;
-          let impliedRateText = 'n/a';
-          if (inputTokenMeta && outputTokenMeta && estimatedInAtomic !== '0') {
-            const inUi = new Decimal(estimatedInAtomic).div(new Decimal(10).pow(inputTokenMeta.decimals));
-            const outUi = new Decimal(estimatedOutAtomic).div(new Decimal(10).pow(outputTokenMeta.decimals));
-            if (inUi.gt(0)) {
-              impliedRateText = outUi.div(inUi).toSignificantDigits(8).toString();
-            }
-          }
+        }
 
+        const simInputAccount = simulation.accounts.find((entry) => entry.address === inputAta);
+        const simOutputAccount = simulation.accounts.find((entry) => entry.address === outputAta);
+        const preInputAtomic = availableInputAtomic;
+        const preOutputAtomic = BigInt(outputBalanceAtomic);
+        const postInputAtomic = readSplTokenAmountFromSimAccount(simInputAccount?.dataBase64 ?? null);
+        const postOutputAtomic = readSplTokenAmountFromSimAccount(simOutputAccount?.dataBase64 ?? null);
+
+        const estimatedInAtomicBigint = preInputAtomic > postInputAtomic ? preInputAtomic - postInputAtomic : 0n;
+        const estimatedOutAtomicBigint = postOutputAtomic > preOutputAtomic ? postOutputAtomic - preOutputAtomic : 0n;
+        if (estimatedOutAtomicBigint <= 0n) {
+          throw new Error('Could not estimate output from simulation (estimated output is zero).');
+        }
+
+        const minOutAtomicBigint = (estimatedOutAtomicBigint * BigInt(10_000 - parsed.value.slippageBps)) / 10_000n;
+        const minOutAtomic = (minOutAtomicBigint > 0n ? minOutAtomicBigint : 1n).toString();
+        const finalArgs = {
+          ...provisionalArgs,
+          other_amount_threshold: minOutAtomic,
+        };
+
+        const estimatedInAtomic = estimatedInAtomicBigint.toString();
+        const estimatedOutAtomic = estimatedOutAtomicBigint.toString();
+        const estimatedInUi =
+          inputTokenMeta ? formatTokenAmount(estimatedInAtomic, inputTokenMeta.decimals) : estimatedInAtomic;
+        const estimatedOutUi =
+          outputTokenMeta ? formatTokenAmount(estimatedOutAtomic, outputTokenMeta.decimals) : estimatedOutAtomic;
+        const minOutUi = outputTokenMeta ? formatTokenAmount(minOutAtomic, outputTokenMeta.decimals) : minOutAtomic;
+        let impliedRateText = 'n/a';
+        if (inputTokenMeta && outputTokenMeta && estimatedInAtomic !== '0') {
+          const inUi = new Decimal(estimatedInAtomic).div(new Decimal(10).pow(inputTokenMeta.decimals));
+          const outUi = new Decimal(estimatedOutAtomic).div(new Decimal(10).pow(outputTokenMeta.decimals));
+          if (inUi.gt(0)) {
+            impliedRateText = outUi.div(inUi).toSignificantDigits(8).toString();
+          }
+        }
+
+        if (parsed.kind === 'quote') {
           pushMessage(
             'assistant',
             [
@@ -336,8 +402,7 @@ function App() {
               `min output @ ${parsed.value.slippageBps} bps: ${minOutUi} ${parsed.value.outputToken}`,
               `implied rate: 1 ${parsed.value.inputToken} ≈ ${impliedRateText} ${parsed.value.outputToken}`,
               `tick arrays: ${compactPubkey(prepared.accounts.tick_array_0)}, ${compactPubkey(prepared.accounts.tick_array_1)}, ${compactPubkey(prepared.accounts.tick_array_2)}`,
-              `simulation: ${sim.ok ? 'ok' : 'failed'}${sim.unitsConsumed ? ` (${sim.unitsConsumed} CU)` : ''}`,
-              sim.error ? `error: ${sim.error}` : 'error: none',
+              `simulation: ok${simulation.unitsConsumed ? ` (${simulation.unitsConsumed} CU)` : ''}`,
               'Run /swap with same params to execute.',
             ].join('\n'),
           );
@@ -349,7 +414,7 @@ function App() {
           result = await sendIdlInstruction({
             protocolId: prepared.protocolId,
             instructionName: prepared.instructionName,
-            args: prepared.args,
+            args: finalArgs,
             accounts: prepared.accounts,
             preInstructions,
             postInstructions,
@@ -358,7 +423,7 @@ function App() {
           });
         } catch (error) {
           const base = error instanceof Error ? error.message : 'Unknown send error.';
-          const rawPreview = await getRawPreview();
+          const rawPreview = await getRawPreview(finalArgs);
           throw new Error(`${base}\n\nRaw instruction preview:\n${asPrettyJson(rawPreview)}`);
         }
 

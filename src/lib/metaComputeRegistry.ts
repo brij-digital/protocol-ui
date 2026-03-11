@@ -1,6 +1,5 @@
 import type { Idl } from '@coral-xyz/anchor';
 import type { Connection, PublicKey } from '@solana/web3.js';
-import { runOrcaSwapQuoteCompute } from './protocols/orca/compute';
 
 export type ComputeStepResolved = {
   name: string;
@@ -31,7 +30,6 @@ export type ComputeRuntimeContext = {
 type ComputeExecutor = (step: ComputeStepResolved, ctx: ComputeRuntimeContext) => Promise<unknown>;
 
 const COMPUTE_EXECUTORS: Record<string, ComputeExecutor> = {
-  orca_swap_quote: runOrcaSwapQuoteCompute,
 };
 
 export async function runRegisteredComputeStep(step: ComputeStepResolved, ctx: ComputeRuntimeContext): Promise<unknown> {
