@@ -1,340 +1,142 @@
 # Meta IDL Tutorial (Espresso Cash MVP)
 
-This document explains how the current Meta IDL pipeline works in this repo, from user command to on-chain transaction.
+This document reflects the current implementation in this repo.
 
-## 1) Quick Mental Model
+## 1) Mental Model
 
-- **Base IDL** defines program instruction shapes (args + accounts + binary encoding).
-- **Meta IDL** defines how to derive those args/accounts from user intent.
-- **Runtime** executes the Meta IDL derivation steps, then uses base IDL to build instruction data.
+- **Base IDL** (`orca_whirlpool.json`) defines instruction/account encoding.
+- **Meta IDL** (`orca_whirlpool.meta.json`) defines how to turn a high-level action into concrete args/accounts.
+- **Runtime** executes Meta phases and then calls the base IDL builder/simulator/sender.
 
-In this MVP:
-- **Protocol**: Orca Whirlpool
-- **User commands**: `/quote` and `/swap`
-- **Main action**: `swap_exact_in` (compiled to `swap_v2`)
+Current protocol/action:
+- Protocol: Orca Whirlpools mainnet
+- User commands: `/quote`, `/swap`
+- Action: `swap_exact_in` -> instruction `swap_v2`
 
----
+## 2) Key Files
 
-## 2) Files You Should Know
-
-- Base IDL: `public/idl/orca_whirlpool.json`
-- Meta IDL: `public/idl/orca_whirlpool.meta.json`
+- Meta runtime: `src/lib/metaIdlRuntime.ts`
+- Context runtime (generic): `src/lib/metaContextRegistry.ts`
+- Orca context adapter (protocol-specific): `src/protocols/orca/contextResolvers.ts`
+- Compute runtime: `src/lib/metaComputeRegistry.ts`
+- App command flow: `src/App.tsx`
+- Meta spec: `public/idl/orca_whirlpool.meta.json`
 - Meta schema: `public/idl/meta_idl.schema.v0.3.json`
-- Runtime: `src/lib/metaIdlRuntime.ts`
-- Context registry: `src/lib/metaContextRegistry.ts`
-- Compute registry: `src/lib/metaComputeRegistry.ts`
-- App command handling: `src/App.tsx`
 
----
+## 3) Runtime Vocabulary
 
-## 3) Vocabulary (Current Base)
+Action pipeline phases:
+1. `context[]`
+2. `derive[]`
+3. `compute[]`
+4. Build IDL instruction
+5. Simulate (`/quote`) or send (`/swap`)
 
-### Core objects
-- **Intent**: high-level operation (`swap_exact_in`).
-- **Action**: protocol-specific implementation of that intent (`actions.swap_exact_in`).
-- **Template**: reusable declarative action template (`templates.orca.swap_exact_in.v1`).
-- **Context step**: one external context-gather step in `context[]`.
-- **Resolver**: one primitive data-derivation step in `derive[]`.
-- **Compute step**: one deterministic compute/evaluate step in `compute[]`.
+Current context steps used by Orca action:
+- `context.orca_whirlpool_pools_for_pair`
+- `context.pick_list_item`
 
-### Implemented resolvers
+Current derive steps used by Orca action:
 - `wallet_pubkey`
-- `lookup`
 - `decode_account`
 - `ata`
 - `pda`
-- `unix_timestamp`
 
-### Implemented context steps
-- `context.mock`
-- `context.query_http_json`
-- `context.compare_values`
-
-### Implemented compute steps
-- `math.add`
+Current compute steps used by Orca action:
 - `math.mul`
 - `math.floor_div`
 - `list.range_map`
 - `pda(seed_spec)`
 
-### Template variables
-- `$input.*`: action input values
-- `$param.*`: template params
-- `$protocol.*`: protocol metadata from registry
-- `$<context_step_name>.*`: outputs from previous context steps
-- `$<derive_step_name>.*`: outputs from previous derive steps
+## 4) What `context[]` Does Now
 
----
+In `templates.orca.swap_exact_in.v1.expand.context`:
 
-## 4) End-to-End Flow (`/quote` or `/swap`)
+1. `pool_candidates` (`context.orca_whirlpool_pools_for_pair`)
+- Runs on-chain discovery via RPC `getProgramAccounts` against Orca program.
+- Filters by Whirlpool account discriminator at RPC level.
+- Decodes accounts and keeps only pair matches `(token_in_mint, token_out_mint)` (order-insensitive).
+- Produces normalized candidates with:
+  - `whirlpool`, `tokenMintA`, `tokenMintB`, `aToB`, `tickArrayDirection`, `tickSpacing`, `liquidity`.
+- Sort order: liquidity desc, then pubkey asc.
 
-Example command:
+2. `selected_pool` (`context.pick_list_item`)
+- Picks `pool_candidates[input.pool_index]`.
+- `pool_index` default is `0`.
 
-```text
-/swap EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v So11111111111111111111111111111111111111112 0.01 50
-```
+## 5) App-Level Pool Selection UX
 
-### Step A: Parse user command
-`src/App.tsx` parses command and converts UI amount into atomic integer string (`amount_in`).
+`src/App.tsx` adds a two-pass flow:
 
-### Step B: Prepare meta instruction
-`prepareMetaInstruction(...)` in `metaIdlRuntime.ts`:
-1. Loads protocol metadata from registry.
-2. Loads Meta IDL (`orca_whirlpool.meta.json`).
-3. Materializes action `swap_exact_in`:
-   - applies `use` template
-   - expands template with `$param.*`
-4. Hydrates missing input defaults (e.g., `slippage_bps: 50`).
-5. Executes `context[]` steps in order.
-6. Executes `derive[]` resolvers (data only) in order.
-7. Executes `compute[]` steps in order.
-8. Produces final:
-   - `instructionName`
-   - `args`
-   - `accounts`
-   - optional `postInstructions`
+1. First run `/quote` or `/swap` without explicit `pool_index`.
+2. Runtime returns `pool_candidates` and a default `selected_pool` (`index 0`).
+3. If candidates count > 1, app pauses and prompts user to choose:
+- Click button in the optional list UI, or
+- Type `1`, `2`, `3`, ...
+4. App reruns the same action with chosen `pool_index`.
+5. Flow continues to derive/compute/simulate/send.
 
-For current Orca template:
-- `instructionName = swap_v2`
-- `remaining_accounts_info = null` (no supplemental arrays in this MVP)
+If only one pool exists, no prompt is shown and execution continues immediately.
 
-### Step C: Quote vs Swap split
-- `/quote` calls `simulateIdlInstruction(...)`
-- `/swap` calls `sendIdlInstruction(...)`
+## 6) Derive + Compute + Build
 
-Both use the **same derived plan**; only execution mode differs.
+After `selected_pool` is fixed:
 
----
+Derive:
+- `wallet`
+- `whirlpool_data` from `selected_pool.whirlpool`
+- `token_owner_account_a/b` (ATAs)
+- `oracle` PDA
 
-## 5) What Each Context + Derive Step Does (Orca template)
+Compute tick arrays:
+- `ticks_per_array = tick_spacing * 88`
+- `direction_step = ticks_per_array * tickArrayDirection`
+- `current_array_index = floor_div(tick_current_index, ticks_per_array)`
+- `current_start_index = current_array_index * ticks_per_array`
+- `tick_array_starts = range_map(current_start_index, direction_step, 3)`
+- `tick_arrays = pda(seed_spec)` over `tick_array_starts`
 
-From `templates.orca.swap_exact_in.v1.expand.context`:
+Build args/accounts:
+- `amount = input.amount_in`
+- `other_amount_threshold = "1"` provisional
+- `sqrt_price_limit = "0"`
+- `a_to_b = selected_pool.aToB`
+- accounts wired from derive/compute outputs
 
-1. `market_context` (`context.mock`)
-- Current demo placeholder to prove the phase wiring.
-- Stores mock online context (provider/mode/pair metadata).
-- Does not yet modify quote/swap selection logic.
+## 7) Quote vs Swap
 
-From `templates.orca.swap_exact_in.v1.expand.derive`:
+Both paths share the same prepared plan.
 
-2. `wallet` (`wallet_pubkey`)
-- Output: connected wallet pubkey.
+`/quote`:
+- Simulates with provisional threshold.
+- Computes estimated output and min output from slippage bps.
+- Displays summary.
 
-3. `selected_pool` (`lookup`)
-- Source: `orca_whirlpool_directory` (local JSON DB)
-- Filter: `tokenInMint`, `tokenOutMint`
-- Output: one pool row containing `whirlpool`, `aToB`, etc.
+`/swap`:
+- Reuses same plan.
+- Replaces `other_amount_threshold` with computed min output.
+- Sends transaction.
 
-4. `whirlpool_data` (`decode_account`)
-- Reads and decodes Whirlpool account data from chain.
-- Needed fields include token mints, vaults, tick spacing/current tick.
+## 8) Why It Feels Slow
 
-5. `token_owner_account_a` + `token_owner_account_b` (`ata`)
-- Derives user ATAs for pool token mints.
+Pool discovery currently scans Orca program accounts (with discriminator filter), then decodes/filter locally. This is trust-minimized and cacheless, but slower than using an index.
 
-6. `oracle` (`pda`)
-- Derives Orca oracle PDA with seeds.
-
-7. Tick arrays
-- In current v0.3 template, tick arrays are derived declaratively in `compute[]`:
-  - `ticks_per_array = tick_spacing * 88`
-  - `direction_step = ticks_per_array * tickArrayDirection`
-  - `current_start_index = floor_div(tick_current_index, ticks_per_array) * ticks_per_array`
-  - `tick_array_starts = list.range_map(base=current_start_index, step=direction_step, count=3)`
-  - `tick_arrays = pda(seed_spec)` mapped over `tick_array_starts`
-
-## 6) Quote/Swap Threshold Flow (No Kernel)
-
-- Meta derive resolves base accounts/PDAs and compute resolves tick arrays.
-- App simulates the candidate swap tx with `other_amount_threshold = 1`.
-- App reads simulated output token delta.
-- App computes `min_out` from user slippage bps.
-- `/quote` displays estimate + min out.
-- `/swap` sends tx with computed `other_amount_threshold`.
-
----
-
-## 7) Why Simulation-First
-
-For Whirlpool swap, you still need runtime values that are not directly user inputs:
-- `tick_array_0/1/2`
-- `other_amount_threshold`
-
-Execution from IDL does not require protocol quote kernels.
-Simulation gives a protocol-agnostic output estimate and lets the app compute slippage threshold before send.
-
----
-
-## 8) Template System (v0.3)
-
-In Meta IDL v0.3:
-- `templates.<name>.expand` stores reusable action fragments.
-- `actions.<id>.use[]` applies those templates.
-
-Current action:
-- `actions.swap_exact_in` only defines input shape + template call.
-- Full derive/compute/args/accounts are in template `orca.swap_exact_in.v1`.
-
-Benefits:
-- Less duplication
-- Easier protocol upgrades (new template versions)
-- Cleaner intent layer
-
----
-
-## 9) Common Questions
-
-### Is this code or declarative?
-- Meta IDL itself is declarative JSON.
-- Runtime has code, but executes only known resolver/compute primitives.
-- Template expansion is data expansion, not arbitrary script execution.
-
-### Why not derive everything in parallel?
-- Some steps are parallelizable.
-- Others have hard dependencies (e.g., quote depends on pool + decoded state + ATAs + oracle).
-- Current implementation is sequential for determinism/simplicity.
-
-### Why quote and swap share same plan?
-- To avoid drift between “what we quote” and “what we execute.”
-- Difference is only simulation vs send path.
-
----
-
-## 10) Practical Debug Checklist
+## 9) Debug Checklist
 
 If `/quote` or `/swap` fails:
 
-1. Check command input mint order and amount.
-2. Check context outputs (for now: `market_context` mock exists and is well-formed).
-3. Verify pool exists in `orca_whirlpool.directory.db.json`.
-4. Verify resolved Whirlpool account decodes correctly.
-5. Check compute outputs: `tick_array_starts` and `tick_arrays`.
-6. Check simulation/quote errors (slippage constraints, account setup, liquidity conditions).
-7. Validate final args/accounts preview.
+1. Check wallet connected.
+2. Verify pair mints are correct.
+3. Check `pool_candidates` not empty.
+4. If prompted, ensure selected index is in range.
+5. Verify `whirlpool_data` decode succeeds.
+6. Check computed `tick_array_starts` / `tick_arrays`.
+7. Inspect simulation logs and raw instruction preview.
 
----
+## 10) Next Architecture Step
 
-## 11) Concrete Walkthrough (USDC -> SOL)
+Current split is:
+- Generic runtime in `metaContextRegistry`
+- Protocol logic in `src/protocols/orca/contextResolvers.ts`
 
-This is the exact flow for:
-
-```text
-/swap EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v So11111111111111111111111111111111111111112 0.01 50
-```
-
-### A) Parse and normalize input (`src/App.tsx`)
-
-1. Parse command into:
-- `token_in_mint = EPjF...` (USDC)
-- `token_out_mint = So11...` (SOL)
-- `amount = 0.01`
-- `slippage_bps = 50`
-2. Convert UI amount to atomic:
-- `amount_in = "10000"` (USDC 6 decimals)
-
-### B) Materialize action (`src/lib/metaIdlRuntime.ts`)
-
-1. Load action `swap_exact_in` from `actions`.
-2. Expand template `orca.swap_exact_in.v1` from `templates`.
-3. Bind template params:
-- `$param.token_in_mint = $input.token_in_mint`
-- `$param.token_out_mint = $input.token_out_mint`
-- `$param.amount_in = $input.amount_in`
-- `$param.slippage_bps = $input.slippage_bps`
-
-### C) Context phase (`context[]`)
-
-1. `market_context` (`context.mock`)
-- Returns a mocked context payload.
-- Stored in runtime scope as `$market_context`.
-- Current payload is informational (does not alter route selection yet).
-
-### D) Derive phase (`derive[]`)
-
-1. `wallet` (`wallet_pubkey`)
-- Reads connected wallet pubkey.
-2. `selected_pool` (`lookup`)
-- Directory filter by `tokenInMint` and `tokenOutMint`.
-- Returns row with `whirlpool`, `aToB`, `tickArrayDirection`.
-3. `whirlpool_data` (`decode_account`)
-- Decodes on-chain Whirlpool account.
-- Provides `tick_current_index`, `tick_spacing`, token mints, vaults.
-4. `token_owner_account_a/b` (`ata`)
-- Derives user token ATAs for mint A and mint B.
-5. `oracle` (`pda`)
-- Derives oracle PDA from seeds `["oracle", whirlpool]`.
-
-### E) Compute phase (`compute[]`, `src/lib/metaComputeRegistry.ts`)
-
-Using one recent run values:
-- `tick_current_index = -24642`
-- `tick_spacing = 4`
-- `tickArrayDirection = +1` (USDC -> SOL direction)
-
-Steps:
-1. `ticks_per_array = math.mul([tick_spacing, 88]) = 352`
-2. `direction_step = math.mul([ticks_per_array, tickArrayDirection]) = 352`
-3. `current_array_index = math.floor_div(-24642, 352) = -71`
-4. `current_start_index = math.mul([-71, 352]) = -24992`
-5. `tick_array_starts = list.range_map(base=-24992, step=352, count=3)`
-- Result: `[-24992, -24640, -24288]`
-6. `tick_arrays = pda(seed_spec)` with seeds:
-- `utf8("tick_array")`
-- `pubkey(whirlpool)`
-- `item_utf8` (each start index rendered as string)
-
-Resulting PDAs:
-- `65cUCgkA...` (start `-24992`)
-- `8Rs3qKaV...` (start `-24640`)
-- `FhCuVGm1...` (start `-24288`)
-
-### F) Build phase (IDL encode)
-
-1. Resolve `args` from templates:
-- `amount = "10000"`
-- `other_amount_threshold = "1"` (placeholder before simulation policy update)
-- `amount_specified_is_input = true`
-- `a_to_b = selected_pool.aToB`
-2. Resolve `accounts`:
-- Pool/vault/oracle from derive
-- Tick arrays from compute (`$tick_arrays.0/1/2`)
-3. Encode instruction data with base IDL.
-
-### G) Execute path split (`src/App.tsx`)
-
-1. `/quote`:
-- Simulate built transaction
-- Extract estimated token deltas from simulation
-- Compute `min_out` from `slippage_bps`
-- Display quote summary
-2. `/swap`:
-- Reuse same derived+computed plan
-- Set final `other_amount_threshold = min_out`
-- Send transaction
-
-This is why quote and swap stay aligned: same declarative plan, different final action (simulate vs send).
-
----
-
-## 12) Recommended Next Improvements
-
-1. Add `/meta-plan <action>` for human-readable expanded steps.
-2. Add `/meta-expand <action>` for compiled action JSON.
-3. Add meta linter (unknown refs, missing required fields, unused derives).
-4. Add fixture tests for intent -> derived args/accounts determinism.
-
----
-
-## 13) Context Roadmap (From Mock to Live)
-
-Current state:
-- `context[]` runs first.
-- Orca uses `context.mock` (`market_context`) as a placeholder.
-
-Target state:
-1. Add provider queries with `context.query_http_json` (multiple providers).
-2. Normalize each provider result to a common candidate shape.
-3. Select winner with `context.compare_values` (e.g. max estimated output).
-4. Feed selected context into derive/build as `$best_quote_context.*`.
-
-This keeps online/provider logic declarative in Meta IDL data, while runtime stays a fixed audited primitive executor.
+To scale, add a protocol adapter registry so each protocol registers context/compute extensions explicitly by namespace/version.
