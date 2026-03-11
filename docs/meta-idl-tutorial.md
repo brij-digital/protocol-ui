@@ -87,7 +87,6 @@ Example command:
 
 For current Orca macro:
 - `instructionName = swap_v2`
-- `sqrt_price_limit = 0` (v2 sentinel)
 - `remaining_accounts_info = null` (no supplemental arrays in this MVP)
 
 ### Step C: Quote vs Swap split
@@ -143,7 +142,6 @@ From `macros.orca.swap_exact_in.v1.expand.derive`:
 
 For Whirlpool swap, you still need runtime values that are not directly user inputs:
 - `tick_array_0/1/2`
-- `sqrt_price_limit`
 - `other_amount_threshold`
 
 Execution from IDL does not require protocol quote kernels.
@@ -233,7 +231,7 @@ This is the exact flow for:
 - Reads connected wallet pubkey.
 2. `selected_pool` (`lookup`)
 - Directory filter by `tokenInMint` and `tokenOutMint`.
-- Returns row with `whirlpool`, `aToB`, `tickArrayDirection`, `sqrtPriceLimit`.
+- Returns row with `whirlpool`, `aToB`, `tickArrayDirection`.
 3. `whirlpool_data` (`decode_account`)
 - Decodes on-chain Whirlpool account.
 - Provides `tick_current_index`, `tick_spacing`, token mints, vaults.
@@ -271,7 +269,6 @@ Resulting PDAs:
 1. Resolve `args` from templates:
 - `amount = "10000"`
 - `other_amount_threshold = "1"` (placeholder before simulation policy update)
-- `sqrt_price_limit = selected_pool.sqrtPriceLimit`
 - `amount_specified_is_input = true`
 - `a_to_b = selected_pool.aToB`
 2. Resolve `accounts`:
