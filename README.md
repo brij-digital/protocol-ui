@@ -45,6 +45,8 @@ Supported token aliases for `/swap` and `/quote`:
 - Tutorial: `docs/meta-idl-tutorial.md`
 - Local pool directory DB: `public/idl/orca_whirlpool.directory.db.json`
 - Registry: `public/idl/registry.json`
+- Resolver registry (plugin dispatch): `src/lib/metaResolverRegistry.ts`
+- Orca resolver plugin: `src/lib/protocols/orca/resolver.ts`
 - Compute registry (plugin dispatch): `src/lib/metaComputeRegistry.ts`
 - Orca compute plugin: `src/lib/protocols/orca/compute.ts`
 
@@ -63,21 +65,27 @@ Meta IDL v0.2 resolver primitives currently implemented in runtime:
 - `ata`
 - `pda`
 - `lookup` (query indexed relation from local/remote JSON directory)
+- `orca_quote_data` (fetch+decode Whirlpool/Oracle/TickArray quote inputs)
 
 Meta IDL v0.2 compute primitives currently implemented in runtime:
-- `orca_swap_quote` (simulation-based quote compute)
+- `orca_swap_quote` (pure Orca core math compute over resolver output)
 
-`orca_swap_quote` compute supports declarative tick-array strategy:
+`orca_quote_data` + `orca_swap_quote` pattern:
+
+```json
+{
+  "name": "quote_data",
+  "resolver": "orca_quote_data",
+  "whirlpool": "$selected_pool.whirlpool",
+  "a_to_b": "$selected_pool.aToB"
+}
+```
 
 ```json
 {
   "name": "quote",
   "compute": "orca_swap_quote",
-  "tick_arrays": {
-    "search_start_offsets": [0, -1, 1, -2, 2, -3, 3],
-    "window_size": 3,
-    "allow_reuse_last": true
-  }
+  "quote_data": "$quote_data"
 }
 ```
 
@@ -121,6 +129,6 @@ npm run build
 
 - The app targets `mainnet-beta` by default.
 - Swap execution requires a connected Phantom wallet.
-- `/swap` and `/quote` are strict declarative wrappers: they resolve accounts/PDAs/tick arrays from meta IDL, derive quotes with RPC simulation, then call `write-raw/read-raw` under the hood.
+- `/swap` and `/quote` are strict declarative wrappers: derive resolvers fetch account state first, compute runs pure quote math, then app calls `write-raw/read-raw` under the hood.
 - Meta execution pipeline is split into phases: `derive` (data gather) -> `compute` (quote/evaluation) -> IDL build -> `simulate` or `send`.
 - SOL output is auto-unwrapped by default via declarative meta `post` step (`spl_token_close_account`).

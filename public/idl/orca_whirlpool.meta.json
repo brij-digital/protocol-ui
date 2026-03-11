@@ -59,21 +59,24 @@
             "resolver": "pda",
             "program_id": "$protocol.programId",
             "seeds": ["utf8:oracle", "$selected_pool.whirlpool"]
+          },
+          {
+            "name": "quote_data",
+            "resolver": "orca_quote_data",
+            "whirlpool": "$selected_pool.whirlpool",
+            "whirlpool_data": "$whirlpool_data",
+            "oracle": "$oracle",
+            "a_to_b": "$selected_pool.aToB"
           }
         ],
         "compute": [
           {
             "name": "quote",
             "compute": "orca_swap_quote",
-            "whirlpool": "$selected_pool.whirlpool",
+            "quote_data": "$quote_data",
             "amount": "$param.amount_in",
             "a_to_b": "$selected_pool.aToB",
-            "slippage_bps": "$param.slippage_bps",
-            "tick_arrays": {
-              "search_start_offsets": [0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5, -6, 6],
-              "window_size": 3,
-              "allow_reuse_last": true
-            }
+            "slippage_bps": "$param.slippage_bps"
           }
         ],
         "args": {

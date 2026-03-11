@@ -21,6 +21,8 @@ In this MVP:
 - Meta IDL: `public/idl/orca_whirlpool.meta.json`
 - Meta schema: `public/idl/meta_idl.schema.v0.2.json`
 - Runtime: `src/lib/metaIdlRuntime.ts`
+- Resolver registry: `src/lib/metaResolverRegistry.ts`
+- Orca resolver plugin: `src/lib/protocols/orca/resolver.ts`
 - Compute registry: `src/lib/metaComputeRegistry.ts`
 - Orca compute plugin: `src/lib/protocols/orca/compute.ts`
 - App command handling: `src/App.tsx`
@@ -42,6 +44,7 @@ In this MVP:
 - `decode_account`
 - `ata`
 - `pda`
+- `orca_quote_data`
 
 ### Implemented compute steps
 - `orca_swap_quote`
@@ -111,15 +114,21 @@ From `macros.orca.swap_exact_in.v1.expand.derive`:
 5. `oracle` (`pda`)
 - Derives Orca oracle PDA with seeds.
 
+6. `quote_data` (`orca_quote_data`)
+- Fetches and decodes quote inputs before compute:
+  - Whirlpool state (if not already provided)
+  - Oracle state (if initialized)
+  - Deterministic 3 contiguous tick arrays from current tick + swap direction
+- Requires all 3 tick arrays to exist on-chain (no fallback)
+- Returns `quote_data` for pure compute.
+
 ## 6) What Compute Step Does (Orca macro)
 
 From `macros.orca.swap_exact_in.v1.expand.compute`:
 
 1. `quote` (`orca_swap_quote`)
-- Builds candidate swap instruction(s)
-- Tries tick-array candidates (from declarative tick strategy)
-- Simulates transaction
-- Extracts estimated in/out
+- Consumes pre-resolved `quote_data` from derive phase
+- Runs Orca core quote math (`swapQuoteByInputToken`) with no RPC reads
 - Computes `other_amount_threshold` (slippage-protected min out)
 - Returns final quote fields (`tickArray0/1/2`, `sqrtPriceLimit`, thresholds, estimates)
 
@@ -132,7 +141,9 @@ For Whirlpool swap, you still need runtime values that are not directly user inp
 - `sqrt_price_limit`
 - `other_amount_threshold`
 
-The compute step derives these deterministically via chain state + simulation.
+The resolver+compute split derives these deterministically:
+- resolver gathers chain state
+- compute performs pure math over resolved state.
 
 ---
 
@@ -178,8 +189,8 @@ If `/quote` or `/swap` fails:
 1. Check command input mint order and amount.
 2. Verify pool exists in `orca_whirlpool.directory.db.json`.
 3. Verify resolved Whirlpool account decodes correctly.
-4. Check tick-array candidate search config.
-5. Check simulation error logs and custom error codes.
+4. Check `quote_data` resolver errors (missing primary tick array / decode issues).
+5. Check compute/quote errors (tick array availability, math preconditions, slippage constraints).
 6. Validate final args/accounts preview.
 
 ---
