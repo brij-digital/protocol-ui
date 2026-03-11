@@ -11,7 +11,7 @@ This document explains how the current Meta IDL pipeline works in this repo, fro
 In this MVP:
 - **Protocol**: Orca Whirlpool
 - **User commands**: `/quote` and `/swap`
-- **Main action**: `swap_exact_in`
+- **Main action**: `swap_exact_in` (compiled to `swap_v2`)
 
 ---
 
@@ -84,6 +84,11 @@ Example command:
    - `args`
    - `accounts`
    - optional `postInstructions`
+
+For current Orca macro:
+- `instructionName = swap_v2`
+- `sqrt_price_limit = 0` (v2 sentinel)
+- `remaining_accounts_info = null` (no supplemental arrays in this MVP)
 
 ### Step C: Quote vs Swap split
 - `/quote` calls `simulateIdlInstruction(...)`
@@ -188,13 +193,109 @@ If `/quote` or `/swap` fails:
 1. Check command input mint order and amount.
 2. Verify pool exists in `orca_whirlpool.directory.db.json`.
 3. Verify resolved Whirlpool account decodes correctly.
-4. Check directory-provided tick arrays and oracle derive output.
+4. Check compute outputs: `tick_array_starts` and `tick_arrays`.
 5. Check simulation/quote errors (slippage constraints, account setup, liquidity conditions).
 6. Validate final args/accounts preview.
 
 ---
 
-## 11) Recommended Next Improvements
+## 11) Concrete Walkthrough (USDC -> SOL)
+
+This is the exact flow for:
+
+```text
+/swap EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v So11111111111111111111111111111111111111112 0.01 50
+```
+
+### A) Parse and normalize input (`src/App.tsx`)
+
+1. Parse command into:
+- `token_in_mint = EPjF...` (USDC)
+- `token_out_mint = So11...` (SOL)
+- `amount = 0.01`
+- `slippage_bps = 50`
+2. Convert UI amount to atomic:
+- `amount_in = "10000"` (USDC 6 decimals)
+
+### B) Materialize action (`src/lib/metaIdlRuntime.ts`)
+
+1. Load action `swap_exact_in` from `actions`.
+2. Expand macro `orca.swap_exact_in.v1` from `macros`.
+3. Bind macro params:
+- `$param.token_in_mint = $input.token_in_mint`
+- `$param.token_out_mint = $input.token_out_mint`
+- `$param.amount_in = $input.amount_in`
+- `$param.slippage_bps = $input.slippage_bps`
+
+### C) Derive phase (`derive[]`)
+
+1. `wallet` (`wallet_pubkey`)
+- Reads connected wallet pubkey.
+2. `selected_pool` (`lookup`)
+- Directory filter by `tokenInMint` and `tokenOutMint`.
+- Returns row with `whirlpool`, `aToB`, `tickArrayDirection`, `sqrtPriceLimit`.
+3. `whirlpool_data` (`decode_account`)
+- Decodes on-chain Whirlpool account.
+- Provides `tick_current_index`, `tick_spacing`, token mints, vaults.
+4. `token_owner_account_a/b` (`ata`)
+- Derives user token ATAs for mint A and mint B.
+5. `oracle` (`pda`)
+- Derives oracle PDA from seeds `["oracle", whirlpool]`.
+
+### D) Compute phase (`compute[]`, `src/lib/metaComputeRegistry.ts`)
+
+Using one recent run values:
+- `tick_current_index = -24642`
+- `tick_spacing = 4`
+- `tickArrayDirection = +1` (USDC -> SOL direction)
+
+Steps:
+1. `ticks_per_array = math.mul([tick_spacing, 88]) = 352`
+2. `direction_step = math.mul([ticks_per_array, tickArrayDirection]) = 352`
+3. `current_array_index = math.floor_div(-24642, 352) = -71`
+4. `current_start_index = math.mul([-71, 352]) = -24992`
+5. `tick_array_starts = list.range_map(base=-24992, step=352, count=3)`
+- Result: `[-24992, -24640, -24288]`
+6. `tick_arrays = pda(seed_spec)` with seeds:
+- `utf8("tick_array")`
+- `pubkey(whirlpool)`
+- `item_utf8` (each start index rendered as string)
+
+Resulting PDAs:
+- `65cUCgkA...` (start `-24992`)
+- `8Rs3qKaV...` (start `-24640`)
+- `FhCuVGm1...` (start `-24288`)
+
+### E) Build phase (IDL encode)
+
+1. Resolve `args` from templates:
+- `amount = "10000"`
+- `other_amount_threshold = "1"` (placeholder before simulation policy update)
+- `sqrt_price_limit = selected_pool.sqrtPriceLimit`
+- `amount_specified_is_input = true`
+- `a_to_b = selected_pool.aToB`
+2. Resolve `accounts`:
+- Pool/vault/oracle from derive
+- Tick arrays from compute (`$tick_arrays.0/1/2`)
+3. Encode instruction data with base IDL.
+
+### F) Execute path split (`src/App.tsx`)
+
+1. `/quote`:
+- Simulate built transaction
+- Extract estimated token deltas from simulation
+- Compute `min_out` from `slippage_bps`
+- Display quote summary
+2. `/swap`:
+- Reuse same derived+computed plan
+- Set final `other_amount_threshold = min_out`
+- Send transaction
+
+This is why quote and swap stay aligned: same declarative plan, different final action (simulate vs send).
+
+---
+
+## 12) Recommended Next Improvements
 
 1. Add `/meta-plan <action>` for human-readable expanded steps.
 2. Add `/meta-expand <action>` for compiled action JSON.

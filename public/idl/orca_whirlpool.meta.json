@@ -20,7 +20,7 @@
         "slippage_bps": { "type": "u16" }
       },
       "expand": {
-        "instruction": "swap",
+        "instruction": "swap_v2",
         "derive": [
           {
             "name": "wallet",
@@ -105,14 +105,19 @@
         "args": {
           "amount": "$param.amount_in",
           "other_amount_threshold": "1",
-          "sqrt_price_limit": "$selected_pool.sqrtPriceLimit",
+          "sqrt_price_limit": "0",
           "amount_specified_is_input": true,
-          "a_to_b": "$selected_pool.aToB"
+          "a_to_b": "$selected_pool.aToB",
+          "remaining_accounts_info": null
         },
         "accounts": {
-          "token_program": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "token_program_a": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "token_program_b": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "memo_program": "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr",
           "token_authority": "$wallet",
           "whirlpool": "$selected_pool.whirlpool",
+          "token_mint_a": "$whirlpool_data.token_mint_a",
+          "token_mint_b": "$whirlpool_data.token_mint_b",
           "token_owner_account_a": "$token_owner_account_a",
           "token_vault_a": "$whirlpool_data.token_vault_a",
           "token_owner_account_b": "$token_owner_account_b",

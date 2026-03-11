@@ -43,6 +43,7 @@ Supported token aliases for `/swap` and `/quote`:
 - Meta IDL: `public/idl/orca_whirlpool.meta.json`
 - Meta IDL schema: `public/idl/meta_idl.schema.v0.3.json`
 - Tutorial: `docs/meta-idl-tutorial.md`
+  - Detailed end-to-end walkthrough: section `11) Concrete Walkthrough (USDC -> SOL)`
 - Local pool directory DB: `public/idl/orca_whirlpool.directory.db.json`
 - Registry: `public/idl/registry.json`
 - Compute registry (plugin dispatch): `src/lib/metaComputeRegistry.ts`
@@ -58,6 +59,7 @@ Directory DB rows are directional for fast lookup:
 
 Meta action used by `/swap` and `/quote`:
 - `swap_exact_in`
+- compiled instruction: `swap_v2`
 
 Meta IDL v0.3 resolver primitives currently implemented in runtime:
 - `wallet_pubkey`
