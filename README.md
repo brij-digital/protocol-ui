@@ -45,6 +45,7 @@ Supported token aliases for `/swap` and `/quote`:
 - Tutorial: `docs/meta-idl-tutorial.md`
 - Local pool directory DB: `public/idl/orca_whirlpool.directory.db.json`
 - Registry: `public/idl/registry.json`
+- Resolver registry (plugin dispatch): `src/lib/metaResolverRegistry.ts`
 - Compute registry (plugin dispatch): `src/lib/metaComputeRegistry.ts`
 - Shared SDK coercion helpers: `src/lib/sdk/coerce.ts`
 - Shared runtime value normalizer: `src/lib/sdk/runtimeValue.ts`
@@ -65,6 +66,9 @@ Meta IDL v0.3 resolver primitives currently implemented in runtime:
 - `pda`
 - `lookup` (query indexed relation from local/remote JSON directory)
 - `unix_timestamp`
+
+Protocol-specific resolver plugins:
+- `orca_tick_arrays_from_current` (implemented in resolver registry, not core runtime)
 
 Meta IDL v0.3 compute primitives currently implemented in runtime:
 - none in active swap flow (`/swap` and `/quote` are simulation-first)

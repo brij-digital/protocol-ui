@@ -72,44 +72,7 @@
       "type": "object",
       "required": ["resolver"],
       "properties": {
-        "resolver": {
-          "enum": [
-            "wallet_pubkey",
-            "decode_account",
-            "ata",
-            "pda",
-            "lookup",
-            "unix_timestamp"
-          ]
-        },
-        "address": {},
-        "account_type": { "type": "string" },
-        "owner": {},
-        "mint": {},
-        "program_id": {},
-        "seeds": { "type": "array", "items": {} },
-        "source": { "type": "string" },
-        "where": {},
-        "select": {},
-        "mode": { "enum": ["first", "all"] }
-      },
-      "additionalProperties": false
-    },
-    "deriveStep": {
-      "type": "object",
-      "required": ["name", "resolver"],
-      "properties": {
-        "name": { "type": "string" },
-        "resolver": {
-          "enum": [
-            "wallet_pubkey",
-            "decode_account",
-            "ata",
-            "pda",
-            "lookup",
-            "unix_timestamp"
-          ]
-        },
+        "resolver": { "type": "string" },
         "address": {},
         "account_type": { "type": "string" },
         "owner": {},
@@ -120,6 +83,35 @@
         "where": {},
         "select": {},
         "mode": { "enum": ["first", "all"] },
+        "whirlpool": {},
+        "tick_current_index": {},
+        "tick_spacing": {},
+        "a_to_b": {},
+        "count": {}
+      },
+      "additionalProperties": false
+    },
+    "deriveStep": {
+      "type": "object",
+      "required": ["name", "resolver"],
+      "properties": {
+        "name": { "type": "string" },
+        "resolver": { "type": "string" },
+        "address": {},
+        "account_type": { "type": "string" },
+        "owner": {},
+        "mint": {},
+        "program_id": {},
+        "seeds": { "type": "array", "items": {} },
+        "source": { "type": "string" },
+        "where": {},
+        "select": {},
+        "mode": { "enum": ["first", "all"] },
+        "whirlpool": {},
+        "tick_current_index": {},
+        "tick_spacing": {},
+        "a_to_b": {},
+        "count": {},
         "fallback": { "$ref": "#/$defs/resolverBase" }
       },
       "additionalProperties": false

@@ -21,6 +21,8 @@ In this MVP:
 - Meta IDL: `public/idl/orca_whirlpool.meta.json`
 - Meta schema: `public/idl/meta_idl.schema.v0.3.json`
 - Runtime: `src/lib/metaIdlRuntime.ts`
+- Resolver registry: `src/lib/metaResolverRegistry.ts`
+- Orca resolver plugin: `src/lib/protocols/orca/resolvers.ts`
 - Compute registry: `src/lib/metaComputeRegistry.ts`
 - App command handling: `src/App.tsx`
 
@@ -42,6 +44,9 @@ In this MVP:
 - `ata`
 - `pda`
 - `unix_timestamp`
+
+### Protocol-specific resolvers
+- `orca_tick_arrays_from_current` (via resolver registry)
 
 ### Implemented compute steps
 - none in current swap flow
@@ -112,11 +117,13 @@ From `macros.orca.swap_exact_in.v1.expand.derive`:
 - Derives Orca oracle PDA with seeds.
 
 6. Tick arrays
-- In current v0.3 macro, tick arrays are provided by directory lookup fields:
-  - `tickArray0`
-  - `tickArray1`
-  - `tickArray2`
-- There is no runtime CLMM tick-array derivation step in active flow.
+- In current v0.3 macro, tick arrays are derived with `orca_tick_arrays_from_current`.
+- Inputs:
+  - `tick_current_index` from decoded whirlpool state
+  - `tick_spacing` from decoded whirlpool state
+  - swap direction (`a_to_b`)
+  - program id + whirlpool pubkey
+- Runtime computes contiguous starts and derives the 3 tick-array PDAs.
 
 ## 6) Quote/Swap Threshold Flow (No Kernel)
 

@@ -5,6 +5,7 @@ import type { Idl } from '@coral-xyz/anchor';
 import { getProtocolById } from './idlRegistry';
 import { previewIdlInstruction } from './idlDeclarativeRuntime';
 import { runRegisteredComputeStep } from './metaComputeRegistry';
+import { runRegisteredResolverStep } from './metaResolverRegistry';
 
 const SUPPORTED_META_IDL_SCHEMAS = new Set(['meta-idl.v0.1', 'meta-idl.v0.2', 'meta-idl.v0.3']);
 const DEFAULT_SPL_TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
@@ -16,7 +17,7 @@ type BuiltinResolverName =
   | 'pda'
   | 'lookup'
   | 'unix_timestamp';
-type ResolverName = BuiltinResolverName;
+type ResolverName = BuiltinResolverName | string;
 
 type LookupMode = 'first' | 'all';
 type ComputeKind = string;
@@ -754,7 +755,25 @@ async function runResolver(step: DeriveStep, ctx: ResolverContext): Promise<unkn
     return Math.floor(Date.now() / 1000);
   }
 
-  throw new Error(`Unsupported resolver: ${step.resolver}`);
+  const resolvedStep = asRecord(
+    normalizeRuntimeValue(resolveTemplateValue(step, ctx.scope)),
+    `resolver:${step.name}`,
+  );
+  const resolver = asString(resolvedStep.resolver, `resolver:${step.name}:resolver`);
+  return runRegisteredResolverStep(
+    {
+      ...resolvedStep,
+      name: step.name,
+      resolver,
+    },
+    {
+      protocolId: ctx.protocol.id,
+      programId: ctx.protocol.programId,
+      connection: ctx.connection,
+      walletPublicKey: ctx.walletPublicKey,
+      scope: ctx.scope,
+    },
+  );
 }
 
 async function runComputeStep(step: ComputeStep, ctx: ResolverContext): Promise<unknown> {
