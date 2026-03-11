@@ -72,7 +72,16 @@
       "type": "object",
       "required": ["resolver"],
       "properties": {
-        "resolver": { "type": "string" },
+        "resolver": {
+          "enum": [
+            "wallet_pubkey",
+            "decode_account",
+            "ata",
+            "pda",
+            "lookup",
+            "unix_timestamp"
+          ]
+        },
         "address": {},
         "account_type": { "type": "string" },
         "owner": {},
@@ -82,12 +91,7 @@
         "source": { "type": "string" },
         "where": {},
         "select": {},
-        "mode": { "enum": ["first", "all"] },
-        "whirlpool": {},
-        "tick_current_index": {},
-        "tick_spacing": {},
-        "a_to_b": {},
-        "count": {}
+        "mode": { "enum": ["first", "all"] }
       },
       "additionalProperties": false
     },
@@ -96,7 +100,16 @@
       "required": ["name", "resolver"],
       "properties": {
         "name": { "type": "string" },
-        "resolver": { "type": "string" },
+        "resolver": {
+          "enum": [
+            "wallet_pubkey",
+            "decode_account",
+            "ata",
+            "pda",
+            "lookup",
+            "unix_timestamp"
+          ]
+        },
         "address": {},
         "account_type": { "type": "string" },
         "owner": {},
@@ -107,23 +120,119 @@
         "where": {},
         "select": {},
         "mode": { "enum": ["first", "all"] },
-        "whirlpool": {},
-        "tick_current_index": {},
-        "tick_spacing": {},
-        "a_to_b": {},
-        "count": {},
         "fallback": { "$ref": "#/$defs/resolverBase" }
       },
       "additionalProperties": false
     },
+    "pdaSeedSpec": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "value"],
+          "properties": {
+            "kind": { "const": "utf8" },
+            "value": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind", "value"],
+          "properties": {
+            "kind": { "const": "pubkey" },
+            "value": {}
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind", "value"],
+          "properties": {
+            "kind": { "const": "i32_le" },
+            "value": {}
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind"],
+          "properties": {
+            "kind": { "const": "item_i32_le" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind"],
+          "properties": {
+            "kind": { "const": "item_utf8" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "computeStep": {
-      "type": "object",
-      "required": ["name", "compute"],
-      "properties": {
-        "name": { "type": "string" },
-        "compute": { "type": "string" }
-      },
-      "additionalProperties": true
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["name", "compute", "values"],
+          "properties": {
+            "name": { "type": "string" },
+            "compute": { "const": "math.add" },
+            "values": { "type": "array", "items": {}, "minItems": 2 }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["name", "compute", "values"],
+          "properties": {
+            "name": { "type": "string" },
+            "compute": { "const": "math.mul" },
+            "values": { "type": "array", "items": {}, "minItems": 2 }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["name", "compute", "dividend", "divisor"],
+          "properties": {
+            "name": { "type": "string" },
+            "compute": { "const": "math.floor_div" },
+            "dividend": {},
+            "divisor": {}
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["name", "compute", "base", "step", "count"],
+          "properties": {
+            "name": { "type": "string" },
+            "compute": { "const": "list.range_map" },
+            "base": {},
+            "step": {},
+            "count": { "type": "integer", "minimum": 1 }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["name", "compute", "seeds"],
+          "properties": {
+            "name": { "type": "string" },
+            "compute": { "const": "pda(seed_spec)" },
+            "program_id": {},
+            "map_over": {},
+            "seeds": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/pdaSeedSpec" },
+              "minItems": 1
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     },
     "metaCondition": {
       "oneOf": [

@@ -59,16 +59,47 @@
             "resolver": "pda",
             "program_id": "$protocol.programId",
             "seeds": ["utf8:oracle", "$selected_pool.whirlpool"]
+          }
+        ],
+        "compute": [
+          {
+            "name": "ticks_per_array",
+            "compute": "math.mul",
+            "values": ["$whirlpool_data.tick_spacing", 88]
+          },
+          {
+            "name": "direction_step",
+            "compute": "math.mul",
+            "values": ["$ticks_per_array", "$selected_pool.tickArrayDirection"]
+          },
+          {
+            "name": "current_array_index",
+            "compute": "math.floor_div",
+            "dividend": "$whirlpool_data.tick_current_index",
+            "divisor": "$ticks_per_array"
+          },
+          {
+            "name": "current_start_index",
+            "compute": "math.mul",
+            "values": ["$current_array_index", "$ticks_per_array"]
+          },
+          {
+            "name": "tick_array_starts",
+            "compute": "list.range_map",
+            "base": "$current_start_index",
+            "step": "$direction_step",
+            "count": 3
           },
           {
             "name": "tick_arrays",
-            "resolver": "orca_tick_arrays_from_current",
+            "compute": "pda(seed_spec)",
             "program_id": "$protocol.programId",
-            "whirlpool": "$selected_pool.whirlpool",
-            "tick_current_index": "$whirlpool_data.tick_current_index",
-            "tick_spacing": "$whirlpool_data.tick_spacing",
-            "a_to_b": "$selected_pool.aToB",
-            "count": 3
+            "map_over": "$tick_array_starts",
+            "seeds": [
+              { "kind": "utf8", "value": "tick_array" },
+              { "kind": "pubkey", "value": "$selected_pool.whirlpool" },
+              { "kind": "item_utf8" }
+            ]
           }
         ],
         "args": {

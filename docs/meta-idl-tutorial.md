@@ -21,8 +21,6 @@ In this MVP:
 - Meta IDL: `public/idl/orca_whirlpool.meta.json`
 - Meta schema: `public/idl/meta_idl.schema.v0.3.json`
 - Runtime: `src/lib/metaIdlRuntime.ts`
-- Resolver registry: `src/lib/metaResolverRegistry.ts`
-- Orca resolver plugin: `src/lib/protocols/orca/resolvers.ts`
 - Compute registry: `src/lib/metaComputeRegistry.ts`
 - App command handling: `src/App.tsx`
 
@@ -45,11 +43,12 @@ In this MVP:
 - `pda`
 - `unix_timestamp`
 
-### Protocol-specific resolvers
-- `orca_tick_arrays_from_current` (via resolver registry)
-
 ### Implemented compute steps
-- none in current swap flow
+- `math.add`
+- `math.mul`
+- `math.floor_div`
+- `list.range_map`
+- `pda(seed_spec)`
 
 ### Template variables
 - `$input.*`: action input values
@@ -79,7 +78,7 @@ Example command:
    - expands macro with `$param.*`
 4. Hydrates missing input defaults (e.g., `slippage_bps: 50`).
 5. Executes `derive[]` resolvers (data only) in order.
-6. Executes optional `compute[]` steps in order (none used in current swap macro).
+6. Executes `compute[]` steps in order.
 7. Produces final:
    - `instructionName`
    - `args`
@@ -117,17 +116,16 @@ From `macros.orca.swap_exact_in.v1.expand.derive`:
 - Derives Orca oracle PDA with seeds.
 
 6. Tick arrays
-- In current v0.3 macro, tick arrays are derived with `orca_tick_arrays_from_current`.
-- Inputs:
-  - `tick_current_index` from decoded whirlpool state
-  - `tick_spacing` from decoded whirlpool state
-  - swap direction (`a_to_b`)
-  - program id + whirlpool pubkey
-- Runtime computes contiguous starts and derives the 3 tick-array PDAs.
+- In current v0.3 macro, tick arrays are derived declaratively in `compute[]`:
+  - `ticks_per_array = tick_spacing * 88`
+  - `direction_step = ticks_per_array * tickArrayDirection`
+  - `current_start_index = floor_div(tick_current_index, ticks_per_array) * ticks_per_array`
+  - `tick_array_starts = list.range_map(base=current_start_index, step=direction_step, count=3)`
+  - `tick_arrays = pda(seed_spec)` mapped over `tick_array_starts`
 
 ## 6) Quote/Swap Threshold Flow (No Kernel)
 
-- Meta derive resolves accounts/PDAs/tick arrays.
+- Meta derive resolves base accounts/PDAs and compute resolves tick arrays.
 - App simulates the candidate swap tx with `other_amount_threshold = 1`.
 - App reads simulated output token delta.
 - App computes `min_out` from user slippage bps.
