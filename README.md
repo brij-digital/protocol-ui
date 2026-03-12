@@ -5,7 +5,7 @@ This repository is a command-driven web demo for an Espresso Cash AI Wallet MVP.
 Current scope:
 - Single-signature wallet approval (no Swig/passkeys yet)
 - One active swap integration via Orca Whirlpools on Solana mainnet
-- One base IDL + one Meta IDL (`meta-idl.v0.3`) for declarative action derivation
+- One base IDL + one Meta IDL (`meta-idl.v0.3`) for declarative operation derivation
 - Chat-style command input with deterministic command parsing
 
 ## Commands
@@ -51,7 +51,7 @@ Supported token aliases for `/swap` and `/quote`:
 - Shared SDK coercion helpers: `src/lib/sdk/coerce.ts`
 - Shared runtime value normalizer: `src/lib/sdk/runtimeValue.ts`
 
-Meta action used by `/swap` and `/quote`:
+Meta operation used by `/swap` and `/quote`:
 - `swap_exact_in`
 - compiled instruction: `swap_v2`
 
@@ -79,7 +79,7 @@ Meta IDL v0.3 compute primitives currently implemented in runtime:
 
 Meta IDL v0.3 supports template expansion:
 - `templates.<name>.expand` defines reusable declarative blocks.
-- `actions.<action>.use[]` applies templates with parameter mapping via `$param.*`.
+- `operations.<operation>.use[]` applies templates with parameter mapping via `$param.*`.
 
 Meta IDL execution supports optional declarative `post` steps:
 - current built-in: `spl_token_close_account`

@@ -22,7 +22,7 @@ import {
 import { prepareMetaInstruction } from './lib/metaIdlRuntime';
 
 const ORCA_PROTOCOL_ID = 'orca-whirlpool-mainnet';
-const ORCA_ACTION_ID = 'swap_exact_in';
+const ORCA_OPERATION_ID = 'swap_exact_in';
 const QUICK_PREFILL_SWAP_COMMAND =
   '/swap EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v So11111111111111111111111111111111111111112 0.01 50';
 
@@ -264,7 +264,7 @@ function App() {
 
     const prepared = await prepareMetaInstruction({
       protocolId: ORCA_PROTOCOL_ID,
-      actionId: ORCA_ACTION_ID,
+      operationId: ORCA_OPERATION_ID,
       input: {
         token_in_mint: options.value.inputMint,
         token_out_mint: options.value.outputMint,

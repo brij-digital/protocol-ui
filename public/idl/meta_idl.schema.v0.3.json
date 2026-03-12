@@ -3,7 +3,7 @@
   "$id": "https://espressocash.com/schemas/meta-idl.v0.3.json",
   "title": "Espresso Meta IDL v0.3",
   "type": "object",
-  "required": ["schema", "version", "protocolId", "actions"],
+  "required": ["schema", "version", "protocolId"],
   "properties": {
     "schema": {
       "const": "meta-idl.v0.3"
@@ -32,6 +32,12 @@
         "$ref": "#/$defs/templateSpec"
       }
     },
+    "operations": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/actionSpec"
+      }
+    },
     "actions": {
       "type": "object",
       "additionalProperties": {
@@ -39,6 +45,10 @@
       }
     }
   },
+  "anyOf": [
+    { "required": ["operations"] },
+    { "required": ["actions"] }
+  ],
   "$defs": {
     "sourceSpec": {
       "oneOf": [

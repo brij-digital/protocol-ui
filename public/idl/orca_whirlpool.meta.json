@@ -156,7 +156,7 @@
       }
     }
   },
-  "actions": {
+  "operations": {
     "swap_exact_in": {
       "inputs": {
         "token_in_mint": { "type": "pubkey", "required": true },

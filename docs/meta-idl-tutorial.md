@@ -5,10 +5,10 @@ This document reflects the current implementation in this repo.
 ## 1) Mental Model
 
 - **Base IDL** (`orca_whirlpool.json`) defines instruction/account encoding.
-- **Meta IDL** (`orca_whirlpool.meta.json`) defines how to turn a high-level action into concrete args/accounts.
+- **Meta IDL** (`orca_whirlpool.meta.json`) defines how to turn a high-level operation into concrete args/accounts.
 - **Runtime** executes Meta phases and then calls the base IDL builder/simulator/sender.
 
-Current protocol/action:
+Current protocol/operation:
 - Protocol: Orca Whirlpools mainnet
 - User commands: `/quote`, `/swap`
 - Action: `swap_exact_in` -> instruction `swap_v2`
@@ -32,17 +32,17 @@ Action pipeline phases:
 4. Build IDL instruction
 5. Simulate (`/quote`) or send (`/swap`)
 
-Current context steps used by Orca action:
+Current context steps used by Orca operation:
 - `context.orca_whirlpool_pools_for_pair`
 - `context.pick_list_item`
 
-Current derive steps used by Orca action:
+Current derive steps used by Orca operation:
 - `wallet_pubkey`
 - `decode_account`
 - `ata`
 - `pda`
 
-Current compute steps used by Orca action:
+Current compute steps used by Orca operation:
 - `math.mul`
 - `math.floor_div`
 - `list.range_map`
@@ -73,7 +73,7 @@ In `templates.orca.swap_exact_in.v1.expand.context`:
 3. If candidates count > 1, app pauses and prompts user to choose:
 - Click button in the optional list UI, or
 - Type `1`, `2`, `3`, ...
-4. App reruns the same action with chosen `pool_index`.
+4. App reruns the same operation with chosen `pool_index`.
 5. Flow continues to derive/compute/simulate/send.
 
 If only one pool exists, no prompt is shown and execution continues immediately.

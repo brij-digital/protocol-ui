@@ -131,7 +131,9 @@ type MetaIdlSpec = {
   templates?: Record<string, TemplateSpec>;
   // Backward compatibility with old schema/metadata.
   macros?: Record<string, TemplateSpec>;
-  actions: Record<string, ActionSpec>;
+  operations?: Record<string, ActionSpec>;
+  // Backward compatibility with old schema/metadata.
+  actions?: Record<string, ActionSpec>;
 };
 
 type ResolverContext = {
@@ -399,8 +401,10 @@ function assertMetaSpec(meta: MetaIdlSpec, protocolId: string): MetaIdlSpec {
     throw new Error(`Meta protocolId mismatch: expected ${protocolId}, got ${meta.protocolId}.`);
   }
 
-  if (!meta.actions || typeof meta.actions !== 'object') {
-    throw new Error(`Meta IDL for ${protocolId} is missing actions.`);
+  const hasOperations = !!meta.operations && typeof meta.operations === 'object';
+  const hasActions = !!meta.actions && typeof meta.actions === 'object';
+  if (!hasOperations && !hasActions) {
+    throw new Error(`Meta IDL for ${protocolId} is missing operations (or legacy actions).`);
   }
 
   return meta;
@@ -473,7 +477,7 @@ function mergeActionFragment(target: MaterializedActionSpec, fragment: Omit<Acti
   if (fragment.instruction) {
     if (target.instruction && target.instruction !== fragment.instruction) {
       throw new Error(
-        `Conflicting instruction while materializing action (${label}): ${target.instruction} vs ${fragment.instruction}.`,
+        `Conflicting instruction while materializing operation (${label}): ${target.instruction} vs ${fragment.instruction}.`,
       );
     }
     target.instruction = fragment.instruction;
@@ -517,7 +521,7 @@ function mergeActionFragment(target: MaterializedActionSpec, fragment: Omit<Acti
   }
 }
 
-function materializeAction(actionId: string, action: ActionSpec, meta: MetaIdlSpec): MaterializedActionSpec {
+function materializeOperation(operationId: string, operation: ActionSpec, meta: MetaIdlSpec): MaterializedActionSpec {
   const materialized: MaterializedActionSpec = {
     instruction: '',
     inputs: {},
@@ -529,15 +533,15 @@ function materializeAction(actionId: string, action: ActionSpec, meta: MetaIdlSp
     post: [],
   };
 
-  for (const use of action.use ?? []) {
+  for (const use of operation.use ?? []) {
     const templateName = use.template ?? use.macro;
     if (!templateName) {
-      throw new Error(`Action ${actionId} contains use item without template name.`);
+      throw new Error(`Operation ${operationId} contains use item without template name.`);
     }
 
     const template = meta.templates?.[templateName] ?? meta.macros?.[templateName];
     if (!template) {
-      throw new Error(`Action ${actionId} references unknown template ${templateName}.`);
+      throw new Error(`Operation ${operationId} references unknown template ${templateName}.`);
     }
 
     const params = resolveTemplateParams(templateName, template, use);
@@ -548,23 +552,23 @@ function materializeAction(actionId: string, action: ActionSpec, meta: MetaIdlSp
   }
 
   const actionDirectFragment = cloneJsonLike({
-    instruction: action.instruction,
-    inputs: action.inputs,
-    context: action.context,
-    derive: action.derive,
-    compute: action.compute,
-    args: action.args,
-    accounts: action.accounts,
-    post: action.post,
+    instruction: operation.instruction,
+    inputs: operation.inputs,
+    context: operation.context,
+    derive: operation.derive,
+    compute: operation.compute,
+    args: operation.args,
+    accounts: operation.accounts,
+    post: operation.post,
   });
-  mergeActionFragment(materialized, actionDirectFragment, `action ${actionId}`);
+  mergeActionFragment(materialized, actionDirectFragment, `operation ${operationId}`);
 
   if (!materialized.instruction) {
-    throw new Error(`Action ${actionId} has no instruction after template expansion.`);
+    throw new Error(`Operation ${operationId} has no instruction after template expansion.`);
   }
 
   if (!materialized.accounts || Object.keys(materialized.accounts).length === 0) {
-    throw new Error(`Action ${actionId} has no accounts mapping after template expansion.`);
+    throw new Error(`Operation ${operationId} has no accounts mapping after template expansion.`);
   }
 
   return materialized;
@@ -836,7 +840,7 @@ async function runContextStep(step: ContextStep, ctx: ResolverContext): Promise<
 
 export async function prepareMetaInstruction(options: {
   protocolId: string;
-  actionId: string;
+  operationId: string;
   input: Record<string, unknown>;
   connection: Connection;
   walletPublicKey: PublicKey;
@@ -845,14 +849,14 @@ export async function prepareMetaInstruction(options: {
   const meta = await loadMetaSpec(options.protocolId);
   const idl = await loadProtocolIdl(options.protocolId);
 
-  const actionSpec = meta.actions[options.actionId];
-  if (!actionSpec) {
-    throw new Error(`Action ${options.actionId} not found in meta IDL for ${options.protocolId}.`);
+  const operationSpec = meta.operations?.[options.operationId] ?? meta.actions?.[options.operationId];
+  if (!operationSpec) {
+    throw new Error(`Operation ${options.operationId} not found in meta IDL for ${options.protocolId}.`);
   }
-  const action = materializeAction(options.actionId, actionSpec, meta);
+  const operation = materializeOperation(options.operationId, operationSpec, meta);
 
   const hydratedInput: Record<string, unknown> = {};
-  for (const [key, spec] of Object.entries(action.inputs ?? {})) {
+  for (const [key, spec] of Object.entries(operation.inputs ?? {})) {
     if (options.input[key] !== undefined) {
       hydratedInput[key] = options.input[key];
       continue;
@@ -893,9 +897,9 @@ export async function prepareMetaInstruction(options: {
     scope,
   };
 
-  for (const step of action.context ?? []) {
+  for (const step of operation.context ?? []) {
     if (!step.name) {
-      throw new Error(`Action ${options.actionId} has context step without name.`);
+      throw new Error(`Operation ${options.operationId} has context step without name.`);
     }
 
     const value = await runContextStep(step, resolverCtx);
@@ -903,9 +907,9 @@ export async function prepareMetaInstruction(options: {
     scope[step.name] = value;
   }
 
-  for (const step of action.derive ?? []) {
+  for (const step of operation.derive ?? []) {
     if (!step.name) {
-      throw new Error(`Action ${options.actionId} has derive step without name.`);
+      throw new Error(`Operation ${options.operationId} has derive step without name.`);
     }
 
     const value = await runResolver(step, resolverCtx);
@@ -913,9 +917,9 @@ export async function prepareMetaInstruction(options: {
     scope[step.name] = value;
   }
 
-  for (const step of action.compute ?? []) {
+  for (const step of operation.compute ?? []) {
     if (!step.name) {
-      throw new Error(`Action ${options.actionId} has compute step without name.`);
+      throw new Error(`Operation ${options.operationId} has compute step without name.`);
     }
 
     const value = await runComputeStep(step, resolverCtx);
@@ -923,13 +927,13 @@ export async function prepareMetaInstruction(options: {
     scope[step.name] = value;
   }
 
-  const resolvedArgs = normalizeRuntimeValue(resolveTemplateValue(action.args ?? {}, scope));
-  const resolvedAccounts = normalizeRuntimeValue(resolveTemplateValue(action.accounts ?? {}, scope));
-  const postInstructions = resolvePostInstructions(action.post, scope);
+  const resolvedArgs = normalizeRuntimeValue(resolveTemplateValue(operation.args ?? {}, scope));
+  const resolvedAccounts = normalizeRuntimeValue(resolveTemplateValue(operation.accounts ?? {}, scope));
+  const postInstructions = resolvePostInstructions(operation.post, scope);
 
   return {
     protocolId: options.protocolId,
-    instructionName: action.instruction,
+    instructionName: operation.instruction,
     args: resolvedArgs as Record<string, unknown>,
     accounts: assertStringRecord(resolvedAccounts, 'accounts'),
     derived,
