@@ -5,7 +5,7 @@ import type { Idl } from '@coral-xyz/anchor';
 import { getProtocolById } from './idlRegistry';
 import { previewIdlInstruction } from './idlDeclarativeRuntime';
 import { runRegisteredComputeStep } from './metaComputeRegistry';
-import { runRegisteredContextStep } from './metaContextRegistry';
+import { runRegisteredDiscoverStep } from './metaDiscoverRegistry';
 
 const SUPPORTED_META_IDL_SCHEMAS = new Set(['meta-idl.v0.1', 'meta-idl.v0.2', 'meta-idl.v0.3']);
 const DEFAULT_SPL_TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
@@ -49,9 +49,9 @@ type ComputeStep = {
   [key: string]: unknown;
 };
 
-type ContextStep = {
+type DiscoverStep = {
   name: string;
-  context: string;
+  discover: string;
   [key: string]: unknown;
 };
 
@@ -64,7 +64,7 @@ type ActionInputSpec = {
 type ActionSpec = {
   instruction?: string;
   inputs?: Record<string, ActionInputSpec>;
-  context?: ContextStep[];
+  discover?: DiscoverStep[];
   derive?: DeriveStep[];
   compute?: ComputeStep[];
   args?: Record<string, unknown>;
@@ -76,7 +76,7 @@ type ActionSpec = {
 type MaterializedActionSpec = {
   instruction: string;
   inputs: Record<string, ActionInputSpec>;
-  context: ContextStep[];
+  discover: DiscoverStep[];
   derive: DeriveStep[];
   compute: ComputeStep[];
   args: Record<string, unknown>;
@@ -168,6 +168,22 @@ type PreparedPostInstruction = {
   destination: string;
   owner: string;
   tokenProgram: string;
+};
+
+export type MetaOperationExplain = {
+  protocolId: string;
+  operationId: string;
+  schema: string | null;
+  version: string;
+  instruction: string;
+  templateUse: Array<Record<string, unknown>>;
+  inputs: Record<string, Record<string, unknown>>;
+  discover: Array<Record<string, unknown>>;
+  derive: Array<Record<string, unknown>>;
+  compute: Array<Record<string, unknown>>;
+  args: Record<string, unknown>;
+  accounts: Record<string, unknown>;
+  post: Array<Record<string, unknown>>;
 };
 
 const metaCache = new Map<string, MetaIdlSpec>();
@@ -410,6 +426,15 @@ function assertMetaSpec(meta: MetaIdlSpec, protocolId: string): MetaIdlSpec {
   return meta;
 }
 
+function resolveOperationSpec(meta: MetaIdlSpec, protocolId: string, operationId: string): ActionSpec {
+  const operationSpec = meta.operations?.[operationId] ?? meta.actions?.[operationId];
+  if (!operationSpec) {
+    throw new Error(`Operation ${operationId} not found in meta IDL for ${protocolId}.`);
+  }
+
+  return operationSpec;
+}
+
 function cloneJsonLike<T>(value: T): T {
   if (value === undefined) {
     return value;
@@ -494,8 +519,8 @@ function mergeActionFragment(target: MaterializedActionSpec, fragment: Omit<Acti
     target.derive.push(...cloneJsonLike(fragment.derive));
   }
 
-  if (fragment.context) {
-    target.context.push(...cloneJsonLike(fragment.context));
+  if (fragment.discover) {
+    target.discover.push(...cloneJsonLike(fragment.discover));
   }
 
   if (fragment.compute) {
@@ -525,7 +550,7 @@ function materializeOperation(operationId: string, operation: ActionSpec, meta: 
   const materialized: MaterializedActionSpec = {
     instruction: '',
     inputs: {},
-    context: [],
+    discover: [],
     derive: [],
     compute: [],
     args: {},
@@ -554,7 +579,7 @@ function materializeOperation(operationId: string, operation: ActionSpec, meta: 
   const actionDirectFragment = cloneJsonLike({
     instruction: operation.instruction,
     inputs: operation.inputs,
-    context: operation.context,
+    discover: operation.discover,
     derive: operation.derive,
     compute: operation.compute,
     args: operation.args,
@@ -818,14 +843,14 @@ async function runComputeStep(step: ComputeStep, ctx: ResolverContext): Promise<
   );
 }
 
-async function runContextStep(step: ContextStep, ctx: ResolverContext): Promise<unknown> {
-  const resolvedStep = asRecord(normalizeRuntimeValue(resolveTemplateValue(step, ctx.scope)), `context:${step.name}`);
-  const context = asString(resolvedStep.context, `context:${step.name}:context`);
-  return runRegisteredContextStep(
+async function runDiscoverStep(step: DiscoverStep, ctx: ResolverContext): Promise<unknown> {
+  const resolvedStep = asRecord(normalizeRuntimeValue(resolveTemplateValue(step, ctx.scope)), `discover:${step.name}`);
+  const discover = asString(resolvedStep.discover, `discover:${step.name}:discover`);
+  return runRegisteredDiscoverStep(
     {
       ...resolvedStep,
       name: step.name,
-      context,
+      discover,
     },
     {
       protocolId: ctx.protocol.id,
@@ -849,10 +874,7 @@ export async function prepareMetaInstruction(options: {
   const meta = await loadMetaSpec(options.protocolId);
   const idl = await loadProtocolIdl(options.protocolId);
 
-  const operationSpec = meta.operations?.[options.operationId] ?? meta.actions?.[options.operationId];
-  if (!operationSpec) {
-    throw new Error(`Operation ${options.operationId} not found in meta IDL for ${options.protocolId}.`);
-  }
+  const operationSpec = resolveOperationSpec(meta, options.protocolId, options.operationId);
   const operation = materializeOperation(options.operationId, operationSpec, meta);
 
   const hydratedInput: Record<string, unknown> = {};
@@ -897,12 +919,12 @@ export async function prepareMetaInstruction(options: {
     scope,
   };
 
-  for (const step of operation.context ?? []) {
+  for (const step of operation.discover ?? []) {
     if (!step.name) {
-      throw new Error(`Operation ${options.operationId} has context step without name.`);
+      throw new Error(`Operation ${options.operationId} has discover step without name.`);
     }
 
-    const value = await runContextStep(step, resolverCtx);
+    const value = await runDiscoverStep(step, resolverCtx);
     derived[step.name] = value;
     scope[step.name] = value;
   }
@@ -938,5 +960,30 @@ export async function prepareMetaInstruction(options: {
     accounts: assertStringRecord(resolvedAccounts, 'accounts'),
     derived,
     postInstructions,
+  };
+}
+
+export async function explainMetaOperation(options: {
+  protocolId: string;
+  operationId: string;
+}): Promise<MetaOperationExplain> {
+  const meta = await loadMetaSpec(options.protocolId);
+  const operationSpec = resolveOperationSpec(meta, options.protocolId, options.operationId);
+  const materialized = materializeOperation(options.operationId, operationSpec, meta);
+
+  return {
+    protocolId: options.protocolId,
+    operationId: options.operationId,
+    schema: meta.schema ?? null,
+    version: meta.version,
+    instruction: materialized.instruction,
+    templateUse: cloneJsonLike(operationSpec.use ?? []),
+    inputs: cloneJsonLike(materialized.inputs),
+    discover: cloneJsonLike(materialized.discover),
+    derive: cloneJsonLike(materialized.derive),
+    compute: cloneJsonLike(materialized.compute),
+    args: cloneJsonLike(materialized.args),
+    accounts: cloneJsonLike(materialized.accounts),
+    post: cloneJsonLike(materialized.post ?? []),
   };
 }

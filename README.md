@@ -17,6 +17,7 @@ Current scope:
 - `/read-raw <PROTOCOL_ID> <INSTRUCTION_NAME> | <ARGS_JSON> | <ACCOUNTS_JSON>`
 - `/idl-list`
 - `/idl-template <PROTOCOL_ID> <INSTRUCTION_NAME>`
+- `/meta-explain <PROTOCOL_ID> <OPERATION_ID>`
 - `/idl-view <PROTOCOL_ID> <ACCOUNT_TYPE> <ACCOUNT_PUBKEY>`
 
 Examples:
@@ -24,6 +25,7 @@ Examples:
 ```text
 /quote SOL USDC 0.1 50
 /swap SOL USDC 0.1 50
+/meta-explain orca-whirlpool-mainnet swap_exact_in
 ```
 
 Raw examples:
@@ -45,8 +47,8 @@ Supported token aliases for `/swap` and `/quote`:
 - Tutorial: `docs/meta-idl-tutorial.md`
   - Detailed end-to-end walkthrough of current `/quote` and `/swap` flow
 - Registry: `public/idl/registry.json`
-- Context registry: `src/lib/metaContextRegistry.ts`
-- Orca context adapter: `src/protocols/orca/contextResolvers.ts`
+- Discover registry: `src/lib/metaDiscoverRegistry.ts`
+- Orca discover adapter: `src/protocols/orca/discoverResolvers.ts`
 - Compute registry (plugin dispatch): `src/lib/metaComputeRegistry.ts`
 - Shared SDK coercion helpers: `src/lib/sdk/coerce.ts`
 - Shared runtime value normalizer: `src/lib/sdk/runtimeValue.ts`
@@ -63,12 +65,12 @@ Meta IDL v0.3 resolver primitives currently implemented in runtime:
 - `lookup` (generic relation query primitive; not used in current Orca swap template)
 - `unix_timestamp`
 
-Meta IDL v0.3 context primitives currently implemented in runtime:
-- `context.mock` (generic)
-- `context.query_http_json` (generic)
-- `context.compare_values` (generic)
-- `context.orca_whirlpool_pools_for_pair` (on-chain Orca pool discovery)
-- `context.pick_list_item`
+Meta IDL v0.3 discover primitives currently implemented in runtime:
+- `discover.mock` (generic)
+- `discover.query_http_json` (generic)
+- `discover.compare_values` (generic)
+- `discover.orca_whirlpool_pools_for_pair` (on-chain Orca pool discovery)
+- `discover.pick_list_item`
 
 Meta IDL v0.3 compute primitives currently implemented in runtime:
 - `math.add`
@@ -104,7 +106,7 @@ npm run build
 
 - The app targets `mainnet-beta` by default.
 - Swap execution requires a connected Phantom wallet.
-- `/swap` and `/quote` are strict declarative wrappers: context + derive gather on-chain state, then app uses RPC simulation to estimate output and compute slippage threshold before send.
+- `/swap` and `/quote` are strict declarative wrappers: discover + derive gather on-chain state, then app uses RPC simulation to estimate output and compute slippage threshold before send.
 - Pool discovery currently uses `getProgramAccounts` on Orca with account discriminator filtering and local decode/filter by mint pair.
-- Meta execution pipeline is split into phases: `context` (pool discovery + selection) -> `derive` (on-chain/account gather) -> `compute` (deterministic pure transforms) -> IDL build -> `simulate` or `send`.
+- Meta execution pipeline is split into phases: `discover` (pool discovery + selection) -> `derive` (on-chain/account gather) -> `compute` (deterministic pure transforms) -> IDL build -> `simulate` or `send`.
 - SOL output is auto-unwrapped by default via declarative meta `post` step (`spl_token_close_account`).

@@ -11,13 +11,13 @@ This document reflects the current implementation in this repo.
 Current protocol/operation:
 - Protocol: Orca Whirlpools mainnet
 - User commands: `/quote`, `/swap`
-- Action: `swap_exact_in` -> instruction `swap_v2`
+- Operation: `swap_exact_in` -> instruction `swap_v2`
 
 ## 2) Key Files
 
 - Meta runtime: `src/lib/metaIdlRuntime.ts`
-- Context runtime (generic): `src/lib/metaContextRegistry.ts`
-- Orca context adapter (protocol-specific): `src/protocols/orca/contextResolvers.ts`
+- Discover runtime (generic): `src/lib/metaDiscoverRegistry.ts`
+- Orca discover adapter (protocol-specific): `src/protocols/orca/discoverResolvers.ts`
 - Compute runtime: `src/lib/metaComputeRegistry.ts`
 - App command flow: `src/App.tsx`
 - Meta spec: `public/idl/orca_whirlpool.meta.json`
@@ -25,16 +25,16 @@ Current protocol/operation:
 
 ## 3) Runtime Vocabulary
 
-Action pipeline phases:
-1. `context[]`
+Operation pipeline phases:
+1. `discover[]`
 2. `derive[]`
 3. `compute[]`
 4. Build IDL instruction
 5. Simulate (`/quote`) or send (`/swap`)
 
-Current context steps used by Orca operation:
-- `context.orca_whirlpool_pools_for_pair`
-- `context.pick_list_item`
+Current discover steps used by Orca operation:
+- `discover.orca_whirlpool_pools_for_pair`
+- `discover.pick_list_item`
 
 Current derive steps used by Orca operation:
 - `wallet_pubkey`
@@ -48,11 +48,11 @@ Current compute steps used by Orca operation:
 - `list.range_map`
 - `pda(seed_spec)`
 
-## 4) What `context[]` Does Now
+## 4) What `discover[]` Does Now
 
-In `templates.orca.swap_exact_in.v1.expand.context`:
+In `templates.orca.swap_exact_in.v1.expand.discover`:
 
-1. `pool_candidates` (`context.orca_whirlpool_pools_for_pair`)
+1. `pool_candidates` (`discover.orca_whirlpool_pools_for_pair`)
 - Runs on-chain discovery via RPC `getProgramAccounts` against Orca program.
 - Filters by Whirlpool account discriminator at RPC level.
 - Decodes accounts and keeps only pair matches `(token_in_mint, token_out_mint)` (order-insensitive).
@@ -60,7 +60,7 @@ In `templates.orca.swap_exact_in.v1.expand.context`:
   - `whirlpool`, `tokenMintA`, `tokenMintB`, `aToB`, `tickArrayDirection`, `tickSpacing`, `liquidity`.
 - Sort order: liquidity desc, then pubkey asc.
 
-2. `selected_pool` (`context.pick_list_item`)
+2. `selected_pool` (`discover.pick_list_item`)
 - Picks `pool_candidates[input.pool_index]`.
 - `pool_index` default is `0`.
 
@@ -136,7 +136,7 @@ If `/quote` or `/swap` fails:
 ## 10) Next Architecture Step
 
 Current split is:
-- Generic runtime in `metaContextRegistry`
-- Protocol logic in `src/protocols/orca/contextResolvers.ts`
+- Generic runtime in `metaDiscoverRegistry`
+- Protocol logic in `src/protocols/orca/discoverResolvers.ts`
 
-To scale, add a protocol adapter registry so each protocol registers context/compute extensions explicitly by namespace/version.
+To scale, add a protocol adapter registry so each protocol registers discover/compute extensions explicitly by namespace/version.

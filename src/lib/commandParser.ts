@@ -43,6 +43,12 @@ export type IdlTemplateCommand = {
   instructionName: string;
 };
 
+export type MetaExplainCommand = {
+  kind: 'meta-explain';
+  protocolId: string;
+  operationId: string;
+};
+
 export type ParsedCommand =
   | { kind: 'swap'; value: SwapPrefillCommand }
   | { kind: 'quote'; value: QuotePrefillCommand }
@@ -51,6 +57,7 @@ export type ParsedCommand =
   | { kind: 'help' }
   | { kind: 'idl-list' }
   | { kind: 'idl-template'; value: IdlTemplateCommand }
+  | { kind: 'meta-explain'; value: MetaExplainCommand }
   | { kind: 'idl-view'; value: IdlViewCommand }
   | { kind: 'idl-send'; value: IdlSendCommand };
 
@@ -229,6 +236,22 @@ export function parseCommand(raw: string): ParsedCommand {
         kind: 'idl-template',
         protocolId,
         instructionName,
+      },
+    };
+  }
+
+  if (command === '/meta-explain') {
+    if (args.length !== 2) {
+      throw new Error('Usage: /meta-explain <PROTOCOL_ID> <OPERATION_ID>');
+    }
+
+    const [protocolId, operationId] = args;
+    return {
+      kind: 'meta-explain',
+      value: {
+        kind: 'meta-explain',
+        protocolId,
+        operationId,
       },
     };
   }

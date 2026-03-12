@@ -13,10 +13,10 @@
       },
       "expand": {
         "instruction": "swap_v2",
-        "context": [
+        "discover": [
           {
             "name": "pool_candidates",
-            "context": "context.orca_whirlpool_pools_for_pair",
+            "discover": "discover.orca_whirlpool_pools_for_pair",
             "token_in_mint": "$param.token_in_mint",
             "token_out_mint": "$param.token_out_mint",
             "account_type": "Whirlpool",
@@ -24,7 +24,7 @@
           },
           {
             "name": "selected_pool",
-            "context": "context.pick_list_item",
+            "discover": "discover.pick_list_item",
             "items": "$pool_candidates",
             "index": "$input.pool_index"
           }

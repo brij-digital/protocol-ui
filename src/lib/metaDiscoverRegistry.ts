@@ -1,14 +1,14 @@
 import type { Idl } from '@coral-xyz/anchor';
 import type { Connection, PublicKey } from '@solana/web3.js';
-import { ORCA_CONTEXT_EXECUTORS } from '../protocols/orca/contextResolvers';
+import { ORCA_DISCOVER_EXECUTORS } from '../protocols/orca/discoverResolvers';
 
-export type ContextStepResolved = {
+export type DiscoverStepResolved = {
   name: string;
-  context: string;
+  discover: string;
   [key: string]: unknown;
 };
 
-export type ContextRuntimeContext = {
+export type DiscoverRuntimeContext = {
   protocolId: string;
   programId: string;
   connection: Connection;
@@ -17,9 +17,9 @@ export type ContextRuntimeContext = {
   scope: Record<string, unknown>;
 };
 
-export type ContextExecutor = (step: ContextStepResolved, ctx: ContextRuntimeContext) => Promise<unknown>;
+export type DiscoverExecutor = (step: DiscoverStepResolved, ctx: DiscoverRuntimeContext) => Promise<unknown>;
 
-const contextHttpCache = new Map<string, { expiresAt: number; value: unknown }>();
+const discoverHttpCache = new Map<string, { expiresAt: number; value: unknown }>();
 
 function asString(value: unknown, label: string): string {
   if (typeof value === 'string') {
@@ -111,31 +111,34 @@ function buildUrlWithQuery(url: string, query: Record<string, unknown>): string 
   return `${url}${url.includes('?') ? '&' : '?'}${queryString}`;
 }
 
-async function runContextMock(step: ContextStepResolved): Promise<unknown> {
+async function runDiscoverMock(step: DiscoverStepResolved): Promise<unknown> {
   if (step.value === undefined) {
-    throw new Error(`context:${step.name}:value is required for context.mock.`);
+    throw new Error(`discover:${step.name}:value is required for discover.mock.`);
   }
   return step.value;
 }
 
-async function runContextQueryHttpJson(step: ContextStepResolved): Promise<unknown> {
-  const url = asString(step.url, `context:${step.name}:url`);
-  const query = step.query === undefined ? {} : asRecord(step.query, `context:${step.name}:query`);
-  const itemsPath = step.items_path === undefined ? undefined : asString(step.items_path, `context:${step.name}:items_path`);
-  const selectPath = step.select_path === undefined ? undefined : asString(step.select_path, `context:${step.name}:select_path`);
-  const maxAgeMs = step.max_age_ms === undefined ? 0 : asSafeInteger(step.max_age_ms, `context:${step.name}:max_age_ms`);
+async function runDiscoverQueryHttpJson(step: DiscoverStepResolved): Promise<unknown> {
+  const url = asString(step.url, `discover:${step.name}:url`);
+  const query = step.query === undefined ? {} : asRecord(step.query, `discover:${step.name}:query`);
+  const itemsPath =
+    step.items_path === undefined ? undefined : asString(step.items_path, `discover:${step.name}:items_path`);
+  const selectPath =
+    step.select_path === undefined ? undefined : asString(step.select_path, `discover:${step.name}:select_path`);
+  const maxAgeMs =
+    step.max_age_ms === undefined ? 0 : asSafeInteger(step.max_age_ms, `discover:${step.name}:max_age_ms`);
 
   const resolvedUrl = buildUrlWithQuery(url, query);
-  const cacheKey = `${step.context}:${resolvedUrl}:${itemsPath ?? ''}:${selectPath ?? ''}`;
+  const cacheKey = `${step.discover}:${resolvedUrl}:${itemsPath ?? ''}:${selectPath ?? ''}`;
   const now = Date.now();
-  const cached = contextHttpCache.get(cacheKey);
+  const cached = discoverHttpCache.get(cacheKey);
   if (cached && cached.expiresAt >= now) {
     return cached.value;
   }
 
   const response = await fetch(resolvedUrl);
   if (!response.ok) {
-    throw new Error(`context:${step.name}:fetch failed: ${response.status} ${response.statusText}`);
+    throw new Error(`discover:${step.name}:fetch failed: ${response.status} ${response.statusText}`);
   }
 
   const body = (await response.json()) as unknown;
@@ -144,19 +147,19 @@ async function runContextQueryHttpJson(step: ContextStepResolved): Promise<unkno
   if (itemsPath) {
     result = readPathFromValue(result, itemsPath);
     if (result === undefined) {
-      throw new Error(`context:${step.name}:items_path ${itemsPath} not found.`);
+      throw new Error(`discover:${step.name}:items_path ${itemsPath} not found.`);
     }
   }
 
   if (selectPath) {
     result = readPathFromValue(result, selectPath);
     if (result === undefined) {
-      throw new Error(`context:${step.name}:select_path ${selectPath} not found.`);
+      throw new Error(`discover:${step.name}:select_path ${selectPath} not found.`);
     }
   }
 
   if (maxAgeMs > 0) {
-    contextHttpCache.set(cacheKey, {
+    discoverHttpCache.set(cacheKey, {
       expiresAt: now + maxAgeMs,
       value: result,
     });
@@ -165,34 +168,34 @@ async function runContextQueryHttpJson(step: ContextStepResolved): Promise<unkno
   return result;
 }
 
-async function runContextCompareValues(step: ContextStepResolved): Promise<unknown> {
-  const items = asArray(step.items, `context:${step.name}:items`);
+async function runDiscoverCompareValues(step: DiscoverStepResolved): Promise<unknown> {
+  const items = asArray(step.items, `discover:${step.name}:items`);
   if (items.length === 0) {
-    throw new Error(`context:${step.name}:items must not be empty.`);
+    throw new Error(`discover:${step.name}:items must not be empty.`);
   }
 
-  const mode = step.mode === undefined ? 'first' : asString(step.mode, `context:${step.name}:mode`);
+  const mode = step.mode === undefined ? 'first' : asString(step.mode, `discover:${step.name}:mode`);
   if (mode === 'first') {
     return items[0];
   }
 
-  const metricPath = asString(step.metric_path, `context:${step.name}:metric_path`);
+  const metricPath = asString(step.metric_path, `discover:${step.name}:metric_path`);
   const pickMax = mode === 'max';
   const pickMin = mode === 'min';
   if (!pickMax && !pickMin) {
-    throw new Error(`context:${step.name}:mode must be one of first|max|min.`);
+    throw new Error(`discover:${step.name}:mode must be one of first|max|min.`);
   }
 
   let selected = items[0];
   let selectedMetric = asFiniteNumber(
     readPathFromValue(selected, metricPath),
-    `context:${step.name}:items[0].${metricPath}`,
+    `discover:${step.name}:items[0].${metricPath}`,
   );
 
   for (let i = 1; i < items.length; i += 1) {
     const itemMetric = asFiniteNumber(
       readPathFromValue(items[i], metricPath),
-      `context:${step.name}:items[${i}].${metricPath}`,
+      `discover:${step.name}:items[${i}].${metricPath}`,
     );
     if ((pickMax && itemMetric > selectedMetric) || (pickMin && itemMetric < selectedMetric)) {
       selected = items[i];
@@ -203,32 +206,32 @@ async function runContextCompareValues(step: ContextStepResolved): Promise<unkno
   return selected;
 }
 
-async function runContextPickListItem(step: ContextStepResolved): Promise<unknown> {
-  const items = asArray(step.items, `context:${step.name}:items`);
+async function runDiscoverPickListItem(step: DiscoverStepResolved): Promise<unknown> {
+  const items = asArray(step.items, `discover:${step.name}:items`);
   if (items.length === 0) {
-    throw new Error(`context:${step.name}:items must not be empty.`);
+    throw new Error(`discover:${step.name}:items must not be empty.`);
   }
 
-  const indexRaw = step.index === undefined ? 0 : asSafeInteger(step.index, `context:${step.name}:index`);
+  const indexRaw = step.index === undefined ? 0 : asSafeInteger(step.index, `discover:${step.name}:index`);
   if (indexRaw < 0 || indexRaw >= items.length) {
-    throw new Error(`context:${step.name}:index ${indexRaw} is out of bounds for ${items.length} item(s).`);
+    throw new Error(`discover:${step.name}:index ${indexRaw} is out of bounds for ${items.length} item(s).`);
   }
 
   return items[indexRaw];
 }
 
-const CONTEXT_EXECUTORS: Record<string, ContextExecutor> = {
-  'context.mock': runContextMock,
-  'context.query_http_json': runContextQueryHttpJson,
-  'context.compare_values': runContextCompareValues,
-  'context.pick_list_item': runContextPickListItem,
-  ...ORCA_CONTEXT_EXECUTORS,
+const DISCOVER_EXECUTORS: Record<string, DiscoverExecutor> = {
+  'discover.mock': runDiscoverMock,
+  'discover.query_http_json': runDiscoverQueryHttpJson,
+  'discover.compare_values': runDiscoverCompareValues,
+  'discover.pick_list_item': runDiscoverPickListItem,
+  ...ORCA_DISCOVER_EXECUTORS,
 };
 
-export async function runRegisteredContextStep(step: ContextStepResolved, ctx: ContextRuntimeContext): Promise<unknown> {
-  const executor = CONTEXT_EXECUTORS[step.context];
+export async function runRegisteredDiscoverStep(step: DiscoverStepResolved, ctx: DiscoverRuntimeContext): Promise<unknown> {
+  const executor = DISCOVER_EXECUTORS[step.discover];
   if (!executor) {
-    throw new Error(`Unsupported context step: ${step.context}`);
+    throw new Error(`Unsupported discover step: ${step.discover}`);
   }
 
   return executor(step, ctx);

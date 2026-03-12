@@ -19,7 +19,7 @@ import {
   sendIdlInstruction,
   simulateIdlInstruction,
 } from './lib/idlDeclarativeRuntime';
-import { prepareMetaInstruction } from './lib/metaIdlRuntime';
+import { explainMetaOperation, prepareMetaInstruction, type MetaOperationExplain } from './lib/metaIdlRuntime';
 
 const ORCA_PROTOCOL_ID = 'orca-whirlpool-mainnet';
 const ORCA_OPERATION_ID = 'swap_exact_in';
@@ -58,6 +58,7 @@ const HELP_TEXT = [
   '/read-raw <PROTOCOL_ID> <INSTRUCTION_NAME> | <ARGS_JSON> | <ACCOUNTS_JSON>',
   '/idl-list',
   '/idl-template <PROTOCOL_ID> <INSTRUCTION_NAME>',
+  '/meta-explain <PROTOCOL_ID> <OPERATION_ID>',
   '/idl-view <PROTOCOL_ID> <ACCOUNT_TYPE> <ACCOUNT_PUBKEY>',
   '/help',
   '',
@@ -69,6 +70,7 @@ const HELP_TEXT = [
   'Examples:',
   '/quote SOL USDC 0.1 50',
   '/swap SOL USDC 0.1 50',
+  '/meta-explain orca-whirlpool-mainnet swap_exact_in',
 ].join('\n');
 
 function App() {
@@ -155,6 +157,62 @@ function App() {
 
   function asPrettyJson(value: unknown): string {
     return JSON.stringify(value, null, 2);
+  }
+
+  function renderMetaExplain(explanation: MetaOperationExplain): string {
+    const formatRequired = (spec: Record<string, unknown>): string => {
+      const required = spec.required === false ? 'optional' : 'required';
+      const defaultText = spec.default !== undefined ? `, default=${JSON.stringify(spec.default)}` : '';
+      return `${required}${defaultText}`;
+    };
+
+    const discoverLines = explanation.discover.map((step, index) => {
+      const name = String(step.name ?? `step_${index + 1}`);
+      const kind = String(step.discover ?? 'unknown');
+      return `${index + 1}. ${name} -> ${kind}`;
+    });
+
+    const deriveLines = explanation.derive.map((step, index) => {
+      const name = String(step.name ?? `step_${index + 1}`);
+      const resolver = String(step.resolver ?? 'unknown');
+      return `${index + 1}. ${name} -> ${resolver}`;
+    });
+
+    const computeLines = explanation.compute.map((step, index) => {
+      const name = String(step.name ?? `step_${index + 1}`);
+      const compute = String(step.compute ?? 'unknown');
+      return `${index + 1}. ${name} -> ${compute}`;
+    });
+
+    const inputLines = Object.entries(explanation.inputs).map(
+      ([name, spec]) => `- ${name}: ${String(spec.type ?? 'unknown')} (${formatRequired(spec)})`,
+    );
+
+    return [
+      `Meta operation: ${explanation.protocolId}/${explanation.operationId}`,
+      `schema: ${explanation.schema ?? 'n/a'} | version: ${explanation.version}`,
+      `instruction: ${explanation.instruction}`,
+      `templates used: ${explanation.templateUse.length > 0 ? explanation.templateUse.map((entry) => String(entry.template ?? entry.macro ?? 'unknown')).join(', ') : 'none'}`,
+      '',
+      'Inputs:',
+      ...(inputLines.length > 0 ? inputLines : ['- none']),
+      '',
+      'Discover phase:',
+      ...(discoverLines.length > 0 ? discoverLines : ['none']),
+      '',
+      'Derive phase:',
+      ...(deriveLines.length > 0 ? deriveLines : ['none']),
+      '',
+      'Compute phase:',
+      ...(computeLines.length > 0 ? computeLines : ['none']),
+      '',
+      `Build args keys: ${Object.keys(explanation.args).join(', ') || 'none'}`,
+      `Build accounts keys: ${Object.keys(explanation.accounts).join(', ') || 'none'}`,
+      `Post steps: ${explanation.post.length}`,
+      '',
+      'Expanded JSON:',
+      asPrettyJson(explanation),
+    ].join('\n');
   }
 
   function encodeIxDataBase64(data: Uint8Array): string {
@@ -565,6 +623,15 @@ function App() {
           instructionName: parsed.value.instructionName,
         });
         pushMessage('assistant', asPrettyJson(template));
+        return;
+      }
+
+      if (parsed.kind === 'meta-explain') {
+        const explanation = await explainMetaOperation({
+          protocolId: parsed.value.protocolId,
+          operationId: parsed.value.operationId,
+        });
+        pushMessage('assistant', renderMetaExplain(explanation));
         return;
       }
 

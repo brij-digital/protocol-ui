@@ -1,6 +1,6 @@
 import { BN, BorshAccountsCoder, utils } from '@coral-xyz/anchor';
 import { PublicKey } from '@solana/web3.js';
-import type { ContextExecutor, ContextRuntimeContext, ContextStepResolved } from '../../lib/metaContextRegistry';
+import type { DiscoverExecutor, DiscoverRuntimeContext, DiscoverStepResolved } from '../../lib/metaDiscoverRegistry';
 
 type RpcCommitment = 'processed' | 'confirmed' | 'finalized';
 
@@ -72,26 +72,26 @@ function comparePair(tokenA: string, tokenB: string, tokenIn: string, tokenOut: 
   return (tokenA === tokenIn && tokenB === tokenOut) || (tokenA === tokenOut && tokenB === tokenIn);
 }
 
-async function runContextOrcaWhirlpoolPoolsForPair(
-  step: ContextStepResolved,
-  ctx: ContextRuntimeContext,
+async function runDiscoverOrcaWhirlpoolPoolsForPair(
+  step: DiscoverStepResolved,
+  ctx: DiscoverRuntimeContext,
 ): Promise<unknown> {
-  const tokenInMint = asString(step.token_in_mint, `context:${step.name}:token_in_mint`);
-  const tokenOutMint = asString(step.token_out_mint, `context:${step.name}:token_out_mint`);
+  const tokenInMint = asString(step.token_in_mint, `discover:${step.name}:token_in_mint`);
+  const tokenOutMint = asString(step.token_out_mint, `discover:${step.name}:token_out_mint`);
   const accountType =
-    step.account_type === undefined ? 'Whirlpool' : asString(step.account_type, `context:${step.name}:account_type`);
+    step.account_type === undefined ? 'Whirlpool' : asString(step.account_type, `discover:${step.name}:account_type`);
   const commitment: RpcCommitment =
     step.commitment === undefined
       ? 'confirmed'
-      : asRpcCommitment(step.commitment, `context:${step.name}:commitment`);
+      : asRpcCommitment(step.commitment, `discover:${step.name}:commitment`);
   const programId =
     step.program_id === undefined
       ? new PublicKey(ctx.programId)
-      : asPubkey(step.program_id, `context:${step.name}:program_id`);
+      : asPubkey(step.program_id, `discover:${step.name}:program_id`);
 
   const idlAccount = ctx.idl.accounts?.find((entry) => entry.name === accountType);
   if (!idlAccount || !idlAccount.discriminator || idlAccount.discriminator.length !== 8) {
-    throw new Error(`context:${step.name}:account_type ${accountType} is missing discriminator in IDL.`);
+    throw new Error(`discover:${step.name}:account_type ${accountType} is missing discriminator in IDL.`);
   }
 
   const discriminatorBytes = Uint8Array.from(idlAccount.discriminator);
@@ -119,14 +119,14 @@ async function runContextOrcaWhirlpoolPoolsForPair(
       continue;
     }
 
-    const tokenMintA = asString(decoded.token_mint_a, `context:${step.name}:decoded.token_mint_a`);
-    const tokenMintB = asString(decoded.token_mint_b, `context:${step.name}:decoded.token_mint_b`);
+    const tokenMintA = asString(decoded.token_mint_a, `discover:${step.name}:decoded.token_mint_a`);
+    const tokenMintB = asString(decoded.token_mint_b, `discover:${step.name}:decoded.token_mint_b`);
     if (!comparePair(tokenMintA, tokenMintB, tokenInMint, tokenOutMint)) {
       continue;
     }
 
     const aToB = tokenMintA === tokenInMint && tokenMintB === tokenOutMint;
-    const liquidity = asNumberishBigint(decoded.liquidity, `context:${step.name}:decoded.liquidity`);
+    const liquidity = asNumberishBigint(decoded.liquidity, `discover:${step.name}:decoded.liquidity`);
     candidates.push({
       protocol: 'orca-whirlpool',
       whirlpool: info.pubkey.toBase58(),
@@ -136,7 +136,7 @@ async function runContextOrcaWhirlpoolPoolsForPair(
       tokenMintB,
       aToB,
       tickArrayDirection: aToB ? -1 : 1,
-      tickSpacing: asNumberishBigint(decoded.tick_spacing, `context:${step.name}:decoded.tick_spacing`).toString(),
+      tickSpacing: asNumberishBigint(decoded.tick_spacing, `discover:${step.name}:decoded.tick_spacing`).toString(),
       liquidity: liquidity.toString(),
     });
   }
@@ -153,6 +153,6 @@ async function runContextOrcaWhirlpoolPoolsForPair(
   return candidates;
 }
 
-export const ORCA_CONTEXT_EXECUTORS: Record<string, ContextExecutor> = {
-  'context.orca_whirlpool_pools_for_pair': runContextOrcaWhirlpoolPoolsForPair,
+export const ORCA_DISCOVER_EXECUTORS: Record<string, DiscoverExecutor> = {
+  'discover.orca_whirlpool_pools_for_pair': runDiscoverOrcaWhirlpoolPoolsForPair,
 };
