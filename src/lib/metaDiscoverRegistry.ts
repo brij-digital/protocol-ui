@@ -137,6 +137,13 @@ function resolveTemplateWithScope(
   return value;
 }
 
+function resolveOptionalGlobalPathValue(value: unknown, scope: Record<string, unknown>): unknown {
+  if (typeof value === 'string' && value.startsWith('$')) {
+    return resolvePathMaybe(scope, value);
+  }
+  return value;
+}
+
 function normalizeRuntimeValue(value: unknown): unknown {
   if (BN.isBN(value)) {
     return (value as BN).toString();
@@ -514,6 +521,18 @@ async function runDiscoverQuery(step: DiscoverStepResolved, ctx: DiscoverRuntime
   if (source !== 'rpc.getProgramAccounts') {
     throw new Error(`discover:${step.name}: unsupported source ${source}.`);
   }
+  const directPubkeysValue = resolveOptionalGlobalPathValue(resolvedStep.account_pubkeys, ctx.scope);
+  const directPubkeys = (() => {
+    if (directPubkeysValue === undefined || directPubkeysValue === null || directPubkeysValue === '') {
+      return [] as string[];
+    }
+    if (Array.isArray(directPubkeysValue)) {
+      return directPubkeysValue.map((entry, index) =>
+        asPubkey(entry, `discover:${step.name}:account_pubkeys[${index}]`).toBase58(),
+      );
+    }
+    return [asPubkey(directPubkeysValue, `discover:${step.name}:account_pubkeys`).toBase58()];
+  })();
 
   const programId =
     resolvedStep.program_id === undefined
@@ -556,14 +575,39 @@ async function runDiscoverQuery(step: DiscoverStepResolved, ctx: DiscoverRuntime
     return merged;
   });
 
-  const accountMap = new Map<string, Awaited<ReturnType<Connection['getProgramAccounts']>>[number]>();
-  for (const filters of finalFilterGroups) {
-    const accounts = await ctx.connection.getProgramAccounts(programId, {
-      commitment,
-      filters: filters.length > 0 ? filters : undefined,
+  const accountMap = new Map<
+    string,
+    { pubkey: PublicKey; account: { data: Uint8Array; executable: boolean; lamports: number; owner: PublicKey } }
+  >();
+  if (directPubkeys.length > 0) {
+    const keys = directPubkeys.map((key) => new PublicKey(key));
+    const infos = await ctx.connection.getMultipleAccountsInfo(keys, commitment);
+    infos.forEach((info, index) => {
+      if (!info) {
+        return;
+      }
+      if (!info.owner.equals(programId)) {
+        return;
+      }
+      accountMap.set(keys[index].toBase58(), {
+        pubkey: keys[index],
+        account: {
+          data: info.data,
+          executable: info.executable,
+          lamports: info.lamports,
+          owner: info.owner,
+        },
+      });
     });
-    for (const account of accounts) {
-      accountMap.set(account.pubkey.toBase58(), account);
+  } else {
+    for (const filters of finalFilterGroups) {
+      const accounts = await ctx.connection.getProgramAccounts(programId, {
+        commitment,
+        filters: filters.length > 0 ? filters : undefined,
+      });
+      for (const account of accounts) {
+        accountMap.set(account.pubkey.toBase58(), account);
+      }
     }
   }
 
@@ -576,7 +620,7 @@ async function runDiscoverQuery(step: DiscoverStepResolved, ctx: DiscoverRuntime
     let decoded: unknown = null;
     if (coder && accountType) {
       try {
-        decoded = normalizeRuntimeValue(coder.decode(accountType, account.account.data));
+        decoded = normalizeRuntimeValue(coder.decode(accountType, account.account.data as never));
       } catch {
         continue;
       }

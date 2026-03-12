@@ -56,6 +56,7 @@ In `templates.orca.swap_exact_in.v1.expand.discover`:
 
 1. `pool_candidates` (`discover.query`)
 - Runs on-chain discovery via RPC `getProgramAccounts` against Orca program.
+- If `input.whirlpool` is present, it fetches that pool account directly instead of scanning.
 - Uses declarative OR memcmp filters for `(mintA,mintB)` and `(mintB,mintA)`.
 - Auto-adds account discriminator filter from IDL `account_type`.
 - Decodes Whirlpool accounts, applies declarative `where/sort/limit/select`.

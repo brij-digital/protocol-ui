@@ -329,6 +329,7 @@
             "program_id": {},
             "account_type": { "type": "string" },
             "commitment": { "enum": ["processed", "confirmed", "finalized"] },
+            "account_pubkeys": {},
             "filters": {
               "type": "array",
               "items": { "$ref": "#/$defs/programAccountFilter" }

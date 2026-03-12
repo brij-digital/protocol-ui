@@ -21,6 +21,7 @@
             "program_id": "$protocol.programId",
             "account_type": "Whirlpool",
             "commitment": "confirmed",
+            "account_pubkeys": "$input.whirlpool",
             "or_filters": [
               [
                 {
@@ -230,11 +231,6 @@
         "amount_in": { "type": "u64", "required": true },
         "slippage_bps": { "type": "u16", "required": true },
         "whirlpool": { "type": "pubkey", "required": false },
-        "selected_whirlpool": {
-          "type": "pubkey",
-          "required": false,
-          "discover_from": "$selected_pool.whirlpool"
-        },
         "unwrap_sol_output": { "type": "bool", "required": false, "default": true }
       },
       "use": [

@@ -113,6 +113,8 @@ npm run build
 - The app targets `mainnet-beta` by default.
 - Swap execution requires a connected Phantom wallet.
 - `/swap` and `/quote` are strict declarative wrappers: discover + derive gather on-chain state, then app uses RPC simulation to estimate output and compute slippage threshold before send.
-- Pool discovery uses declarative `discover.query` with on-chain `getProgramAccounts` filters plus deterministic decode/filter/sort/select.
+- Pool discovery uses declarative `discover.query`:
+  - if `whirlpool` is provided, runtime fetches that account directly;
+  - otherwise runtime scans via `getProgramAccounts` filters.
 - Meta execution pipeline is split into phases: `discover` (pool discovery + selection) -> `derive` (on-chain/account gather) -> `compute` (deterministic pure transforms) -> IDL build -> `simulate` or `send`.
 - SOL output is auto-unwrapped by default via declarative meta `post` step (`spl_token_close_account`).
