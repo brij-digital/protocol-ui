@@ -226,7 +226,7 @@
         "token_in_mint": { "type": "pubkey", "required": true },
         "token_out_mint": { "type": "pubkey", "required": true },
         "amount_in": { "type": "u64", "required": true },
-        "slippage_bps": { "type": "u16", "required": false, "default": 50 },
+        "slippage_bps": { "type": "u16", "required": true },
         "pool_index": { "type": "u16", "required": false, "default": 0 },
         "selected_whirlpool": {
           "type": "pubkey",
