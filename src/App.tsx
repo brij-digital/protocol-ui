@@ -48,8 +48,8 @@ type PendingPoolSelection = {
 
 const HELP_TEXT = [
   'Commands:',
-  '/swap <INPUT_TOKEN> <OUTPUT_TOKEN> <AMOUNT> <SLIPPAGE_BPS> [POOL_INDEX]',
-  '/quote <INPUT_TOKEN> <OUTPUT_TOKEN> <AMOUNT> <SLIPPAGE_BPS> [POOL_INDEX]',
+  '/swap <INPUT_TOKEN> <OUTPUT_TOKEN> <AMOUNT> <SLIPPAGE_BPS>',
+  '/quote <INPUT_TOKEN> <OUTPUT_TOKEN> <AMOUNT> <SLIPPAGE_BPS>',
   '/write-raw <PROTOCOL_ID> <INSTRUCTION_NAME> | <ARGS_JSON> | <ACCOUNTS_JSON>',
   '/read-raw <PROTOCOL_ID> <INSTRUCTION_NAME> | <ARGS_JSON> | <ACCOUNTS_JSON>',
   '/idl-list',
@@ -61,12 +61,10 @@ const HELP_TEXT = [
   'Notes:',
   'AMOUNT is UI amount (e.g. 0.1 for SOL).',
   'Pool discovery is on-chain via Orca program account scan.',
-  'POOL_INDEX is optional and 1-based (1 = first discovered pool).',
-  'If multiple pools match a pair, the app asks you to pick one.',
+  'If multiple pools match a pair, you will be asked to pick one (or provide a whirlpool override internally).',
   '',
   'Examples:',
   '/quote SOL USDC 0.1 50',
-  '/quote SOL USDC 0.1 50 1',
   '/swap SOL USDC 0.1 50',
   '/meta-explain orca-whirlpool-mainnet swap_exact_in',
 ].join('\n');
@@ -306,14 +304,12 @@ function App() {
   async function executeSwapOrQuote(options: {
     kind: 'swap' | 'quote';
     value: SwapPrefillCommand | QuotePrefillCommand;
-    poolIndex?: number;
+    whirlpool?: string;
   }): Promise<void> {
     if (!wallet.publicKey) {
       throw new Error('Connect wallet first to derive owner token accounts.');
     }
     const walletPublicKey = wallet.publicKey;
-    const effectivePoolIndex = options.poolIndex ?? options.value.poolIndex;
-
     const prepared = await prepareMetaInstruction({
       protocolId: ORCA_PROTOCOL_ID,
       operationId: ORCA_OPERATION_ID,
@@ -322,14 +318,14 @@ function App() {
         token_out_mint: options.value.outputMint,
         amount_in: options.value.amountAtomic,
         slippage_bps: options.value.slippageBps,
-        ...(effectivePoolIndex !== undefined ? { pool_index: effectivePoolIndex } : {}),
+        ...(options.whirlpool !== undefined ? { whirlpool: options.whirlpool } : {}),
       },
       connection,
       walletPublicKey,
     });
 
     const poolCandidates = normalizePoolCandidates(prepared.derived.pool_candidates);
-    if (poolCandidates.length > 1 && effectivePoolIndex === undefined) {
+    if (poolCandidates.length > 1 && options.whirlpool === undefined) {
       setPendingPoolSelection({
         kind: options.kind,
         command: options.value,
@@ -584,7 +580,7 @@ function App() {
           await executeSwapOrQuote({
             kind: pendingPoolSelection.kind,
             value: pendingPoolSelection.command,
-            poolIndex: zeroBasedIndex,
+            whirlpool: pendingPoolSelection.candidates[zeroBasedIndex].whirlpool,
           });
           return;
         }
@@ -694,7 +690,7 @@ function App() {
       await executeSwapOrQuote({
         kind: pendingPoolSelection.kind,
         value: pendingPoolSelection.command,
-        poolIndex: index,
+        whirlpool: pendingPoolSelection.candidates[index].whirlpool,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error while selecting pool.';

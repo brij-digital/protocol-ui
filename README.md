@@ -11,8 +11,8 @@ Current scope:
 ## Commands
 
 - `/help`
-- `/swap <INPUT_TOKEN> <OUTPUT_TOKEN> <AMOUNT> <SLIPPAGE_BPS> [POOL_INDEX]`
-- `/quote <INPUT_TOKEN> <OUTPUT_TOKEN> <AMOUNT> <SLIPPAGE_BPS> [POOL_INDEX]`
+- `/swap <INPUT_TOKEN> <OUTPUT_TOKEN> <AMOUNT> <SLIPPAGE_BPS>`
+- `/quote <INPUT_TOKEN> <OUTPUT_TOKEN> <AMOUNT> <SLIPPAGE_BPS>`
 - `/write-raw <PROTOCOL_ID> <INSTRUCTION_NAME> | <ARGS_JSON> | <ACCOUNTS_JSON>`
 - `/read-raw <PROTOCOL_ID> <INSTRUCTION_NAME> | <ARGS_JSON> | <ACCOUNTS_JSON>`
 - `/idl-list`
@@ -24,7 +24,6 @@ Examples:
 
 ```text
 /quote SOL USDC 0.1 50
-/quote SOL USDC 0.1 50 1
 /swap SOL USDC 0.1 50
 /meta-explain orca-whirlpool-mainnet swap_exact_in
 ```
@@ -71,6 +70,7 @@ Meta IDL v0.3 discover primitives currently implemented in runtime:
 - `discover.compare_values` (generic)
 - `discover.query` (generic on-chain RPC discovery)
 - `discover.pick_list_item`
+- `discover.pick_list_item_by_value`
 
 Meta IDL v0.3 compute primitives currently implemented in runtime:
 - `math.add`

@@ -10,7 +10,7 @@ This document reflects the current implementation in this repo.
 
 Current protocol/operation:
 - Protocol: Orca Whirlpools mainnet
-- User commands: `/quote`, `/swap` (both support optional `[POOL_INDEX]`)
+- User commands: `/quote`, `/swap`
 - Operation: `swap_exact_in` -> instruction `swap_v2`
 
 ## 2) Key Files
@@ -34,7 +34,7 @@ Operation pipeline phases:
 
 Current discover steps used by Orca operation:
 - `discover.query`
-- `discover.pick_list_item`
+- `discover.pick_list_item_by_value`
 
 Current derive steps used by Orca operation:
 - `wallet_pubkey`
@@ -62,20 +62,20 @@ In `templates.orca.swap_exact_in.v1.expand.discover`:
 - Produces candidates with:
   - `whirlpool`, `tokenMintA`, `tokenMintB`, `tickSpacing`, `liquidity`.
 
-2. `selected_pool` (`discover.pick_list_item`)
-- Picks `pool_candidates[input.pool_index]`.
-- `pool_index` default is `0`.
+2. `selected_pool` (`discover.pick_list_item_by_value`)
+- If `input.whirlpool` is provided, picks matching candidate by `whirlpool`.
+- Otherwise falls back to first candidate (`fallback_index = 0`).
 
 ## 5) App-Level Pool Selection UX
 
 `src/App.tsx` adds a two-pass flow:
 
-1. First run `/quote` or `/swap` without explicit `pool_index`.
+1. First run `/quote` or `/swap`.
 2. Runtime returns `pool_candidates` and a default `selected_pool` (`index 0`).
 3. If candidates count > 1, app pauses and prompts user to choose:
 - Click button in the optional list UI, or
 - Type `1`, `2`, `3`, ...
-4. App reruns the same operation with chosen `pool_index`.
+4. App reruns the same operation with chosen `whirlpool`.
 5. Flow continues to derive/compute/simulate/send.
 
 If only one pool exists, no prompt is shown and execution continues immediately.

@@ -477,6 +477,34 @@ async function runDiscoverPickListItem(step: DiscoverStepResolved): Promise<unkn
   return items[indexRaw];
 }
 
+async function runDiscoverPickListItemByValue(step: DiscoverStepResolved): Promise<unknown> {
+  const items = asArray(step.items, `discover:${step.name}:items`);
+  if (items.length === 0) {
+    throw new Error(`discover:${step.name}:items must not be empty.`);
+  }
+
+  const valuePath = asString(step.value_path, `discover:${step.name}:value_path`);
+  const fallbackIndex =
+    step.fallback_index === undefined ? 0 : asSafeInteger(step.fallback_index, `discover:${step.name}:fallback_index`);
+  if (fallbackIndex < 0 || fallbackIndex >= items.length) {
+    throw new Error(`discover:${step.name}:fallback_index ${fallbackIndex} is out of bounds for ${items.length} item(s).`);
+  }
+
+  const hasMatchValue = step.match_value !== undefined && step.match_value !== null && String(step.match_value).length > 0;
+  if (!hasMatchValue) {
+    return items[fallbackIndex];
+  }
+
+  for (const item of items) {
+    const candidate = readPathFromValue(item, valuePath);
+    if (valuesEqual(candidate, step.match_value)) {
+      return item;
+    }
+  }
+
+  return items[fallbackIndex];
+}
+
 async function runDiscoverQuery(step: DiscoverStepResolved, ctx: DiscoverRuntimeContext): Promise<unknown> {
   const resolvedStep = asRecord(
     resolveTemplateWithScope(step, ctx.scope, { keepUnresolvedPaths: true }),
@@ -618,6 +646,7 @@ const DISCOVER_EXECUTORS: Record<string, DiscoverExecutor> = {
   'discover.query_http_json': runDiscoverQueryHttpJson,
   'discover.compare_values': runDiscoverCompareValues,
   'discover.pick_list_item': runDiscoverPickListItem,
+  'discover.pick_list_item_by_value': runDiscoverPickListItemByValue,
   'discover.query': runDiscoverQuery,
 };
 

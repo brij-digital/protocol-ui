@@ -75,9 +75,11 @@
           },
           {
             "name": "selected_pool",
-            "discover": "discover.pick_list_item",
+            "discover": "discover.pick_list_item_by_value",
             "items": "$pool_candidates",
-            "index": "$input.pool_index"
+            "value_path": "whirlpool",
+            "match_value": "$input.whirlpool",
+            "fallback_index": 0
           }
         ],
         "derive": [
@@ -227,7 +229,7 @@
         "token_out_mint": { "type": "pubkey", "required": true },
         "amount_in": { "type": "u64", "required": true },
         "slippage_bps": { "type": "u16", "required": true },
-        "pool_index": { "type": "u16", "required": false, "default": 0 },
+        "whirlpool": { "type": "pubkey", "required": false },
         "selected_whirlpool": {
           "type": "pubkey",
           "required": false,

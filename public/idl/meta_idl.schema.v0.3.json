@@ -363,6 +363,19 @@
             "index": { "type": "integer", "minimum": 0 }
           },
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["name", "discover", "items", "value_path"],
+          "properties": {
+            "name": { "type": "string" },
+            "discover": { "const": "discover.pick_list_item_by_value" },
+            "items": { "type": "array", "items": {}, "minItems": 1 },
+            "value_path": { "type": "string" },
+            "match_value": {},
+            "fallback_index": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
         }
       ]
     },
