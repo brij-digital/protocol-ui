@@ -174,6 +174,23 @@ Or run full protocol-pack CI + RPC checks together:
 npm run ci:protocol-packs:rpc
 ```
 
+## Deploy to GitHub Pages
+
+This repo now includes automatic deployment via:
+- `.github/workflows/deploy-pages.yml`
+
+How to enable:
+1. Push to `main`.
+2. In GitHub: `Settings -> Pages`.
+3. Set `Source` to `GitHub Actions`.
+4. Wait for the workflow `Deploy Web App to GitHub Pages` to complete.
+
+URL format:
+- Project site repo: `https://<org-or-user>.github.io/<repo-name>/`
+- User/org site repo (`<org-or-user>.github.io`): `https://<org-or-user>.github.io/`
+
+The workflow auto-sets Vite `base` path to match the repository type.
+
 ## Notes
 
 - The app targets `mainnet-beta` by default.
