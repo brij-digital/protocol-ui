@@ -831,12 +831,6 @@ function App() {
   async function executePumpCurve(options: {
     value: PumpCurveCommand;
   }): Promise<void> {
-    if (!options.value.simulate) {
-      throw new Error(
-        'Pump curve send is not implemented in this MVP yet. Use --simulate for quote-only path.',
-      );
-    }
-
     if (!wallet.publicKey) {
       throw new Error('Connect wallet first to run Pump curve simulation.');
     }

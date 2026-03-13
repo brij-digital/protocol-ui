@@ -39,6 +39,12 @@
           "seeds": ["utf8:bonding-curve", "$input.base_mint"]
         },
         {
+          "name": "bonding_curve_v2",
+          "resolver": "pda",
+          "program_id": "$protocol.programId",
+          "seeds": ["utf8:bonding-curve-v2", "$input.base_mint"]
+        },
+        {
           "name": "bonding_curve_data",
           "resolver": "decode_account",
           "address": "$bonding_curve",
@@ -100,6 +106,7 @@
         "fee_recipient": "$global_data.fee_recipient",
         "mint": "$input.base_mint",
         "bonding_curve": "$bonding_curve",
+        "bonding_curve_v2": "$bonding_curve_v2",
         "associated_bonding_curve": "$associated_bonding_curve",
         "associated_user": "$associated_user",
         "user": "$wallet",
