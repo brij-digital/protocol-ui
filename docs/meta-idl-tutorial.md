@@ -6,6 +6,7 @@ This document reflects the current implementation in this repo.
 
 - **Base IDL** (`orca_whirlpool.json`) defines instruction/account encoding.
 - **Meta IDL** (`orca_whirlpool.meta.json`) defines how to turn a high-level operation into concrete args/accounts.
+- **AIDL source** (`aidl/*.aidl.json`) is the human-authoring format that compiles to Meta IDL JSON.
 - **Runtime** executes Meta phases and then calls the base IDL builder/simulator/sender.
 
 Current protocol/operation:
@@ -19,8 +20,9 @@ Current protocol/operation:
 - Discover runtime (generic): `src/lib/metaDiscoverRegistry.ts`
 - Compute runtime: `src/lib/metaComputeRegistry.ts`
 - App command flow: `src/App.tsx`
+- AIDL compiler: `scripts/compile-aidl.mjs`
 - Meta spec: `public/idl/orca_whirlpool.meta.json`
-- Meta schema: `public/idl/meta_idl.schema.v0.3.json`
+- Meta schema: `public/idl/meta_idl.schema.v0.4.json`
 
 ## 3) Runtime Vocabulary
 
@@ -49,6 +51,11 @@ Current compute steps used by Orca operation:
 - `pda(seed_spec)`
 - `compare.equals`
 - `logic.if`
+
+New in v0.4 runtime (available primitives):
+- `token_account_balance`, `token_supply` resolvers
+- `math.sum`, `list.filter`, `list.first`, `list.min_by`, `list.max_by`, `coalesce`
+- `compare.not_equals`, `compare.gt`, `compare.gte`, `compare.lt`, `compare.lte`
 
 ## 4) What `discover[]` Does Now
 
@@ -145,6 +152,17 @@ Current split is:
 - Protocol specifics in Meta IDL data (`discover.query` + derive/compute config)
 
 To scale, keep adding generic discover/compute primitives and keep protocol files data-only.
+
+## 12) Authoring vs Runtime
+
+- Edit human source in `aidl/*.aidl.json`.
+- Compile to canonical runtime JSON with:
+
+```bash
+npm run aidl:compile
+```
+
+- Runtime only consumes generated `public/idl/*.meta.json`.
 
 ## 11) Optional Inputs via Discovery
 

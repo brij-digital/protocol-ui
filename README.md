@@ -5,7 +5,8 @@ This repository is a command-driven web demo for an Espresso Cash AI Wallet MVP.
 Current scope:
 - Single-signature wallet approval (no Swig/passkeys yet)
 - One active swap integration via Orca Whirlpools on Solana mainnet
-- One base IDL + one Meta IDL (`meta-idl.v0.3`) for declarative operation derivation
+- One base IDL + one Meta IDL (`meta-idl.v0.4`) for declarative operation derivation
+- One authoring DSL (`AIDL v0.1`) compiled to canonical Meta IDL JSON
 - Chat-style command input with deterministic command parsing
 
 ## Commands
@@ -54,28 +55,31 @@ Supported token aliases for `/swap` and `/quote`:
 - Meta IDL: `public/idl/orca_whirlpool.meta.json`
 - Pump AMM IDL: `public/idl/pump_amm.json`
 - Pump AMM Meta IDL: `public/idl/pump_amm.meta.json`
-- Meta IDL schema: `public/idl/meta_idl.schema.v0.3.json`
+- Pump AMM authoring source: `aidl/pump_amm.aidl.json`
+- Meta IDL schema: `public/idl/meta_idl.schema.v0.4.json`
 - Tutorial: `docs/meta-idl-tutorial.md`
   - Detailed end-to-end walkthrough of current `/quote` and `/swap` flow
+- AIDL authoring guide: `docs/aidl-authoring.md`
 - Registry: `public/idl/registry.json`
 - Discover registry: `src/lib/metaDiscoverRegistry.ts`
-- Compute registry (plugin dispatch): `src/lib/metaComputeRegistry.ts`
-- Shared SDK coercion helpers: `src/lib/sdk/coerce.ts`
-- Shared runtime value normalizer: `src/lib/sdk/runtimeValue.ts`
+- Compute registry (generic primitives only): `src/lib/metaComputeRegistry.ts`
 
 Meta operation used by `/swap` and `/quote`:
 - `swap_exact_in`
 - compiled instruction: `swap_v2`
 
-Meta IDL v0.3 resolver primitives currently implemented in runtime:
+Meta IDL v0.4 resolver primitives currently implemented in runtime:
 - `wallet_pubkey`
 - `decode_account`
+- `account_owner`
+- `token_account_balance`
+- `token_supply`
 - `ata`
 - `pda`
 - `lookup` (generic relation query primitive; not used in current Orca swap template)
 - `unix_timestamp`
 
-Meta IDL v0.3 discover primitives currently implemented in runtime:
+Meta IDL v0.4 discover primitives currently implemented in runtime:
 - `discover.mock` (generic)
 - `discover.query_http_json` (generic)
 - `discover.compare_values` (generic)
@@ -83,17 +87,28 @@ Meta IDL v0.3 discover primitives currently implemented in runtime:
 - `discover.pick_list_item`
 - `discover.pick_list_item_by_value`
 
-Meta IDL v0.3 compute primitives currently implemented in runtime:
+Meta IDL v0.4 compute primitives currently implemented in runtime:
 - `math.add`
+- `math.sum`
 - `math.mul`
 - `math.floor_div`
 - `list.range_map`
 - `list.get`
+- `list.filter`
+- `list.first`
+- `list.min_by`
+- `list.max_by`
+- `coalesce`
 - `pda(seed_spec)`
 - `compare.equals`
+- `compare.not_equals`
+- `compare.gt`
+- `compare.gte`
+- `compare.lt`
+- `compare.lte`
 - `logic.if`
 
-Meta IDL v0.3 supports template expansion:
+Meta IDL v0.4 supports template expansion:
 - `templates.<name>.expand` defines reusable declarative blocks.
 - `operations.<operation>.use[]` applies templates with parameter mapping via `$param.*`.
 
@@ -120,6 +135,18 @@ Build:
 npm run build
 ```
 
+Compile AIDL authoring files to canonical Meta IDL JSON:
+
+```bash
+npm run aidl:compile
+```
+
+Check that generated Meta IDL files are up to date:
+
+```bash
+npm run aidl:check
+```
+
 ## Notes
 
 - The app targets `mainnet-beta` by default.
@@ -129,4 +156,5 @@ npm run build
   - if `whirlpool` is provided, runtime fetches that account directly;
   - otherwise runtime scans via `getProgramAccounts` filters.
 - Meta execution pipeline is split into phases: `discover` (pool discovery + selection) -> `derive` (on-chain/account gather) -> `compute` (deterministic pure transforms) -> IDL build -> `simulate` or `send`.
+- Authoring flow is split too: `AIDL source (human)` -> `compile` -> `Meta IDL JSON (runtime bytecode)`.
 - SOL output is auto-unwrapped by default via declarative meta `post` step (`spl_token_close_account`).

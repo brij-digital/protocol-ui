@@ -903,6 +903,20 @@ function App() {
     const bondingCurve = asString(prepared.accounts.bonding_curve, 'bonding_curve');
     const associatedUser = asString(prepared.accounts.associated_user, 'associated_user');
     const tokenProgram = asString(prepared.accounts.token_program, 'token_program');
+    const curveData = asRecord(prepared.derived.bonding_curve_data, 'bonding_curve_data');
+    const complete = asBoolean(curveData.complete, 'bonding_curve_data.complete');
+    const realTokenReserves = asIntegerLikeString(curveData.real_token_reserves, 'bonding_curve_data.real_token_reserves');
+    const realSolReserves = asIntegerLikeString(curveData.real_sol_reserves, 'bonding_curve_data.real_sol_reserves');
+
+    if (complete) {
+      throw new Error(
+        [
+          `Bonding curve is complete for token ${options.value.tokenMint}.`,
+          'This token has graduated/migrated, so Pump core /pump-curve is no longer the executable route.',
+          `Try: /pump-amm ${options.value.tokenMint} ${options.value.amountUiSol} ${options.value.slippageBps} --simulate`,
+        ].join('\n'),
+      );
+    }
 
     const preInstructions: TransactionInstruction[] = [
       createAssociatedTokenAccountIdempotentInstruction(
@@ -978,6 +992,19 @@ function App() {
       const rawPreview = await getRawPreview(provisionalArgs);
       const simError = simulation.error ?? 'unknown';
       const logs = simulation.logs.join('\n');
+      const isCurveComplete =
+        simError.includes('6005') ||
+        logs.includes('BondingCurveComplete') ||
+        logs.includes('Error Number: 6005');
+      if (isCurveComplete) {
+        throw new Error(
+          [
+            `Bonding curve is complete for token ${options.value.tokenMint}.`,
+            'This token has graduated/migrated, so Pump core /pump-curve is no longer the executable route.',
+            `Try: /pump-amm ${options.value.tokenMint} ${options.value.amountUiSol} ${options.value.slippageBps} --simulate`,
+          ].join('\n'),
+        );
+      }
       throw new Error(`Simulation failed: ${simError}\n${logs}\n\nRaw instruction preview:\n${asPrettyJson(rawPreview)}`);
     }
 
@@ -1006,11 +1033,6 @@ function App() {
 
     const estimatedOutUi = formatTokenAmount(estimatedOut.toString(), tokenDecimals);
     const minOutUi = formatTokenAmount(minOutAtomic, tokenDecimals);
-    const curveData = asRecord(prepared.derived.bonding_curve_data, 'bonding_curve_data');
-    const complete = asBoolean(curveData.complete, 'bonding_curve_data.complete');
-    const realTokenReserves = asIntegerLikeString(curveData.real_token_reserves, 'bonding_curve_data.real_token_reserves');
-    const realSolReserves = asIntegerLikeString(curveData.real_sol_reserves, 'bonding_curve_data.real_sol_reserves');
-
     if (options.value.simulate) {
       pushMessage(
         'assistant',
