@@ -101,6 +101,8 @@ type BuilderProtocol = {
   status: 'active' | 'inactive';
 };
 
+type BuilderViewMode = 'enduser' | 'geek';
+
 type PendingPoolSelection = {
   command: OrcaCommand;
   candidates: OrcaPoolCandidate[];
@@ -173,6 +175,7 @@ function App() {
   const [builderProtocolId, setBuilderProtocolId] = useState('');
   const [builderOperations, setBuilderOperations] = useState<MetaOperationSummary[]>([]);
   const [builderOperationId, setBuilderOperationId] = useState('');
+  const [builderViewMode, setBuilderViewMode] = useState<BuilderViewMode>('enduser');
   const [builderInputValues, setBuilderInputValues] = useState<Record<string, string>>({});
   const [builderSimulate, setBuilderSimulate] = useState(true);
   const [builderStatusText, setBuilderStatusText] = useState<string | null>(null);
@@ -187,6 +190,35 @@ function App() {
     () => builderOperations.find((entry) => entry.operationId === builderOperationId) ?? null,
     [builderOperations, builderOperationId],
   );
+  const visibleBuilderInputs = useMemo(() => {
+    if (!selectedBuilderOperation) {
+      return [] as Array<[string, MetaOperationSummary['inputs'][string]]>;
+    }
+
+    return Object.entries(selectedBuilderOperation.inputs).filter(([, spec]) => {
+      if (builderViewMode === 'geek') {
+        return true;
+      }
+
+      const autoResolved =
+        spec.default !== undefined || (typeof spec.discover_from === 'string' && spec.discover_from.length > 0);
+      if (spec.required && !autoResolved) {
+        return true;
+      }
+
+      if (spec.ui_tier === 'enduser') {
+        return true;
+      }
+      if (spec.ui_tier === 'geek') {
+        return false;
+      }
+
+      return spec.required && !autoResolved;
+    });
+  }, [selectedBuilderOperation, builderViewMode]);
+  const hiddenBuilderInputsCount = selectedBuilderOperation
+    ? Object.keys(selectedBuilderOperation.inputs).length - visibleBuilderInputs.length
+    : 0;
 
   useEffect(() => {
     let cancelled = false;
@@ -285,6 +317,17 @@ function App() {
       return String(value);
     }
     return JSON.stringify(value);
+  }
+
+  function isAutoResolvedBuilderInput(spec: MetaOperationSummary['inputs'][string]): boolean {
+    return spec.default !== undefined || (typeof spec.discover_from === 'string' && spec.discover_from.length > 0);
+  }
+
+  function isBuilderInputEditable(spec: MetaOperationSummary['inputs'][string]): boolean {
+    if (typeof spec.ui_editable === 'boolean') {
+      return spec.ui_editable;
+    }
+    return !isAutoResolvedBuilderInput(spec);
   }
 
   function parseBuilderInputValue(raw: string, type: string, label: string): unknown {
@@ -2522,8 +2565,34 @@ function App() {
                   instruction: <code>{selectedBuilderOperation.instruction || 'read-only'}</code>
                 </p>
 
+                <div className="builder-mode-switch">
+                  <button
+                    type="button"
+                    className={builderViewMode === 'enduser' ? 'active' : ''}
+                    onClick={() => setBuilderViewMode('enduser')}
+                    disabled={isWorking}
+                  >
+                    End User
+                  </button>
+                  <button
+                    type="button"
+                    className={builderViewMode === 'geek' ? 'active' : ''}
+                    onClick={() => setBuilderViewMode('geek')}
+                    disabled={isWorking}
+                  >
+                    Geek
+                  </button>
+                </div>
+                {hiddenBuilderInputsCount > 0 && builderViewMode === 'enduser' ? (
+                  <p className="builder-note">
+                    {hiddenBuilderInputsCount} field(s) auto-resolved or advanced. Switch to Geek mode to view them.
+                  </p>
+                ) : null}
+
                 <div className="builder-inputs">
-                  {Object.entries(selectedBuilderOperation.inputs).map(([inputName, spec]) => (
+                  {visibleBuilderInputs.map(([inputName, spec]) => {
+                    const editable = isBuilderInputEditable(spec);
+                    return (
                     <label key={inputName}>
                       <span>
                         {inputName} <code>{spec.type}</code>{' '}
@@ -2543,12 +2612,13 @@ function App() {
                             ? `default: ${stringifyBuilderDefault(spec.default)}`
                             : spec.discover_from
                               ? `discover_from: ${spec.discover_from}`
-                              : ''
+                            : ''
                         }
-                        disabled={isWorking}
+                        disabled={isWorking || !editable}
                       />
                     </label>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 <div className="builder-controls">

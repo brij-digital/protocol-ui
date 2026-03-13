@@ -67,6 +67,8 @@ type ActionInputSpec = {
   required?: boolean;
   default?: unknown;
   discover_from?: string;
+  ui_tier?: 'enduser' | 'geek';
+  ui_editable?: boolean;
 };
 
 type ActionSpec = {
@@ -213,6 +215,8 @@ export type MetaOperationSummary = {
       required: boolean;
       default?: unknown;
       discover_from?: string;
+      ui_tier?: 'enduser' | 'geek';
+      ui_editable?: boolean;
     }
   >;
 };
@@ -1196,6 +1200,8 @@ export async function listMetaOperations(options: {
             required: spec.required !== false,
             ...(spec.default !== undefined ? { default: cloneJsonLike(spec.default) } : {}),
             ...(spec.discover_from ? { discover_from: spec.discover_from } : {}),
+            ...(spec.ui_tier ? { ui_tier: spec.ui_tier } : {}),
+            ...(typeof spec.ui_editable === 'boolean' ? { ui_editable: spec.ui_editable } : {}),
           },
         ]),
       );
