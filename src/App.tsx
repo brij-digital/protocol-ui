@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
@@ -30,9 +30,11 @@ import {
 } from './lib/idlDeclarativeRuntime';
 import {
   explainMetaOperation,
+  listMetaOperations,
   prepareMetaOperation,
   prepareMetaInstruction,
   type MetaOperationExplain,
+  type MetaOperationSummary,
 } from './lib/metaIdlRuntime';
 
 const ORCA_PROTOCOL_ID = 'orca-whirlpool-mainnet';
@@ -54,11 +56,49 @@ const QUICK_PREFILL_PUMP_CURVE_COMMAND =
   '/pump-curve EuN3FubSnMCCxZahkxneNcRFSXdweeLXuWnXKYMc18H5 0.01 100 --simulate';
 const QUICK_PREFILL_KAMINO_DEPOSIT_COMMAND =
   '/kamino-deposit 8J5NcJX4RScwC9hWfW2MtgQ8v4D6vQkYvA4K4GcCbn8J EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v 0.1 --simulate';
+const BUILDER_EXAMPLE_INPUTS: Record<string, Record<string, string>> = {
+  [`${ORCA_PROTOCOL_ID}/${ORCA_OPERATION_ID}`]: {
+    token_in_mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+    token_out_mint: 'So11111111111111111111111111111111111111112',
+    amount_in: '10000',
+    slippage_bps: '50',
+    whirlpool: 'Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE',
+    unwrap_sol_output: 'true',
+  },
+  [`${PUMP_AMM_PROTOCOL_ID}/${PUMP_AMM_OPERATION_ID}`]: {
+    base_mint: 'C4yDhKwkikpVGCQWD9BT2SJyHAtRFFnKPDM9Nyshpump',
+    quote_mint: 'So11111111111111111111111111111111111111112',
+    quote_amount_in: '10000000',
+    track_volume: 'true',
+    slippage_bps: '100',
+  },
+  [`${PUMP_CURVE_PROTOCOL_ID}/${PUMP_CURVE_OPERATION_ID}`]: {
+    base_mint: 'EuN3FubSnMCCxZahkxneNcRFSXdweeLXuWnXKYMc18H5',
+    spendable_sol_in: '10000000',
+    min_tokens_out: '1',
+    track_volume: 'true',
+    slippage_bps: '100',
+  },
+  [`${KAMINO_KLEND_PROTOCOL_ID}/${KAMINO_DEPOSIT_OPERATION_ID}`]: {
+    liquidity_amount: '100000',
+  },
+  [`${KAMINO_KLEND_PROTOCOL_ID}/${KAMINO_WITHDRAW_OPERATION_ID}`]: {
+    liquidity_amount: '100000',
+  },
+};
 
 type Message = {
   id: number;
   role: 'user' | 'assistant';
   text: string;
+};
+
+type AppTab = 'command' | 'builder';
+
+type BuilderProtocol = {
+  id: string;
+  name: string;
+  status: 'active' | 'inactive';
 };
 
 type PendingPoolSelection = {
@@ -125,17 +165,220 @@ function App() {
       text: 'Espresso Cash MVP ready. Use /help to see commands.',
     },
   ]);
+  const [activeTab, setActiveTab] = useState<AppTab>('builder');
   const [commandInput, setCommandInput] = useState('');
   const [isWorking, setIsWorking] = useState(false);
   const [pendingPoolSelection, setPendingPoolSelection] = useState<PendingPoolSelection | null>(null);
+  const [builderProtocols, setBuilderProtocols] = useState<BuilderProtocol[]>([]);
+  const [builderProtocolId, setBuilderProtocolId] = useState('');
+  const [builderOperations, setBuilderOperations] = useState<MetaOperationSummary[]>([]);
+  const [builderOperationId, setBuilderOperationId] = useState('');
+  const [builderInputValues, setBuilderInputValues] = useState<Record<string, string>>({});
+  const [builderSimulate, setBuilderSimulate] = useState(true);
+  const [builderStatusText, setBuilderStatusText] = useState<string | null>(null);
+  const [builderRawDetails, setBuilderRawDetails] = useState<string | null>(null);
+  const [builderShowRawDetails, setBuilderShowRawDetails] = useState(false);
 
   const supportedTokens = useMemo(
     () => listSupportedTokens().map((token) => `${token.symbol} (${token.mint})`).join(', '),
     [],
   );
+  const selectedBuilderOperation = useMemo(
+    () => builderOperations.find((entry) => entry.operationId === builderOperationId) ?? null,
+    [builderOperations, builderOperationId],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const registry = await listIdlProtocols();
+      const protocols = registry.protocols.map((protocol) => ({
+        id: protocol.id,
+        name: protocol.name,
+        status: protocol.status,
+      }));
+
+      if (cancelled) {
+        return;
+      }
+
+      setBuilderProtocols(protocols);
+      setBuilderProtocolId((current) => current || protocols[0]?.id || '');
+    })().catch((error) => {
+      if (!cancelled) {
+        const message = error instanceof Error ? error.message : 'Failed to load protocol list.';
+        setBuilderStatusText(`Error: ${message}`);
+        setBuilderRawDetails(null);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!builderProtocolId) {
+      setBuilderOperations([]);
+      setBuilderOperationId('');
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      const operationsView = await listMetaOperations({
+        protocolId: builderProtocolId,
+      });
+      if (cancelled) {
+        return;
+      }
+
+      setBuilderOperations(operationsView.operations);
+      setBuilderOperationId((current) => {
+        if (current && operationsView.operations.some((entry) => entry.operationId === current)) {
+          return current;
+        }
+        return operationsView.operations[0]?.operationId ?? '';
+      });
+    })().catch((error) => {
+      if (!cancelled) {
+        const message = error instanceof Error ? error.message : 'Failed to load meta operations.';
+        setBuilderStatusText(`Error: ${message}`);
+        setBuilderRawDetails(null);
+        setBuilderOperations([]);
+        setBuilderOperationId('');
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [builderProtocolId]);
+
+  useEffect(() => {
+    if (!selectedBuilderOperation) {
+      setBuilderInputValues({});
+      return;
+    }
+
+    const nextValues = Object.fromEntries(
+      Object.entries(selectedBuilderOperation.inputs).map(([inputName, spec]) => [
+        inputName,
+        spec.default === undefined ? '' : stringifyBuilderDefault(spec.default),
+      ]),
+    );
+    setBuilderInputValues(nextValues);
+  }, [selectedBuilderOperation]);
 
   function pushMessage(role: 'user' | 'assistant', text: string) {
     setMessages((prev) => [...prev, { id: prev.length + 1, role, text }]);
+  }
+
+  function stringifyBuilderDefault(value: unknown): string {
+    if (value === undefined) {
+      return '';
+    }
+    if (typeof value === 'string') {
+      return value;
+    }
+    if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+      return String(value);
+    }
+    return JSON.stringify(value);
+  }
+
+  function parseBuilderInputValue(raw: string, type: string, label: string): unknown {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      return undefined;
+    }
+
+    const normalizedType = type.toLowerCase();
+    if (normalizedType === 'bool' || normalizedType === 'boolean') {
+      if (trimmed === 'true') {
+        return true;
+      }
+      if (trimmed === 'false') {
+        return false;
+      }
+      throw new Error(`${label} must be true or false.`);
+    }
+
+    if (/^[ui]\d+$/.test(normalizedType)) {
+      if (!/^-?\d+$/.test(trimmed)) {
+        throw new Error(`${label} must be an integer.`);
+      }
+      return trimmed;
+    }
+
+    if (normalizedType === 'f32' || normalizedType === 'f64' || normalizedType === 'number') {
+      const value = Number(trimmed);
+      if (!Number.isFinite(value)) {
+        throw new Error(`${label} must be a finite number.`);
+      }
+      return value;
+    }
+
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        return JSON.parse(trimmed) as unknown;
+      } catch {
+        throw new Error(`${label} must be valid JSON.`);
+      }
+    }
+
+    if (trimmed === 'null') {
+      return null;
+    }
+
+    return trimmed;
+  }
+
+  function buildExampleInputsForOperation(operation: MetaOperationSummary): Record<string, string> {
+    const overrides = BUILDER_EXAMPLE_INPUTS[`${builderProtocolId}/${operation.operationId}`] ?? {};
+    const nextValues: Record<string, string> = {};
+
+    for (const [inputName, spec] of Object.entries(operation.inputs)) {
+      const override = overrides[inputName];
+      if (override !== undefined) {
+        nextValues[inputName] = override;
+        continue;
+      }
+
+      if (spec.default !== undefined) {
+        nextValues[inputName] = stringifyBuilderDefault(spec.default);
+        continue;
+      }
+
+      const normalizedType = spec.type.toLowerCase();
+      if (normalizedType === 'bool' || normalizedType === 'boolean') {
+        nextValues[inputName] = 'true';
+        continue;
+      }
+      if (/^[ui]\d+$/.test(normalizedType)) {
+        nextValues[inputName] = '1';
+        continue;
+      }
+      if (normalizedType === 'f32' || normalizedType === 'f64' || normalizedType === 'number') {
+        nextValues[inputName] = '0.1';
+        continue;
+      }
+
+      nextValues[inputName] = '';
+    }
+
+    return nextValues;
+  }
+
+  function handleBuilderPrefillExample() {
+    if (!selectedBuilderOperation) {
+      return;
+    }
+
+    setBuilderInputValues(buildExampleInputsForOperation(selectedBuilderOperation));
+    setBuilderStatusText(`Prefilled example inputs for ${builderProtocolId}/${selectedBuilderOperation.operationId}.`);
+    setBuilderRawDetails(null);
+    setBuilderShowRawDetails(false);
   }
 
   function asRecord(value: unknown, label: string): Record<string, unknown> {
@@ -218,6 +461,28 @@ function App() {
 
   function asPrettyJson(value: unknown): string {
     return JSON.stringify(value, null, 2);
+  }
+
+  function setBuilderResult(lines: string[], raw?: unknown) {
+    setBuilderStatusText(lines.join('\n'));
+    setBuilderRawDetails(raw === undefined ? null : asPrettyJson(raw));
+    setBuilderShowRawDetails(false);
+  }
+
+  function getMintDisplay(mint: string): { label: string; decimals: number | null } {
+    const token = resolveToken(mint);
+    if (token) {
+      return { label: token.symbol, decimals: token.decimals };
+    }
+    return { label: compactPubkey(mint), decimals: null };
+  }
+
+  function formatAmountWithMint(amountAtomic: string, mint: string): string {
+    const display = getMintDisplay(mint);
+    if (display.decimals !== null) {
+      return `${formatTokenAmount(amountAtomic, display.decimals)} ${display.label} (${amountAtomic})`;
+    }
+    return `${amountAtomic} atomic (${display.label})`;
   }
 
   function renderMetaExplain(explanation: MetaOperationExplain): string {
@@ -360,6 +625,41 @@ function App() {
         new PublicKey(spec.tokenProgram),
       );
     });
+  }
+
+  function buildBuilderPreInstructions(options: {
+    protocolId: string;
+    derived: Record<string, unknown>;
+    accounts: Record<string, string>;
+    walletPublicKey: PublicKey;
+  }): TransactionInstruction[] {
+    if (options.protocolId === ORCA_PROTOCOL_ID) {
+      const whirlpoolDataRaw = options.derived.whirlpool_data;
+      if (whirlpoolDataRaw && typeof whirlpoolDataRaw === 'object' && !Array.isArray(whirlpoolDataRaw)) {
+        const whirlpoolData = asRecord(whirlpoolDataRaw, 'derived.whirlpool_data');
+        const tokenOwnerA = options.accounts.token_owner_account_a;
+        const tokenOwnerB = options.accounts.token_owner_account_b;
+        const mintA = whirlpoolData.token_mint_a;
+        const mintB = whirlpoolData.token_mint_b;
+
+        if (
+          typeof tokenOwnerA === 'string' &&
+          typeof tokenOwnerB === 'string' &&
+          typeof mintA === 'string' &&
+          typeof mintB === 'string'
+        ) {
+          return buildOwnerAtaPreInstructions({
+            owner: options.walletPublicKey,
+            pairs: [
+              { ata: tokenOwnerA, mint: mintA },
+              { ata: tokenOwnerB, mint: mintB },
+            ],
+          });
+        }
+      }
+    }
+
+    return [];
   }
 
   function formatPercent(value: number): string {
@@ -1619,6 +1919,257 @@ function App() {
     );
   }
 
+  async function handleBuilderSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!builderProtocolId || !selectedBuilderOperation) {
+      setBuilderStatusText('Error: Select a protocol and an operation first.');
+      setBuilderRawDetails(null);
+      return;
+    }
+
+    if (!wallet.publicKey) {
+      setBuilderStatusText('Error: Connect wallet first.');
+      setBuilderRawDetails(null);
+      return;
+    }
+
+    setIsWorking(true);
+    setBuilderStatusText(null);
+    setBuilderRawDetails(null);
+    setBuilderShowRawDetails(false);
+
+    try {
+      const inputPayload: Record<string, unknown> = {};
+      for (const [inputName, spec] of Object.entries(selectedBuilderOperation.inputs)) {
+        const rawValue = builderInputValues[inputName] ?? '';
+        if (!rawValue.trim()) {
+          const hasDefault = spec.default !== undefined;
+          const hasDiscoverFrom = typeof spec.discover_from === 'string' && spec.discover_from.length > 0;
+          if (spec.required && !hasDefault && !hasDiscoverFrom) {
+            throw new Error(`Missing required input ${inputName}.`);
+          }
+          continue;
+        }
+
+        inputPayload[inputName] = parseBuilderInputValue(rawValue, spec.type, `input ${inputName}`);
+      }
+
+      let executionInput = { ...inputPayload };
+      let prepared = await prepareMetaOperation({
+        protocolId: builderProtocolId,
+        operationId: selectedBuilderOperation.operationId,
+        input: executionInput,
+        connection,
+        walletPublicKey: wallet.publicKey,
+      });
+      const builderNotes: string[] = [];
+
+      if (
+        builderProtocolId === ORCA_PROTOCOL_ID &&
+        selectedBuilderOperation.operationId === ORCA_OPERATION_ID
+      ) {
+        const pass1Input = {
+          ...executionInput,
+          estimated_out: '0',
+        };
+
+        const pass1Prepared = await prepareMetaOperation({
+          protocolId: builderProtocolId,
+          operationId: selectedBuilderOperation.operationId,
+          input: pass1Input,
+          connection,
+          walletPublicKey: wallet.publicKey,
+        });
+
+        if (!pass1Prepared.instructionName) {
+          throw new Error('Orca pass-1 operation did not produce an executable instruction.');
+        }
+
+        const pass1PreInstructions = buildBuilderPreInstructions({
+          protocolId: pass1Prepared.protocolId,
+          derived: pass1Prepared.derived,
+          accounts: pass1Prepared.accounts,
+          walletPublicKey: wallet.publicKey,
+        });
+        const pass1AToB = asBoolean(pass1Prepared.derived.a_to_b, 'derived.a_to_b');
+        const pass1OutputAta = pass1AToB
+          ? pass1Prepared.accounts.token_owner_account_b
+          : pass1Prepared.accounts.token_owner_account_a;
+        let pass1PreOutputAtomic = 0n;
+        try {
+          const balance = await connection.getTokenAccountBalance(new PublicKey(pass1OutputAta), 'confirmed');
+          pass1PreOutputAtomic = BigInt(balance.value.amount);
+        } catch {
+          pass1PreOutputAtomic = 0n;
+        }
+
+        const pass1Simulation = await simulateIdlInstruction({
+          protocolId: pass1Prepared.protocolId,
+          instructionName: pass1Prepared.instructionName,
+          args: pass1Prepared.args,
+          accounts: pass1Prepared.accounts,
+          remainingAccounts: pass1Prepared.remainingAccounts,
+          preInstructions: pass1PreInstructions,
+          postInstructions: [],
+          includeAccounts: [pass1OutputAta],
+          connection,
+          wallet,
+        });
+        if (!pass1Simulation.ok) {
+          throw new Error(
+            `Orca pass-1 simulation failed: ${pass1Simulation.error ?? 'unknown'}\n${pass1Simulation.logs.join('\n')}`,
+          );
+        }
+
+        const pass1OutputAccount = pass1Simulation.accounts.find((entry) => entry.address === pass1OutputAta);
+        const pass1PostOutputAtomic = readSplTokenAmountFromSimAccount(pass1OutputAccount?.dataBase64 ?? null);
+        const computedEstimatedOut =
+          pass1PostOutputAtomic > pass1PreOutputAtomic ? pass1PostOutputAtomic - pass1PreOutputAtomic : 0n;
+        if (computedEstimatedOut <= 0n) {
+          throw new Error('Orca pass-1 simulation produced zero estimated output.');
+        }
+
+        executionInput = {
+          ...executionInput,
+          estimated_out: computedEstimatedOut.toString(),
+        };
+        prepared = await prepareMetaOperation({
+          protocolId: builderProtocolId,
+          operationId: selectedBuilderOperation.operationId,
+          input: executionInput,
+          connection,
+          walletPublicKey: wallet.publicKey,
+        });
+        builderNotes.push(`computed estimated_out via simulation pass-1: ${computedEstimatedOut.toString()}`);
+      }
+
+      if (!prepared.instructionName) {
+        const resultLines = [
+          `Builder result (${builderProtocolId}/${selectedBuilderOperation.operationId}):`,
+          'Read-only operation (no instruction to execute).',
+        ];
+        setBuilderResult(resultLines, {
+          input: executionInput,
+          notes: builderNotes,
+          derived: prepared.derived,
+          args: prepared.args,
+          accounts: prepared.accounts,
+        });
+        pushMessage('assistant', resultLines.join('\n'));
+        return;
+      }
+
+      const preInstructions = buildBuilderPreInstructions({
+        protocolId: prepared.protocolId,
+        derived: prepared.derived,
+        accounts: prepared.accounts,
+        walletPublicKey: wallet.publicKey,
+      });
+      const postInstructions = buildMetaPostInstructions(prepared.postInstructions);
+
+      if (builderSimulate) {
+        const simulation = await simulateIdlInstruction({
+          protocolId: prepared.protocolId,
+          instructionName: prepared.instructionName,
+          args: prepared.args,
+          accounts: prepared.accounts,
+          remainingAccounts: prepared.remainingAccounts,
+          preInstructions,
+          postInstructions,
+          connection,
+          wallet,
+        });
+
+        const simulationHighlights: string[] = [];
+        if (
+          builderProtocolId === ORCA_PROTOCOL_ID &&
+          selectedBuilderOperation.operationId === ORCA_OPERATION_ID &&
+          typeof executionInput.token_in_mint === 'string' &&
+          typeof executionInput.token_out_mint === 'string'
+        ) {
+          const inMint = executionInput.token_in_mint;
+          const outMint = executionInput.token_out_mint;
+          const inLabel = getMintDisplay(inMint).label;
+          const outLabel = getMintDisplay(outMint).label;
+
+          const amountInAtomic = asIntegerLikeString(prepared.args.amount, 'args.amount');
+          const estimatedOutAtomic = asIntegerLikeString(
+            executionInput.estimated_out ?? '0',
+            'input.estimated_out',
+          );
+          const minOutAtomic = asIntegerLikeString(
+            prepared.args.other_amount_threshold,
+            'args.other_amount_threshold',
+          );
+          const slippageBps = asIntegerLikeString(
+            executionInput.slippage_bps ?? '0',
+            'input.slippage_bps',
+          );
+
+          simulationHighlights.push(`pair: ${inLabel}/${outLabel}`);
+          simulationHighlights.push(`amount in: ${formatAmountWithMint(amountInAtomic, inMint)}`);
+          simulationHighlights.push(`estimated out: ${formatAmountWithMint(estimatedOutAtomic, outMint)}`);
+          simulationHighlights.push(`min out (slippage ${slippageBps} bps): ${formatAmountWithMint(minOutAtomic, outMint)}`);
+          if (typeof prepared.accounts.whirlpool === 'string') {
+            simulationHighlights.push(`pool: ${prepared.accounts.whirlpool}`);
+          }
+        }
+
+        const resultLines = [
+          `Builder simulate (${builderProtocolId}/${selectedBuilderOperation.operationId}):`,
+          `instruction: ${prepared.instructionName}`,
+          `status: ${simulation.ok ? 'success' : 'failed'}`,
+          `units: ${simulation.unitsConsumed ?? 'n/a'}`,
+          ...(simulationHighlights.length > 0 ? simulationHighlights : []),
+          ...(builderNotes.length > 0 ? builderNotes : []),
+          `error: ${simulation.error ?? 'none'}`,
+          ...(simulation.ok ? ['next: disable simulate and click Send Transaction.'] : []),
+        ];
+        setBuilderResult(resultLines, {
+          input: executionInput,
+          notes: builderNotes,
+          args: prepared.args,
+          accounts: prepared.accounts,
+          logs: simulation.logs,
+        });
+        pushMessage('assistant', resultLines.join('\n'));
+        return;
+      }
+
+      const sent = await sendIdlInstruction({
+        protocolId: prepared.protocolId,
+        instructionName: prepared.instructionName,
+        args: prepared.args,
+        accounts: prepared.accounts,
+        remainingAccounts: prepared.remainingAccounts,
+        preInstructions,
+        postInstructions,
+        connection,
+        wallet,
+      });
+
+      const resultLines = [
+        `Builder tx sent (${builderProtocolId}/${selectedBuilderOperation.operationId}):`,
+        `instruction: ${prepared.instructionName}`,
+        ...(builderNotes.length > 0 ? builderNotes : []),
+        `signature: ${sent.signature}`,
+        `explorer: ${sent.explorerUrl}`,
+      ];
+      setBuilderResult(resultLines);
+      pushMessage('assistant', resultLines.join('\n'));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown builder error.';
+      const text = `Error: ${message}`;
+      setBuilderStatusText(text);
+      setBuilderRawDetails(null);
+      setBuilderShowRawDetails(false);
+      pushMessage('assistant', text);
+    } finally {
+      setIsWorking(false);
+    }
+  }
+
   async function handleCommandSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -1816,86 +2367,237 @@ function App() {
       <section className="card-shell">
         <header className="card-header">
           <div>
-            <h1>Espresso Cash AI Wallet MVP</h1>
-            <p>Mainnet demo: command-driven swaps with single-signature wallet approval.</p>
+            <h1>MetaIDL Wallet Runtime</h1>
+            <p>Declarative Solana execution: no aggregator APIs, no dApp connect popups, just on-chain discovery, simulation, and send.</p>
           </div>
           <WalletMultiButton />
         </header>
 
-        <div className="chat-log" aria-live="polite">
-          {messages.map((message) => (
-            <article key={message.id} className={`message ${message.role}`}>
-              <p>{message.text}</p>
-            </article>
-          ))}
+        <div className="tab-switcher" role="tablist" aria-label="Mode">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'command'}
+            className={activeTab === 'command' ? 'active' : ''}
+            onClick={() => setActiveTab('command')}
+          >
+            Command
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'builder'}
+            className={activeTab === 'builder' ? 'active' : ''}
+            onClick={() => setActiveTab('builder')}
+          >
+            Builder
+          </button>
         </div>
 
-        {pendingPoolSelection ? (
-          <div className="pending-block" aria-live="polite">
-            <strong>
-              Choose a pool for {pendingPoolSelection.command.inputToken}/{pendingPoolSelection.command.outputToken}
-            </strong>
-            <p>Click one option, or type the number in chat.</p>
-            <div className="option-list">
-              {pendingPoolSelection.candidates.map((candidate, index) => (
-                <button
-                  key={`${candidate.whirlpool}-${index}`}
-                  type="button"
-                  onClick={() => {
-                    void handlePoolOptionClick(index);
-                  }}
-                  disabled={isWorking}
-                >
-                  {formatOrcaPoolChoiceLine(candidate, index)}
-                </button>
-              ))}
-            </div>
+        {activeTab === 'command' ? (
+          <div className="chat-log" aria-live="polite">
+            {messages.map((message) => (
+              <article key={message.id} className={`message ${message.role}`}>
+                <p>{message.text}</p>
+              </article>
+            ))}
           </div>
         ) : null}
 
-        <form className="command-form" onSubmit={handleCommandSubmit}>
-          <input
-            type="text"
-            value={commandInput}
-            onChange={(event) => setCommandInput(event.target.value)}
-            placeholder="/orca SOL USDC 0.1 50 --simulate"
-            disabled={isWorking}
-            aria-label="Command input"
-          />
-          <button type="submit" disabled={isWorking}>
-            {isWorking ? 'Running...' : 'Run'}
-          </button>
-        </form>
-        <div className="quick-actions">
-          <button
-            type="button"
-            onClick={() => setCommandInput(QUICK_PREFILL_SWAP_COMMAND)}
-            disabled={isWorking}
-          >
-            Prefill USDC-&gt;SOL 0.01
-          </button>
-          <button
-            type="button"
-            onClick={() => setCommandInput(QUICK_PREFILL_PUMP_QUOTE_COMMAND)}
-            disabled={isWorking}
-          >
-            Prefill Pump Quote
-          </button>
-          <button
-            type="button"
-            onClick={() => setCommandInput(QUICK_PREFILL_PUMP_CURVE_COMMAND)}
-            disabled={isWorking}
-          >
-            Prefill Pump Curve
-          </button>
-          <button
-            type="button"
-            onClick={() => setCommandInput(QUICK_PREFILL_KAMINO_DEPOSIT_COMMAND)}
-            disabled={isWorking}
-          >
-            Prefill Kamino Deposit
-          </button>
-        </div>
+        {activeTab === 'command' ? (
+          <>
+            {pendingPoolSelection ? (
+              <div className="pending-block" aria-live="polite">
+                <strong>
+                  Choose a pool for {pendingPoolSelection.command.inputToken}/{pendingPoolSelection.command.outputToken}
+                </strong>
+                <p>Click one option, or type the number in chat.</p>
+                <div className="option-list">
+                  {pendingPoolSelection.candidates.map((candidate, index) => (
+                    <button
+                      key={`${candidate.whirlpool}-${index}`}
+                      type="button"
+                      onClick={() => {
+                        void handlePoolOptionClick(index);
+                      }}
+                      disabled={isWorking}
+                    >
+                      {formatOrcaPoolChoiceLine(candidate, index)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <form className="command-form" onSubmit={handleCommandSubmit}>
+              <input
+                type="text"
+                value={commandInput}
+                onChange={(event) => setCommandInput(event.target.value)}
+                placeholder="/orca SOL USDC 0.1 50 --simulate"
+                disabled={isWorking}
+                aria-label="Command input"
+              />
+              <button type="submit" disabled={isWorking}>
+                {isWorking ? 'Running...' : 'Run'}
+              </button>
+            </form>
+            <div className="quick-actions">
+              <button
+                type="button"
+                onClick={() => setCommandInput(QUICK_PREFILL_SWAP_COMMAND)}
+                disabled={isWorking}
+              >
+                Prefill USDC-&gt;SOL 0.01
+              </button>
+              <button
+                type="button"
+                onClick={() => setCommandInput(QUICK_PREFILL_PUMP_QUOTE_COMMAND)}
+                disabled={isWorking}
+              >
+                Prefill Pump Quote
+              </button>
+              <button
+                type="button"
+                onClick={() => setCommandInput(QUICK_PREFILL_PUMP_CURVE_COMMAND)}
+                disabled={isWorking}
+              >
+                Prefill Pump Curve
+              </button>
+              <button
+                type="button"
+                onClick={() => setCommandInput(QUICK_PREFILL_KAMINO_DEPOSIT_COMMAND)}
+                disabled={isWorking}
+              >
+                Prefill Kamino Deposit
+              </button>
+            </div>
+          </>
+        ) : (
+          <section className="builder-shell" aria-live="polite">
+            <div className="builder-grid">
+              <aside className="builder-list">
+                <h3>Protocols</h3>
+                <div className="builder-items">
+                  {builderProtocols.map((protocol) => (
+                    <button
+                      key={protocol.id}
+                      type="button"
+                      className={builderProtocolId === protocol.id ? 'active' : ''}
+                      onClick={() => setBuilderProtocolId(protocol.id)}
+                      disabled={isWorking}
+                    >
+                      {protocol.name}
+                      <small>{protocol.id}</small>
+                    </button>
+                  ))}
+                </div>
+              </aside>
+
+              <aside className="builder-list">
+                <h3>Actions</h3>
+                <div className="builder-items">
+                  {builderOperations.map((operation) => (
+                    <button
+                      key={operation.operationId}
+                      type="button"
+                      className={builderOperationId === operation.operationId ? 'active' : ''}
+                      onClick={() => setBuilderOperationId(operation.operationId)}
+                      disabled={isWorking}
+                    >
+                      {operation.operationId}
+                      <small>{operation.instruction || 'read-only'}</small>
+                    </button>
+                  ))}
+                </div>
+              </aside>
+            </div>
+
+            {selectedBuilderOperation ? (
+              <form className="builder-form" onSubmit={handleBuilderSubmit}>
+                <h3>
+                  {builderProtocolId}/{selectedBuilderOperation.operationId}
+                </h3>
+                <p>
+                  instruction: <code>{selectedBuilderOperation.instruction || 'read-only'}</code>
+                </p>
+
+                <div className="builder-inputs">
+                  {Object.entries(selectedBuilderOperation.inputs).map(([inputName, spec]) => (
+                    <label key={inputName}>
+                      <span>
+                        {inputName} <code>{spec.type}</code>{' '}
+                        {spec.required ? <strong>(required)</strong> : <em>(optional)</em>}
+                      </span>
+                      <input
+                        type="text"
+                        value={builderInputValues[inputName] ?? ''}
+                        onChange={(event) =>
+                          setBuilderInputValues((prev) => ({
+                            ...prev,
+                            [inputName]: event.target.value,
+                          }))
+                        }
+                        placeholder={
+                          spec.default !== undefined
+                            ? `default: ${stringifyBuilderDefault(spec.default)}`
+                            : spec.discover_from
+                              ? `discover_from: ${spec.discover_from}`
+                              : ''
+                        }
+                        disabled={isWorking}
+                      />
+                    </label>
+                  ))}
+                </div>
+
+                <div className="builder-controls">
+                  <label className="builder-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={builderSimulate}
+                      onChange={(event) => setBuilderSimulate(event.target.checked)}
+                      disabled={isWorking}
+                    />
+                    simulate only (recommended first)
+                  </label>
+                  <button
+                    type="button"
+                    className="builder-prefill"
+                    onClick={handleBuilderPrefillExample}
+                    disabled={isWorking}
+                  >
+                    Prefill Example Data
+                  </button>
+                </div>
+
+                <button type="submit" className="builder-submit" disabled={isWorking}>
+                  {isWorking ? 'Running...' : builderSimulate ? 'Run Simulation' : 'Send Transaction'}
+                </button>
+              </form>
+            ) : (
+              <div className="builder-empty">Select a protocol and action to start.</div>
+            )}
+
+            {builderStatusText ? (
+              <div>
+                <pre className="builder-output">{builderStatusText}</pre>
+                {builderRawDetails ? (
+                  <>
+                    <button
+                      type="button"
+                      className="builder-raw-toggle"
+                      onClick={() => setBuilderShowRawDetails((current) => !current)}
+                    >
+                      {builderShowRawDetails ? 'Hide raw details' : 'Show raw details'}
+                    </button>
+                    {builderShowRawDetails ? <pre className="builder-output">{builderRawDetails}</pre> : null}
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+          </section>
+        )}
       </section>
     </main>
   );

@@ -203,6 +203,20 @@ export type MetaOperationExplain = {
   post: Array<Record<string, unknown>>;
 };
 
+export type MetaOperationSummary = {
+  operationId: string;
+  instruction: string;
+  inputs: Record<
+    string,
+    {
+      type: string;
+      required: boolean;
+      default?: unknown;
+      discover_from?: string;
+    }
+  >;
+};
+
 const metaCache = new Map<string, MetaIdlSpec>();
 const idlCache = new Map<string, Idl>();
 const lookupSourceCache = new Map<string, { expiresAt: number; items: unknown[] }>();
@@ -1157,5 +1171,47 @@ export async function explainMetaOperation(options: {
     accounts: cloneJsonLike(materialized.accounts),
     remainingAccounts: cloneJsonLike(materialized.remainingAccounts),
     post: cloneJsonLike(materialized.post ?? []),
+  };
+}
+
+export async function listMetaOperations(options: {
+  protocolId: string;
+}): Promise<{
+  protocolId: string;
+  schema: string | null;
+  version: string;
+  operations: MetaOperationSummary[];
+}> {
+  const meta = await loadMetaSpec(options.protocolId);
+  const operations = meta.operations ?? {};
+
+  const summaries = Object.entries(operations)
+    .map(([operationId, operationSpec]) => {
+      const operation = materializeOperation(operationId, operationSpec, meta);
+      const inputs = Object.fromEntries(
+        Object.entries(operation.inputs).map(([name, spec]) => [
+          name,
+          {
+            type: spec.type,
+            required: spec.required !== false,
+            ...(spec.default !== undefined ? { default: cloneJsonLike(spec.default) } : {}),
+            ...(spec.discover_from ? { discover_from: spec.discover_from } : {}),
+          },
+        ]),
+      );
+
+      return {
+        operationId,
+        instruction: operation.instruction,
+        inputs,
+      } as MetaOperationSummary;
+    })
+    .sort((a, b) => a.operationId.localeCompare(b.operationId));
+
+  return {
+    protocolId: options.protocolId,
+    schema: meta.schema ?? null,
+    version: meta.version,
+    operations: summaries,
   };
 }
