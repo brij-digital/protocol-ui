@@ -14,6 +14,7 @@ import {
 } from '@solana/web3.js';
 import { getProtocolById } from './idlRegistry';
 import { normalizeIdlForAnchorCoder } from './normalizeIdl';
+import { resolveAppUrl } from './appUrl';
 
 type IdlProtocol = {
   id: string;
@@ -338,7 +339,7 @@ async function loadProtocolAndIdl(protocolId: string): Promise<{ protocol: IdlPr
     };
   }
 
-  const response = await fetch(protocol.idlPath);
+  const response = await fetch(resolveAppUrl(protocol.idlPath));
   if (!response.ok) {
     throw new Error(`Failed to load IDL file ${protocol.idlPath}`);
   }
@@ -526,7 +527,7 @@ export async function listIdlProtocols(): Promise<{
     status: 'active' | 'inactive';
   }>;
 }> {
-  const registryResponse = await fetch('/idl/registry.json');
+  const registryResponse = await fetch(resolveAppUrl('/idl/registry.json'));
   if (!registryResponse.ok) {
     throw new Error('Failed to load IDL registry.');
   }

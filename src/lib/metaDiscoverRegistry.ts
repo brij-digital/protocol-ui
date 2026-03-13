@@ -2,6 +2,7 @@ import { BN, BorshAccountsCoder, utils } from '@coral-xyz/anchor';
 import type { Idl } from '@coral-xyz/anchor';
 import { PublicKey, type Connection, type Commitment, type GetProgramAccountsFilter } from '@solana/web3.js';
 import { Buffer } from 'buffer';
+import { resolveAppUrl } from './appUrl';
 
 export type DiscoverStepResolved = {
   name: string;
@@ -556,7 +557,7 @@ async function runDiscoverQueryHttpJson(step: DiscoverStepResolved): Promise<unk
     return cached.value;
   }
 
-  const response = await fetch(resolvedUrl);
+  const response = await fetch(resolveAppUrl(resolvedUrl));
   if (!response.ok) {
     throw new Error(`discover:${step.name}:fetch failed: ${response.status} ${response.statusText}`);
   }

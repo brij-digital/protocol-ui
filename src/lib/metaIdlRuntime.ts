@@ -7,6 +7,7 @@ import { previewIdlInstruction } from './idlDeclarativeRuntime';
 import { runRegisteredComputeStep } from './metaComputeRegistry';
 import { runRegisteredDiscoverStep } from './metaDiscoverRegistry';
 import { normalizeIdlForAnchorCoder } from './normalizeIdl';
+import { resolveAppUrl } from './appUrl';
 
 const META_IDL_SCHEMA = 'meta-idl.v0.5';
 const DEFAULT_SPL_TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
@@ -705,7 +706,7 @@ async function loadMetaSpec(protocolId: string): Promise<MetaIdlSpec> {
     throw new Error(`Protocol ${protocolId} does not define metaPath in registry.`);
   }
 
-  const response = await fetch(protocol.metaPath);
+  const response = await fetch(resolveAppUrl(protocol.metaPath));
   if (!response.ok) {
     throw new Error(`Failed to load meta IDL from ${protocol.metaPath}`);
   }
@@ -721,7 +722,7 @@ async function loadProtocolIdl(protocolId: string): Promise<Idl> {
   }
 
   const protocol = await getProtocolById(protocolId);
-  const response = await fetch(protocol.idlPath);
+  const response = await fetch(resolveAppUrl(protocol.idlPath));
   if (!response.ok) {
     throw new Error(`Failed to load IDL from ${protocol.idlPath}`);
   }
@@ -754,7 +755,7 @@ async function loadLookupItems(step: DeriveStep, ctx: ResolverContext): Promise<
     return cached.items;
   }
 
-  const response = await fetch(resolvedUrl);
+  const response = await fetch(resolveAppUrl(resolvedUrl));
   if (!response.ok) {
     throw new Error(`Lookup source ${step.source} fetch failed: ${response.status} ${response.statusText}`);
   }

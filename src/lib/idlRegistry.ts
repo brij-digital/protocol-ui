@@ -23,7 +23,7 @@ export async function loadRegistry(): Promise<RegistryShape> {
     return registryCache;
   }
 
-  const response = await fetch('/idl/registry.json');
+  const response = await fetch(resolveAppUrl('/idl/registry.json'));
   if (!response.ok) {
     throw new Error('Failed to load local IDL registry.');
   }
@@ -43,3 +43,4 @@ export async function getProtocolById(protocolId: string): Promise<ProtocolManif
 
   return manifest;
 }
+import { resolveAppUrl } from './appUrl';
