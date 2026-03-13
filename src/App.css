@@ -221,6 +221,12 @@
   background: #edf3ff;
 }
 
+.builder-empty {
+  margin: 0;
+  color: #5f7396;
+  font-size: 0.85rem;
+}
+
 .builder-form {
   border: 1px solid #dce4f4;
   border-radius: 10px;

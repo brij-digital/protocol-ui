@@ -305,6 +305,9 @@ function App() {
         if (builderViewMode === 'enduser' && formOperationId) {
           return formOperationId;
         }
+        if (builderViewMode === 'enduser' && !formOperationId) {
+          return '';
+        }
         if (current && operationsView.operations.some((entry) => entry.operationId === current)) {
           return current;
         }
@@ -332,6 +335,9 @@ function App() {
       return;
     }
     if (!builderForms.length) {
+      if (builderOperationId !== '') {
+        setBuilderOperationId('');
+      }
       return;
     }
     const selected = builderForms.find((entry) => entry.formId === builderFormId) ?? builderForms[0];
@@ -514,6 +520,8 @@ function App() {
     if (firstForm) {
       setBuilderFormId(firstForm.formId);
       setBuilderOperationId(firstForm.operationId);
+    } else {
+      setBuilderOperationId('');
     }
   }
 
@@ -2565,20 +2573,20 @@ function App() {
           <button
             type="button"
             role="tab"
+            aria-selected={activeTab === 'builder'}
+            className={activeTab === 'builder' ? 'active' : ''}
+            onClick={() => setActiveTab('builder')}
+          >
+            Forms
+          </button>
+          <button
+            type="button"
+            role="tab"
             aria-selected={activeTab === 'command'}
             className={activeTab === 'command' ? 'active' : ''}
             onClick={() => setActiveTab('command')}
           >
             Command
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'builder'}
-            className={activeTab === 'builder' ? 'active' : ''}
-            onClick={() => setActiveTab('builder')}
-          >
-            Builder
           </button>
         </div>
 
@@ -2707,21 +2715,25 @@ function App() {
                 <h3>{builderViewMode === 'enduser' ? 'User Forms' : 'Actions'}</h3>
                 <div className="builder-items">
                   {builderViewMode === 'enduser'
-                    ? builderForms.map((form) => (
-                        <button
-                          key={form.formId}
-                          type="button"
-                          className={builderFormId === form.formId ? 'active' : ''}
-                          onClick={() => {
-                            setBuilderFormId(form.formId);
-                            setBuilderOperationId(form.operationId);
-                          }}
-                          disabled={isWorking}
-                        >
-                          {form.title}
-                          <small>{form.operationId}</small>
-                        </button>
-                      ))
+                    ? builderForms.length > 0
+                      ? builderForms.map((form) => (
+                          <button
+                            key={form.formId}
+                            type="button"
+                            className={builderFormId === form.formId ? 'active' : ''}
+                            onClick={() => {
+                              setBuilderFormId(form.formId);
+                              setBuilderOperationId(form.operationId);
+                            }}
+                            disabled={isWorking}
+                          >
+                            {form.title}
+                            <small>{form.operationId}</small>
+                          </button>
+                        ))
+                      : (
+                          <p className="builder-empty">No user forms declared for this protocol.</p>
+                        )
                     : builderOperations.map((operation) => (
                         <button
                           key={operation.operationId}
