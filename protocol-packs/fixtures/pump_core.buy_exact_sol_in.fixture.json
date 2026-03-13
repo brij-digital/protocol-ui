@@ -1,0 +1,11 @@
+{
+  "name": "Pump core buy_exact_sol_in operation parity",
+  "protocolId": "pump-core-mainnet",
+  "operationId": "buy_exact_sol_in",
+  "expect": {
+    "instruction": "buy_exact_sol_in",
+    "requiredArgs": ["spendable_sol_in", "min_tokens_out", "track_volume"],
+    "requiredAccounts": ["mint", "user", "bonding_curve", "associated_user", "token_program"],
+    "requiredDeriveSteps": ["wallet", "global", "bonding_curve", "associated_bonding_curve", "associated_user"]
+  }
+}

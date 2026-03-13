@@ -61,6 +61,7 @@ Supported token aliases for `/swap` and `/quote`:
 - Tutorial: `docs/meta-idl-tutorial.md`
   - Detailed end-to-end walkthrough of current `/quote` and `/swap` flow
 - AIDL authoring guide: `docs/aidl-authoring.md`
+- Protocol pack CI guide: `docs/protocol-pack-ci.md`
 - Registry: `public/idl/registry.json`
 - Discover registry: `src/lib/metaDiscoverRegistry.ts`
 - Compute registry (generic primitives only): `src/lib/metaComputeRegistry.ts`
@@ -147,6 +148,18 @@ Check that generated Meta IDL files are up to date:
 
 ```bash
 npm run aidl:check
+```
+
+Run protocol-pack CI checks locally (registry/IDL/meta validation + deterministic materialization + fixture parity):
+
+```bash
+npm run pack:check
+```
+
+Run the same pack checks sequence used in CI:
+
+```bash
+npm run ci:protocol-packs
 ```
 
 ## Notes

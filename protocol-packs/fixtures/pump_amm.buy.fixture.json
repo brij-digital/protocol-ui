@@ -1,0 +1,13 @@
+{
+  "name": "Pump AMM buy operation parity",
+  "protocolId": "pump-amm-mainnet",
+  "operationId": "buy",
+  "expect": {
+    "instruction": "buy",
+    "requiredArgs": ["base_amount_out", "max_quote_amount_in", "track_volume"],
+    "requiredAccounts": ["pool", "user", "base_mint", "quote_mint", "user_base_token_account", "user_quote_token_account"],
+    "requiredDiscoverSteps": ["pool_candidates", "selected_pool"],
+    "requiredDeriveSteps": ["wallet", "pool_data", "global_config", "fee_config_data"],
+    "requiredComputeSteps": ["total_fee_bps", "effective_quote", "base_amount_out", "max_quote_amount_in"]
+  }
+}

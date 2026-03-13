@@ -9,6 +9,8 @@
     "lint": "eslint .",
     "aidl:compile": "node scripts/compile-aidl.mjs",
     "aidl:check": "node scripts/compile-aidl.mjs --check",
+    "pack:check": "node scripts/check-protocol-packs.mjs",
+    "ci:protocol-packs": "npm run aidl:check && npm run pack:check",
     "preview": "vite preview"
   },
   "dependencies": {
