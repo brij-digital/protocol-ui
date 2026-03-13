@@ -40,6 +40,8 @@ jobs:
           fi
 
       - name: Build app
+        env:
+          VITE_SOLANA_RPC_URL: ${{ secrets.SOLANA_RPC_URL }}
         run: npm run build
 
       - name: Setup Pages
