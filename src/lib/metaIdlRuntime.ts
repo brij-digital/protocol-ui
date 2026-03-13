@@ -164,6 +164,16 @@ type PreparedMetaInstruction = {
   postInstructions: PreparedPostInstruction[];
 };
 
+type PreparedMetaOperation = {
+  protocolId: string;
+  operationId: string;
+  instructionName: string | null;
+  args: Record<string, unknown>;
+  accounts: Record<string, string>;
+  derived: Record<string, unknown>;
+  postInstructions: PreparedPostInstruction[];
+};
+
 type PreparedPostInstruction = {
   kind: 'spl_token_close_account';
   account: string;
@@ -590,14 +600,6 @@ function materializeOperation(operationId: string, operation: ActionSpec, meta: 
   });
   mergeActionFragment(materialized, actionDirectFragment, `operation ${operationId}`);
 
-  if (!materialized.instruction) {
-    throw new Error(`Operation ${operationId} has no instruction after template expansion.`);
-  }
-
-  if (!materialized.accounts || Object.keys(materialized.accounts).length === 0) {
-    throw new Error(`Operation ${operationId} has no accounts mapping after template expansion.`);
-  }
-
   return materialized;
 }
 
@@ -873,13 +875,13 @@ async function runDiscoverStep(step: DiscoverStep, ctx: ResolverContext): Promis
   );
 }
 
-export async function prepareMetaInstruction(options: {
+async function prepareMetaOperationInternal(options: {
   protocolId: string;
   operationId: string;
   input: Record<string, unknown>;
   connection: Connection;
   walletPublicKey: PublicKey;
-}): Promise<PreparedMetaInstruction> {
+}): Promise<PreparedMetaOperation> {
   const protocol = await getProtocolById(options.protocolId);
   const meta = await loadMetaSpec(options.protocolId);
   const idl = await loadProtocolIdl(options.protocolId);
@@ -988,11 +990,47 @@ export async function prepareMetaInstruction(options: {
 
   return {
     protocolId: options.protocolId,
-    instructionName: operation.instruction,
+    operationId: options.operationId,
+    instructionName: operation.instruction ? operation.instruction : null,
     args: resolvedArgs as Record<string, unknown>,
     accounts: assertStringRecord(resolvedAccounts, 'accounts'),
     derived,
     postInstructions,
+  };
+}
+
+export async function prepareMetaOperation(options: {
+  protocolId: string;
+  operationId: string;
+  input: Record<string, unknown>;
+  connection: Connection;
+  walletPublicKey: PublicKey;
+}): Promise<PreparedMetaOperation> {
+  return prepareMetaOperationInternal(options);
+}
+
+export async function prepareMetaInstruction(options: {
+  protocolId: string;
+  operationId: string;
+  input: Record<string, unknown>;
+  connection: Connection;
+  walletPublicKey: PublicKey;
+}): Promise<PreparedMetaInstruction> {
+  const prepared = await prepareMetaOperationInternal(options);
+  if (!prepared.instructionName) {
+    throw new Error(`Operation ${options.operationId} has no instruction; use prepareMetaOperation for read-only flows.`);
+  }
+  if (Object.keys(prepared.accounts).length === 0) {
+    throw new Error(`Operation ${options.operationId} has no accounts mapping for instruction execution.`);
+  }
+
+  return {
+    protocolId: prepared.protocolId,
+    instructionName: prepared.instructionName,
+    args: prepared.args,
+    accounts: prepared.accounts,
+    derived: prepared.derived,
+    postInstructions: prepared.postInstructions,
   };
 }
 

@@ -25,17 +25,23 @@ import {
   sendIdlInstruction,
   simulateIdlInstruction,
 } from './lib/idlDeclarativeRuntime';
-import { explainMetaOperation, prepareMetaInstruction, type MetaOperationExplain } from './lib/metaIdlRuntime';
+import {
+  explainMetaOperation,
+  prepareMetaInstruction,
+  prepareMetaOperation,
+  type MetaOperationExplain,
+} from './lib/metaIdlRuntime';
 
 const ORCA_PROTOCOL_ID = 'orca-whirlpool-mainnet';
 const ORCA_OPERATION_ID = 'swap_exact_in';
 const PUMP_PROTOCOL_ID = 'pump-amm-mainnet';
 const PUMP_OPERATION_ID = 'buy_exact_quote_in';
-const PUMP_BONDING_PROGRAM_ID = new PublicKey('6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P');
 const QUICK_PREFILL_SWAP_COMMAND =
   '/orca EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v So11111111111111111111111111111111111111112 0.01 50 --simulate';
 const QUICK_PREFILL_PUMP_QUOTE_COMMAND =
   '/pump-amm C4yDhKwkikpVGCQWD9BT2SJyHAtRFFnKPDM9Nyshpump 0.01 100 --simulate';
+const QUICK_PREFILL_PUMP_CURVE_COMMAND =
+  '/pump-curve EuN3FubSnMCCxZahkxneNcRFSXdweeLXuWnXKYMc18H5 0.01 100 --simulate';
 
 type Message = {
   id: number;
@@ -829,26 +835,24 @@ function App() {
       );
     }
 
-    const mint = new PublicKey(options.value.tokenMint);
-    const [bondingCurve] = PublicKey.findProgramAddressSync(
-      [new TextEncoder().encode('bonding-curve'), mint.toBuffer()],
-      PUMP_BONDING_PROGRAM_ID,
-    );
-
-    const curveAccount = await connection.getAccountInfo(bondingCurve, 'confirmed');
-    if (!curveAccount) {
-      throw new Error(
-        'No Pump bonding-curve account found for this mint. It may be non-Pump token or only tradable on another venue.',
-      );
+    if (!wallet.publicKey) {
+      throw new Error('Connect wallet first to run Pump curve simulation.');
     }
 
-    const decoded = await decodeIdlAccount({
+    const prepared = await prepareMetaOperation({
       protocolId: PUMP_PROTOCOL_ID,
-      accountType: 'BondingCurve',
-      address: bondingCurve.toBase58(),
+      operationId: 'curve_simulate',
+      input: {
+        base_mint: options.value.tokenMint,
+        spendable_quote_in: options.value.amountAtomic,
+        slippage_bps: options.value.slippageBps,
+      },
       connection,
+      walletPublicKey: wallet.publicKey,
     });
-    const data = asRecord(decoded.data, 'bonding_curve');
+    const mint = new PublicKey(options.value.tokenMint);
+    const bondingCurve = asString(prepared.derived.bonding_curve, 'bonding_curve');
+    const data = asRecord(prepared.derived.bonding_curve_data, 'bonding_curve_data');
     const virtualTokenReserves = BigInt(
       asIntegerLikeString(data.virtual_token_reserves, 'bonding_curve.virtual_token_reserves'),
     );
@@ -885,7 +889,7 @@ function App() {
       [
         'Pump bonding-curve simulate:',
         `token: ${options.value.tokenMint}`,
-        `bondingCurve: ${bondingCurve.toBase58()}`,
+        `bondingCurve: ${bondingCurve}`,
         `input: ${options.value.amountUiSol} SOL (${options.value.amountAtomic} lamports)`,
         `estimated output: ${estimatedOutUi} tokens (${estimatedOut.toString()} atomic)`,
         `min output @ ${options.value.slippageBps} bps: ${minOutUi} tokens (${minOut.toString()} atomic)`,
@@ -1135,6 +1139,13 @@ function App() {
             disabled={isWorking}
           >
             Prefill Pump Quote
+          </button>
+          <button
+            type="button"
+            onClick={() => setCommandInput(QUICK_PREFILL_PUMP_CURVE_COMMAND)}
+            disabled={isWorking}
+          >
+            Prefill Pump Curve
           </button>
         </div>
       </section>
