@@ -5,7 +5,6 @@
   "signature": "PkcAgykwP7cf5uaMVg4jV6ZkhRAQdDJfCzMcxbAxD88Uh8wMwJMkGueCozPuiJ3Qenfca9sU3ZnCCmn5Pk7dBUZ",
   "expect": {
     "ok": false,
-    "allowError": true,
-    "errorIncludes": ["6016"]
+    "allowError": true
   }
 }

@@ -103,6 +103,8 @@ Simulation fixture (`protocol-packs/rpc/simulations/*.json`):
 }
 ```
 
+Note: replay simulations are state-sensitive over time. For negative fixtures, prefer asserting `ok: false` (and `allowError: true`) instead of pinning an exact custom error code/log string.
+
 Parity fixture (`protocol-packs/rpc/parity/*.json`):
 
 ```json

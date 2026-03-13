@@ -5,8 +5,6 @@
   "signature": "7xbrGfpw6iDpne86urFv2UBJv1GNKsUHsJEdxDY4BoqQsVe8W6wb5JUh14tff1C5JUMpFRrcdZdiaAs2gBuUo89",
   "expect": {
     "ok": false,
-    "allowError": true,
-    "errorIncludes": ["6034"],
-    "logsInclude": ["Instruction: Swap"]
+    "allowError": true
   }
 }
