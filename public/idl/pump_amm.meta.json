@@ -1,16 +1,26 @@
 {
-  "$schema": "/idl/meta_idl.schema.v0.3.json",
-  "schema": "meta-idl.v0.3",
+  "$schema": "/idl/meta_idl.schema.v0.4.json",
+  "schema": "meta-idl.v0.4",
   "version": "0.1.0",
   "protocolId": "pump-amm-mainnet",
   "templates": {
     "pump.buy.v1": {
       "params": {
-        "base_mint": { "type": "pubkey" },
-        "quote_mint": { "type": "pubkey" },
-        "base_amount_out": { "type": "u64" },
-        "max_quote_amount_in": { "type": "u64" },
-        "track_volume": { "type": "bool" }
+        "base_mint": {
+          "type": "pubkey"
+        },
+        "quote_mint": {
+          "type": "pubkey"
+        },
+        "quote_amount_in": {
+          "type": "u64"
+        },
+        "slippage_bps": {
+          "type": "u16"
+        },
+        "track_volume": {
+          "type": "bool"
+        }
       },
       "expand": {
         "instruction": "buy",
@@ -25,16 +35,41 @@
             "commitment": "confirmed",
             "account_pubkeys": "$input.pool",
             "filters": [
-              { "memcmp": { "offset": 43, "bytesFrom": "$param.base_mint" } },
-              { "memcmp": { "offset": 75, "bytesFrom": "$param.quote_mint" } }
+              {
+                "memcmp": {
+                  "offset": 43,
+                  "bytesFrom": "$param.base_mint"
+                }
+              },
+              {
+                "memcmp": {
+                  "offset": 75,
+                  "bytesFrom": "$param.quote_mint"
+                }
+              }
             ],
             "where": [
-              { "path": "decoded.base_mint", "op": "=", "value": "$param.base_mint" },
-              { "path": "decoded.quote_mint", "op": "=", "value": "$param.quote_mint" },
-              { "path": "decoded.lp_supply", "op": ">", "value": "0" }
+              {
+                "path": "decoded.base_mint",
+                "op": "=",
+                "value": "$param.base_mint"
+              },
+              {
+                "path": "decoded.quote_mint",
+                "op": "=",
+                "value": "$param.quote_mint"
+              },
+              {
+                "path": "decoded.lp_supply",
+                "op": ">",
+                "value": "0"
+              }
             ],
             "sort": [
-              { "path": "decoded.lp_supply", "dir": "desc" }
+              {
+                "path": "decoded.lp_supply",
+                "dir": "desc"
+              }
             ],
             "limit": 10,
             "select": {
@@ -55,7 +90,10 @@
           }
         ],
         "derive": [
-          { "name": "wallet", "resolver": "wallet_pubkey" },
+          {
+            "name": "wallet",
+            "resolver": "wallet_pubkey"
+          },
           {
             "name": "pool_data",
             "resolver": "decode_account",
@@ -66,7 +104,9 @@
             "name": "global_config",
             "resolver": "pda",
             "program_id": "$protocol.programId",
-            "seeds": ["utf8:global_config"]
+            "seeds": [
+              "utf8:global_config"
+            ]
           },
           {
             "name": "global_config_data",
@@ -102,7 +142,10 @@
             "name": "coin_creator_vault_authority",
             "resolver": "pda",
             "program_id": "$protocol.programId",
-            "seeds": ["utf8:creator_vault", "$pool_data.coin_creator"]
+            "seeds": [
+              "utf8:creator_vault",
+              "$pool_data.coin_creator"
+            ]
           },
           {
             "name": "coin_creator_vault_ata",
@@ -116,13 +159,18 @@
             "name": "global_volume_accumulator",
             "resolver": "pda",
             "program_id": "$protocol.programId",
-            "seeds": ["utf8:global_volume_accumulator"]
+            "seeds": [
+              "utf8:global_volume_accumulator"
+            ]
           },
           {
             "name": "user_volume_accumulator",
             "resolver": "pda",
             "program_id": "$protocol.programId",
-            "seeds": ["utf8:user_volume_accumulator", "$wallet"]
+            "seeds": [
+              "utf8:user_volume_accumulator",
+              "$wallet"
+            ]
           },
           {
             "name": "user_volume_accumulator_wsol_ata",
@@ -136,13 +184,18 @@
             "name": "event_authority",
             "resolver": "pda",
             "program_id": "$protocol.programId",
-            "seeds": ["utf8:__event_authority"]
+            "seeds": [
+              "utf8:__event_authority"
+            ]
           },
           {
             "name": "fee_config",
             "resolver": "pda",
             "program_id": "pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ",
-            "seeds": ["utf8:fee_config", "$protocol.programId"]
+            "seeds": [
+              "utf8:fee_config",
+              "$protocol.programId"
+            ]
           },
           {
             "name": "fee_config_data",
@@ -151,10 +204,37 @@
             "account_type": "FeeConfig"
           },
           {
+            "name": "pump_pool_authority",
+            "resolver": "pda",
+            "program_id": "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P",
+            "seeds": [
+              "utf8:pool-authority",
+              "$pool_data.base_mint"
+            ]
+          },
+          {
+            "name": "pool_base_reserve_atomic",
+            "resolver": "token_account_balance",
+            "address": "$pool_data.pool_base_token_account"
+          },
+          {
+            "name": "pool_quote_reserve_atomic",
+            "resolver": "token_account_balance",
+            "address": "$pool_data.pool_quote_token_account"
+          },
+          {
+            "name": "base_mint_supply_atomic",
+            "resolver": "token_supply",
+            "mint": "$pool_data.base_mint"
+          },
+          {
             "name": "pool_v2",
             "resolver": "pda",
             "program_id": "$protocol.programId",
-            "seeds": ["utf8:pool-v2", "$pool_data.base_mint"]
+            "seeds": [
+              "utf8:pool-v2",
+              "$pool_data.base_mint"
+            ]
           }
         ],
         "compute": [
@@ -169,9 +249,18 @@
             "compute": "pda(seed_spec)",
             "program_id": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
             "seeds": [
-              { "kind": "pubkey", "value": "$protocol_fee_recipient" },
-              { "kind": "pubkey", "value": "$quote_token_program" },
-              { "kind": "pubkey", "value": "$pool_data.quote_mint" }
+              {
+                "kind": "pubkey",
+                "value": "$protocol_fee_recipient"
+              },
+              {
+                "kind": "pubkey",
+                "value": "$quote_token_program"
+              },
+              {
+                "kind": "pubkey",
+                "value": "$pool_data.quote_mint"
+              }
             ]
           },
           {
@@ -197,11 +286,182 @@
                 "isWritable": false
               }
             ]
+          },
+          {
+            "name": "creator_is_default",
+            "compute": "compare.equals",
+            "left": "$pool_data.coin_creator",
+            "right": "11111111111111111111111111111111"
+          },
+          {
+            "name": "is_pump_pool",
+            "compute": "compare.equals",
+            "left": "$pool_data.creator",
+            "right": "$pump_pool_authority"
+          },
+          {
+            "name": "market_cap_numerator",
+            "compute": "math.mul",
+            "values": [
+              "$pool_quote_reserve_atomic",
+              "$base_mint_supply_atomic"
+            ]
+          },
+          {
+            "name": "market_cap_lamports",
+            "compute": "math.floor_div",
+            "dividend": "$market_cap_numerator",
+            "divisor": "$pool_base_reserve_atomic"
+          },
+          {
+            "name": "fee_tier_candidates",
+            "compute": "list.filter",
+            "items": "$fee_config_data.fee_tiers",
+            "where": [
+              {
+                "path": "market_cap_lamports_threshold",
+                "op": ">=",
+                "value": "$market_cap_lamports"
+              }
+            ]
+          },
+          {
+            "name": "selected_fee_tier_primary",
+            "compute": "list.min_by",
+            "items": "$fee_tier_candidates",
+            "path": "market_cap_lamports_threshold",
+            "allow_empty": true
+          },
+          {
+            "name": "selected_fee_tier_fallback",
+            "compute": "list.max_by",
+            "items": "$fee_config_data.fee_tiers",
+            "path": "market_cap_lamports_threshold",
+            "allow_empty": true
+          },
+          {
+            "name": "selected_fee_tier",
+            "compute": "coalesce",
+            "values": [
+              "$selected_fee_tier_primary",
+              "$selected_fee_tier_fallback"
+            ]
+          },
+          {
+            "name": "selected_fees_if_pump",
+            "compute": "coalesce",
+            "values": [
+              "$selected_fee_tier.fees",
+              "$fee_config_data.flat_fees"
+            ]
+          },
+          {
+            "name": "lp_fee_bps",
+            "compute": "logic.if",
+            "condition": "$is_pump_pool",
+            "then": "$selected_fees_if_pump.lp_fee_bps",
+            "else": "$global_config_data.lp_fee_basis_points"
+          },
+          {
+            "name": "protocol_fee_bps",
+            "compute": "logic.if",
+            "condition": "$is_pump_pool",
+            "then": "$selected_fees_if_pump.protocol_fee_bps",
+            "else": "$global_config_data.protocol_fee_basis_points"
+          },
+          {
+            "name": "creator_fee_bps_raw",
+            "compute": "logic.if",
+            "condition": "$is_pump_pool",
+            "then": "$selected_fees_if_pump.creator_fee_bps",
+            "else": "$global_config_data.coin_creator_fee_basis_points"
+          },
+          {
+            "name": "creator_fee_bps",
+            "compute": "logic.if",
+            "condition": "$creator_is_default",
+            "then": "0",
+            "else": "$creator_fee_bps_raw"
+          },
+          {
+            "name": "total_fee_bps",
+            "compute": "math.add",
+            "values": [
+              "$lp_fee_bps",
+              "$protocol_fee_bps",
+              "$creator_fee_bps"
+            ]
+          },
+          {
+            "name": "effective_quote_numerator",
+            "compute": "math.mul",
+            "values": [
+              "$param.quote_amount_in",
+              "10000"
+            ]
+          },
+          {
+            "name": "effective_quote_denominator",
+            "compute": "math.add",
+            "values": [
+              "10000",
+              "$total_fee_bps"
+            ]
+          },
+          {
+            "name": "effective_quote",
+            "compute": "math.floor_div",
+            "dividend": "$effective_quote_numerator",
+            "divisor": "$effective_quote_denominator"
+          },
+          {
+            "name": "base_amount_out_numerator",
+            "compute": "math.mul",
+            "values": [
+              "$pool_base_reserve_atomic",
+              "$effective_quote"
+            ]
+          },
+          {
+            "name": "base_amount_out_denominator",
+            "compute": "math.add",
+            "values": [
+              "$pool_quote_reserve_atomic",
+              "$effective_quote"
+            ]
+          },
+          {
+            "name": "base_amount_out",
+            "compute": "math.floor_div",
+            "dividend": "$base_amount_out_numerator",
+            "divisor": "$base_amount_out_denominator"
+          },
+          {
+            "name": "slippage_factor",
+            "compute": "math.add",
+            "values": [
+              "10000",
+              "$param.slippage_bps"
+            ]
+          },
+          {
+            "name": "max_quote_amount_in_numerator",
+            "compute": "math.mul",
+            "values": [
+              "$param.quote_amount_in",
+              "$slippage_factor"
+            ]
+          },
+          {
+            "name": "max_quote_amount_in",
+            "compute": "math.floor_div",
+            "dividend": "$max_quote_amount_in_numerator",
+            "divisor": "10000"
           }
         ],
         "args": {
-          "base_amount_out": "$param.base_amount_out",
-          "max_quote_amount_in": "$param.max_quote_amount_in",
+          "base_amount_out": "$base_amount_out",
+          "max_quote_amount_in": "$max_quote_amount_in",
           "track_volume": "$param.track_volume"
         },
         "accounts": {
@@ -236,17 +496,32 @@
   "operations": {
     "buy": {
       "inputs": {
-        "base_mint": { "type": "pubkey", "required": true },
+        "base_mint": {
+          "type": "pubkey",
+          "required": true
+        },
         "quote_mint": {
           "type": "pubkey",
           "required": false,
           "default": "So11111111111111111111111111111111111111112"
         },
-        "base_amount_out": { "type": "u64", "required": false, "default": "1" },
-        "max_quote_amount_in": { "type": "u64", "required": true },
-        "track_volume": { "type": "bool", "required": false, "default": true },
-        "pool": { "type": "pubkey", "required": false },
-        "slippage_bps": { "type": "u16", "required": true }
+        "quote_amount_in": {
+          "type": "u64",
+          "required": true
+        },
+        "track_volume": {
+          "type": "bool",
+          "required": false,
+          "default": true
+        },
+        "pool": {
+          "type": "pubkey",
+          "required": false
+        },
+        "slippage_bps": {
+          "type": "u16",
+          "required": true
+        }
       },
       "use": [
         {
@@ -254,8 +529,8 @@
           "with": {
             "base_mint": "$input.base_mint",
             "quote_mint": "$input.quote_mint",
-            "base_amount_out": "$input.base_amount_out",
-            "max_quote_amount_in": "$input.max_quote_amount_in",
+            "quote_amount_in": "$input.quote_amount_in",
+            "slippage_bps": "$input.slippage_bps",
             "track_volume": "$input.track_volume"
           }
         }

@@ -7,13 +7,15 @@ import { previewIdlInstruction } from './idlDeclarativeRuntime';
 import { runRegisteredComputeStep } from './metaComputeRegistry';
 import { runRegisteredDiscoverStep } from './metaDiscoverRegistry';
 
-const SUPPORTED_META_IDL_SCHEMAS = new Set(['meta-idl.v0.1', 'meta-idl.v0.2', 'meta-idl.v0.3']);
+const SUPPORTED_META_IDL_SCHEMAS = new Set(['meta-idl.v0.1', 'meta-idl.v0.2', 'meta-idl.v0.3', 'meta-idl.v0.4']);
 const DEFAULT_SPL_TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 
 type BuiltinResolverName =
   | 'wallet_pubkey'
   | 'decode_account'
   | 'account_owner'
+  | 'token_account_balance'
+  | 'token_supply'
   | 'ata'
   | 'pda'
   | 'lookup'
@@ -807,6 +809,27 @@ async function runResolver(step: DeriveStep, ctx: ResolverContext): Promise<unkn
       throw new Error(`Account not found for account_owner ${step.name}: ${address.toBase58()}`);
     }
     return info.owner.toBase58();
+  }
+
+  if (step.resolver === 'token_account_balance') {
+    if (!step.address) {
+      throw new Error(`Resolver token_account_balance for ${step.name} missing address.`);
+    }
+    const address = asPubkey(
+      resolveTemplateValue(step.address, ctx.scope),
+      `token_account_balance:${step.name}:address`,
+    );
+    const balance = await ctx.connection.getTokenAccountBalance(address, 'confirmed');
+    return balance.value.amount;
+  }
+
+  if (step.resolver === 'token_supply') {
+    if (!step.mint) {
+      throw new Error(`Resolver token_supply for ${step.name} missing mint.`);
+    }
+    const mint = asPubkey(resolveTemplateValue(step.mint, ctx.scope), `token_supply:${step.name}:mint`);
+    const supply = await ctx.connection.getTokenSupply(mint, 'confirmed');
+    return supply.value.amount;
   }
 
   if (step.resolver === 'ata') {

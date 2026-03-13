@@ -37,9 +37,6 @@ const PUMP_AMM_PROTOCOL_ID = 'pump-amm-mainnet';
 const PUMP_AMM_OPERATION_ID = 'buy';
 const PUMP_CURVE_PROTOCOL_ID = 'pump-core-mainnet';
 const PUMP_CURVE_OPERATION_ID = 'buy_exact_sol_in';
-const SYSTEM_PROGRAM_PUBKEY = '11111111111111111111111111111111';
-const PUMP_BONDING_PROGRAM_ID = new PublicKey('6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P');
-const BPS_DENOMINATOR = 10_000n;
 const QUICK_PREFILL_SWAP_COMMAND =
   '/orca EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v So11111111111111111111111111111111111111112 0.01 50 --simulate';
 const QUICK_PREFILL_PUMP_QUOTE_COMMAND =
@@ -624,8 +621,7 @@ function App() {
         operationId: PUMP_AMM_OPERATION_ID,
         input: {
           base_mint: options.value.tokenMint,
-          base_amount_out: '1',
-          max_quote_amount_in: options.value.amountAtomic,
+          quote_amount_in: options.value.amountAtomic,
           track_volume: true,
           slippage_bps: options.value.slippageBps,
           ...(options.value.pool ? { pool: options.value.pool } : {}),
@@ -662,12 +658,6 @@ function App() {
     const selectedPool = asRecord(prepared.derived.selected_pool, 'selected_pool');
     const selectedPoolAddress = asString(selectedPool.pool, 'selected_pool.pool');
     const poolData = asRecord(prepared.derived.pool_data, 'pool_data');
-    const globalConfigData = asRecord(prepared.derived.global_config_data, 'global_config_data');
-    const feeConfigDataRaw = prepared.derived.fee_config_data;
-    const feeConfigData =
-      feeConfigDataRaw && typeof feeConfigDataRaw === 'object'
-        ? asRecord(feeConfigDataRaw, 'fee_config_data')
-        : null;
 
     const userBaseAta = prepared.accounts.user_base_token_account;
     const userQuoteAta = prepared.accounts.user_quote_token_account;
@@ -684,108 +674,25 @@ function App() {
         `Unsupported Pump quote mint ${poolQuoteMint}. This command currently supports SOL-quoted pools only.`,
       );
     }
-
-    const parseBigInt = (value: unknown, label: string): bigint => BigInt(asIntegerLikeString(value, label));
-    const parsePubkey = (value: unknown, label: string): PublicKey => new PublicKey(asString(value, label));
-    const parseFees = (value: unknown, label: string): { lp: bigint; protocol: bigint; creator: bigint } => {
-      const record = asRecord(value, label);
-      return {
-        lp: parseBigInt(record.lp_fee_bps, `${label}.lp_fee_bps`),
-        protocol: parseBigInt(record.protocol_fee_bps, `${label}.protocol_fee_bps`),
-        creator: parseBigInt(record.creator_fee_bps, `${label}.creator_fee_bps`),
-      };
-    };
-
-    const [poolAuthorityPda] = PublicKey.findProgramAddressSync(
-      [new TextEncoder().encode('pool-authority'), new PublicKey(poolBaseMint).toBuffer()],
-      PUMP_BONDING_PROGRAM_ID,
+    const finalArgs = prepared.args as Record<string, unknown>;
+    const computedBaseOutAtomic = asIntegerLikeString(
+      finalArgs.base_amount_out,
+      'args.base_amount_out',
     );
-    const isPumpPool = poolAuthorityPda.equals(parsePubkey(poolData.creator, 'pool_data.creator'));
-
-    const [baseReserveBalance, quoteReserveBalance, baseMintSupply] = await Promise.all([
-      connection.getTokenAccountBalance(new PublicKey(prepared.accounts.pool_base_token_account), 'confirmed'),
-      connection.getTokenAccountBalance(new PublicKey(prepared.accounts.pool_quote_token_account), 'confirmed'),
-      connection.getTokenSupply(new PublicKey(poolBaseMint), 'confirmed'),
-    ]);
-    const baseReserveAtomic = BigInt(baseReserveBalance.value.amount);
-    const quoteReserveAtomic = BigInt(quoteReserveBalance.value.amount);
-    const baseMintSupplyAtomic = BigInt(baseMintSupply.value.amount);
-    if (baseReserveAtomic <= 0n || quoteReserveAtomic <= 0n) {
-      throw new Error(
-        `Invalid pool reserves for ${selectedPoolAddress}. baseReserve=${baseReserveAtomic.toString()}, quoteReserve=${quoteReserveAtomic.toString()}.`,
-      );
-    }
-
-    const globalFees = {
-      lp: parseBigInt(globalConfigData.lp_fee_basis_points, 'global_config_data.lp_fee_basis_points'),
-      protocol: parseBigInt(globalConfigData.protocol_fee_basis_points, 'global_config_data.protocol_fee_basis_points'),
-      creator: parseBigInt(
-        globalConfigData.coin_creator_fee_basis_points,
-        'global_config_data.coin_creator_fee_basis_points',
-      ),
-    };
-
-    let feeBps = globalFees;
-    if (feeConfigData) {
-      if (isPumpPool) {
-        const tiersRaw = feeConfigData.fee_tiers;
-        if (!Array.isArray(tiersRaw) || tiersRaw.length === 0) {
-          throw new Error('fee_config_data.fee_tiers must be a non-empty array.');
-        }
-
-        const tiers = tiersRaw.map((entry, index) => {
-          const tier = asRecord(entry, `fee_config_data.fee_tiers[${index}]`);
-          return {
-            threshold: parseBigInt(
-              tier.market_cap_lamports_threshold,
-              `fee_config_data.fee_tiers[${index}].market_cap_lamports_threshold`,
-            ),
-            fees: parseFees(tier.fees, `fee_config_data.fee_tiers[${index}].fees`),
-          };
-        });
-
-        const marketCapLamports = (quoteReserveAtomic * baseMintSupplyAtomic) / baseReserveAtomic;
-        if (marketCapLamports < tiers[0].threshold) {
-          feeBps = tiers[0].fees;
-        } else {
-          feeBps = tiers[0].fees;
-          for (let i = tiers.length - 1; i >= 0; i -= 1) {
-            if (marketCapLamports >= tiers[i].threshold) {
-              feeBps = tiers[i].fees;
-              break;
-            }
-          }
-        }
-      } else {
-        feeBps = parseFees(feeConfigData.flat_fees, 'fee_config_data.flat_fees');
-      }
-    }
-
-    const coinCreator = asString(poolData.coin_creator, 'pool_data.coin_creator');
-    const creatorFeeBps = coinCreator === SYSTEM_PROGRAM_PUBKEY ? 0n : feeBps.creator;
-    const totalFeeBps = feeBps.lp + feeBps.protocol + creatorFeeBps;
-
-    const quoteInAtomic = BigInt(options.value.amountAtomic);
-    const effectiveQuoteAtomic = (quoteInAtomic * BPS_DENOMINATOR) / (BPS_DENOMINATOR + totalFeeBps);
-    const denominator = quoteReserveAtomic + effectiveQuoteAtomic;
-    if (denominator <= 0n) {
-      throw new Error('Invalid denominator while computing Pump quote.');
-    }
-
-    const computedBaseOutAtomic = (baseReserveAtomic * effectiveQuoteAtomic) / denominator;
-    if (computedBaseOutAtomic <= 0n) {
-      throw new Error('Computed base output is zero. Try a larger input amount.');
-    }
-    const computedMaxQuoteInAtomic =
-      (quoteInAtomic * (BPS_DENOMINATOR + BigInt(options.value.slippageBps))) / BPS_DENOMINATOR;
+    const computedMaxQuoteInAtomic = BigInt(
+      asIntegerLikeString(finalArgs.max_quote_amount_in, 'args.max_quote_amount_in'),
+    );
     const trackVolume =
-      prepared.args.track_volume === undefined ? true : asBoolean(prepared.args.track_volume, 'args.track_volume');
-    const finalArgs: Record<string, unknown> = {
-      ...prepared.args,
-      base_amount_out: computedBaseOutAtomic.toString(),
-      max_quote_amount_in: computedMaxQuoteInAtomic.toString(),
-      track_volume: trackVolume,
-    };
+      finalArgs.track_volume === undefined ? true : asBoolean(finalArgs.track_volume, 'args.track_volume');
+    const lpFeeBpsRaw = prepared.derived.lp_fee_bps;
+    const protocolFeeBpsRaw = prepared.derived.protocol_fee_bps;
+    const creatorFeeBpsRaw = prepared.derived.creator_fee_bps;
+    const hasFeeBps = lpFeeBpsRaw !== undefined && protocolFeeBpsRaw !== undefined && creatorFeeBpsRaw !== undefined;
+    const lpFeeBps = hasFeeBps ? asIntegerLikeString(lpFeeBpsRaw, 'derived.lp_fee_bps') : null;
+    const protocolFeeBps = hasFeeBps
+      ? asIntegerLikeString(protocolFeeBpsRaw, 'derived.protocol_fee_bps')
+      : null;
+    const creatorFeeBps = hasFeeBps ? asIntegerLikeString(creatorFeeBpsRaw, 'derived.creator_fee_bps') : null;
 
     const preInstructions: TransactionInstruction[] = [
       createAssociatedTokenAccountIdempotentInstruction(
@@ -890,13 +797,17 @@ function App() {
       const rawPreview = await getRawPreview(finalArgs);
       const simError = simulation.error ?? 'unknown';
       const logs = simulation.logs.join('\n');
+      const feeBpsLine =
+        lpFeeBps !== null && protocolFeeBps !== null && creatorFeeBps !== null
+          ? `Fee bps: lp=${lpFeeBps}, protocol=${protocolFeeBps}, creator=${creatorFeeBps}`
+        : 'Fee bps: n/a';
       throw new Error(
         [
           `Simulation failed: ${simError}`,
           logs,
           '',
-          `Deterministic args: base_amount_out=${computedBaseOutAtomic.toString()}, max_quote_amount_in=${computedMaxQuoteInAtomic.toString()}, track_volume=${String(trackVolume)}`,
-          `Fee bps: lp=${feeBps.lp.toString()}, protocol=${feeBps.protocol.toString()}, creator=${creatorFeeBps.toString()}`,
+          `Deterministic args: base_amount_out=${computedBaseOutAtomic}, max_quote_amount_in=${computedMaxQuoteInAtomic.toString()}, track_volume=${String(trackVolume)}`,
+          feeBpsLine,
           '',
           `Raw instruction preview:\n${asPrettyJson(rawPreview)}`,
         ].join('\n'),
@@ -920,9 +831,11 @@ function App() {
           `token: ${options.value.tokenMint}`,
           `pool: ${selectedPoolAddress}`,
           `input: ${options.value.amountUiSol} SOL (${options.value.amountAtomic} lamports)`,
-          `computed base_amount_out: ${computedBaseOutAtomic.toString()} base atomic`,
+          `computed base_amount_out: ${computedBaseOutAtomic} base atomic`,
           `computed max_quote_amount_in: ${computedMaxQuoteInAtomic.toString()} lamports`,
-          `fee bps (lp/protocol/creator): ${feeBps.lp.toString()}/${feeBps.protocol.toString()}/${creatorFeeBps.toString()}`,
+          lpFeeBps !== null && protocolFeeBps !== null && creatorFeeBps !== null
+            ? `fee bps (lp/protocol/creator): ${lpFeeBps}/${protocolFeeBps}/${creatorFeeBps}`
+            : 'fee bps (lp/protocol/creator): n/a',
           `simulated output: ${estimatedOutAtomicBigint.toString()} base atomic`,
           `simulated quote spent: ${estimatedQuoteSpentAtomicBigint.toString()} lamports`,
           `simulation: ok${simulation.unitsConsumed ? ` (${simulation.unitsConsumed} CU)` : ''}`,
@@ -957,7 +870,7 @@ function App() {
         'Pump AMM tx sent (meta IDL -> write-raw).',
         `token: ${options.value.tokenMint}`,
         `pool: ${selectedPoolAddress}`,
-        `baseAmountOut: ${computedBaseOutAtomic.toString()}`,
+        `baseAmountOut: ${computedBaseOutAtomic}`,
         `maxQuoteAmountIn: ${computedMaxQuoteInAtomic.toString()}`,
         result.signature,
         result.explorerUrl,

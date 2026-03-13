@@ -27,7 +27,7 @@ export type ComputeRuntimeContext = {
   }) => Promise<ComputeInstructionPreview>;
 };
 
-type ComputeExecutor = (step: ComputeStepResolved, ctx: ComputeRuntimeContext) => Promise<unknown>;
+export type ComputeExecutor = (step: ComputeStepResolved, ctx: ComputeRuntimeContext) => Promise<unknown>;
 
 type PdaSeedSpec =
   | { kind: 'utf8'; value: string }
@@ -35,6 +35,13 @@ type PdaSeedSpec =
   | { kind: 'i32_le'; value: unknown }
   | { kind: 'item_i32_le' }
   | { kind: 'item_utf8' };
+
+type ListWhereOp = '=' | '==' | '!=' | '>' | '>=' | '<' | '<=';
+type ListWhereClause = {
+  path: string;
+  op?: ListWhereOp;
+  value: unknown;
+};
 
 function asRecord(value: unknown, label: string): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -50,7 +57,49 @@ function asArray(value: unknown, label: string): unknown[] {
   return value;
 }
 
+function asBoolean(value: unknown, label: string): boolean {
+  if (typeof value !== 'boolean') {
+    throw new Error(`${label} must be a boolean.`);
+  }
+  return value;
+}
+
+function asBigInt(value: unknown, label: string): bigint {
+  if (typeof value === 'bigint') {
+    return value;
+  }
+  if (typeof value === 'number' && Number.isFinite(value) && Number.isInteger(value)) {
+    return BigInt(value);
+  }
+  if (typeof value === 'string' && /^-?\d+$/.test(value)) {
+    return BigInt(value);
+  }
+  throw new Error(`${label} must be bigint-compatible integer.`);
+}
+
+function asSafeInteger(value: unknown, label: string): number {
+  const big = asBigInt(value, label);
+  if (big < BigInt(Number.MIN_SAFE_INTEGER) || big > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new Error(`${label} must fit in JS safe integer range.`);
+  }
+  return Number(big);
+}
+
+function asPubkey(value: unknown, label: string): PublicKey {
+  if (value instanceof PublicKey) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    return new PublicKey(value);
+  }
+  throw new Error(`${label} must be a public key.`);
+}
+
 function normalizeComparable(value: unknown): unknown {
+  if (typeof value === 'bigint') {
+    return value.toString();
+  }
+
   if (Array.isArray(value)) {
     return value.map(normalizeComparable);
   }
@@ -69,76 +118,117 @@ function valuesEqual(left: unknown, right: unknown): boolean {
   return JSON.stringify(normalizeComparable(left)) === JSON.stringify(normalizeComparable(right));
 }
 
-function asInteger(value: unknown, label: string): number {
-  if (typeof value === 'number' && Number.isSafeInteger(value)) {
-    return value;
+function toComparableBigint(value: unknown): bigint | null {
+  try {
+    return asBigInt(value, 'compare');
+  } catch {
+    return null;
   }
-  if (typeof value === 'string' && /^-?\d+$/.test(value)) {
-    const parsed = Number(value);
-    if (Number.isSafeInteger(parsed)) {
-      return parsed;
+}
+
+function compareOrdered(left: unknown, right: unknown): number {
+  const leftBigint = toComparableBigint(left);
+  const rightBigint = toComparableBigint(right);
+  if (leftBigint !== null && rightBigint !== null) {
+    if (leftBigint === rightBigint) {
+      return 0;
     }
+    return leftBigint > rightBigint ? 1 : -1;
   }
-  throw new Error(`${label} must be a safe integer.`);
+
+  const leftNumber = Number(left);
+  const rightNumber = Number(right);
+  if (Number.isFinite(leftNumber) && Number.isFinite(rightNumber)) {
+    if (leftNumber === rightNumber) {
+      return 0;
+    }
+    return leftNumber > rightNumber ? 1 : -1;
+  }
+
+  return String(left).localeCompare(String(right));
 }
 
-function asPubkey(value: unknown, label: string): PublicKey {
-  if (value instanceof PublicKey) {
-    return value;
+function floorDivBigInt(dividend: bigint, divisor: bigint): bigint {
+  if (divisor === 0n) {
+    throw new Error('divisor must not be zero.');
   }
-  if (typeof value === 'string') {
-    return new PublicKey(value);
+  const quotient = dividend / divisor;
+  const remainder = dividend % divisor;
+  if (remainder === 0n) {
+    return quotient;
   }
-  throw new Error(`${label} must be a public key.`);
+  const signsDiffer = (dividend < 0n) !== (divisor < 0n);
+  return signsDiffer ? quotient - 1n : quotient;
 }
 
-function toInt32LeBytes(value: number, label: string): Uint8Array {
-  if (!Number.isInteger(value) || value < -2147483648 || value > 2147483647) {
-    throw new Error(`${label} must fit in i32.`);
+function readPathFromValue(value: unknown, path: string): unknown {
+  const cleaned = path.startsWith('$') ? path.slice(1) : path;
+  const parts = cleaned.split('.').filter(Boolean);
+  let current: unknown = value;
+
+  for (const part of parts) {
+    if (!current || typeof current !== 'object') {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[part];
   }
 
-  const bytes = new Uint8Array(4);
-  new DataView(bytes.buffer).setInt32(0, value, true);
-  return bytes;
+  return current;
 }
 
-async function runMathAdd(step: ComputeStepResolved): Promise<number> {
-  const values = asArray(step.values, `compute:${step.name}:values`).map((entry, index) =>
-    asInteger(entry, `compute:${step.name}:values[${index}]`),
-  );
+function toStringInteger(value: bigint): string {
+  return value.toString();
+}
+
+async function runMathAdd(step: ComputeStepResolved): Promise<string> {
+  const values = asArray(step.values, `compute:${step.name}:values`);
   if (values.length < 2) {
     throw new Error(`compute:${step.name}:values must contain at least 2 elements.`);
   }
-  return values.reduce((acc, value) => acc + value, 0);
+  let total = 0n;
+  values.forEach((value, index) => {
+    total += asBigInt(value, `compute:${step.name}:values[${index}]`);
+  });
+  return toStringInteger(total);
 }
 
-async function runMathMul(step: ComputeStepResolved): Promise<number> {
-  const values = asArray(step.values, `compute:${step.name}:values`).map((entry, index) =>
-    asInteger(entry, `compute:${step.name}:values[${index}]`),
-  );
+async function runMathSum(step: ComputeStepResolved): Promise<string> {
+  const values = asArray(step.values, `compute:${step.name}:values`);
+  if (values.length < 1) {
+    throw new Error(`compute:${step.name}:values must contain at least 1 element.`);
+  }
+  let total = 0n;
+  values.forEach((value, index) => {
+    total += asBigInt(value, `compute:${step.name}:values[${index}]`);
+  });
+  return toStringInteger(total);
+}
+
+async function runMathMul(step: ComputeStepResolved): Promise<string> {
+  const values = asArray(step.values, `compute:${step.name}:values`);
   if (values.length < 2) {
     throw new Error(`compute:${step.name}:values must contain at least 2 elements.`);
   }
-  return values.reduce((acc, value) => acc * value, 1);
+  let product = 1n;
+  values.forEach((value, index) => {
+    product *= asBigInt(value, `compute:${step.name}:values[${index}]`);
+  });
+  return toStringInteger(product);
 }
 
-async function runMathFloorDiv(step: ComputeStepResolved): Promise<number> {
-  const dividend = asInteger(step.dividend, `compute:${step.name}:dividend`);
-  const divisor = asInteger(step.divisor, `compute:${step.name}:divisor`);
-  if (divisor === 0) {
-    throw new Error(`compute:${step.name}:divisor must not be zero.`);
-  }
-  return Math.floor(dividend / divisor);
+async function runMathFloorDiv(step: ComputeStepResolved): Promise<string> {
+  const dividend = asBigInt(step.dividend, `compute:${step.name}:dividend`);
+  const divisor = asBigInt(step.divisor, `compute:${step.name}:divisor`);
+  return toStringInteger(floorDivBigInt(dividend, divisor));
 }
 
 async function runListRangeMap(step: ComputeStepResolved): Promise<number[]> {
-  const base = asInteger(step.base, `compute:${step.name}:base`);
-  const stepSize = asInteger(step.step, `compute:${step.name}:step`);
-  const count = asInteger(step.count, `compute:${step.name}:count`);
+  const base = asSafeInteger(step.base, `compute:${step.name}:base`);
+  const stepSize = asSafeInteger(step.step, `compute:${step.name}:step`);
+  const count = asSafeInteger(step.count, `compute:${step.name}:count`);
   if (count <= 0 || count > 16) {
     throw new Error(`compute:${step.name}:count must be between 1 and 16.`);
   }
-
   return Array.from({ length: count }, (_, index) => base + index * stepSize);
 }
 
@@ -147,28 +237,152 @@ async function runListGet(step: ComputeStepResolved): Promise<unknown> {
   if (values.length === 0) {
     throw new Error(`compute:${step.name}:values must not be empty.`);
   }
-
-  const index = asInteger(step.index, `compute:${step.name}:index`);
+  const index = asSafeInteger(step.index, `compute:${step.name}:index`);
   if (index < 0 || index >= values.length) {
     throw new Error(`compute:${step.name}:index ${index} is out of bounds for ${values.length} item(s).`);
   }
-
   return values[index];
+}
+
+function parseListWhereClause(raw: unknown, label: string): ListWhereClause {
+  const clause = asRecord(raw, label);
+  const opRaw = clause.op === undefined ? '==' : clause.op;
+  const op = String(opRaw) as ListWhereOp;
+  if (!['=', '==', '!=', '>', '>=', '<', '<='].includes(op)) {
+    throw new Error(`${label}.op must be one of =, ==, !=, >, >=, <, <=.`);
+  }
+  return {
+    path: String(clause.path),
+    op,
+    value: clause.value,
+  };
+}
+
+function matchesWhere(item: unknown, clauses: ListWhereClause[]): boolean {
+  return clauses.every((clause) => {
+    const actual = readPathFromValue(item, clause.path);
+    const op = clause.op ?? '==';
+    if (op === '=' || op === '==') {
+      return valuesEqual(actual, clause.value);
+    }
+    if (op === '!=') {
+      return !valuesEqual(actual, clause.value);
+    }
+    const ordered = compareOrdered(actual, clause.value);
+    if (op === '>') {
+      return ordered > 0;
+    }
+    if (op === '>=') {
+      return ordered >= 0;
+    }
+    if (op === '<') {
+      return ordered < 0;
+    }
+    if (op === '<=') {
+      return ordered <= 0;
+    }
+    throw new Error(`Unsupported op ${String(op)}.`);
+  });
+}
+
+async function runListFilter(step: ComputeStepResolved): Promise<unknown[]> {
+  const items = asArray(step.items, `compute:${step.name}:items`);
+  if (step.where === undefined) {
+    return items;
+  }
+  const whereArray = Array.isArray(step.where) ? step.where : [step.where];
+  const clauses = whereArray.map((entry, index) =>
+    parseListWhereClause(entry, `compute:${step.name}:where[${index}]`),
+  );
+  return items.filter((item) => matchesWhere(item, clauses));
+}
+
+async function runListFirst(step: ComputeStepResolved): Promise<unknown> {
+  const items = asArray(step.items, `compute:${step.name}:items`);
+  if (items.length === 0) {
+    if (step.allow_empty === true) {
+      return null;
+    }
+    throw new Error(`compute:${step.name}:items must not be empty.`);
+  }
+  return items[0];
+}
+
+function pickByPath(items: unknown[], path: string, mode: 'min' | 'max', label: string): unknown {
+  if (items.length === 0) {
+    throw new Error(`${label}:items must not be empty.`);
+  }
+
+  let bestItem = items[0];
+  let bestValue = readPathFromValue(items[0], path);
+  for (let index = 1; index < items.length; index += 1) {
+    const candidate = items[index];
+    const candidateValue = readPathFromValue(candidate, path);
+    const cmp = compareOrdered(candidateValue, bestValue);
+    if ((mode === 'min' && cmp < 0) || (mode === 'max' && cmp > 0)) {
+      bestItem = candidate;
+      bestValue = candidateValue;
+    }
+  }
+  return bestItem;
+}
+
+async function runListMinBy(step: ComputeStepResolved): Promise<unknown> {
+  const items = asArray(step.items, `compute:${step.name}:items`);
+  const path = String(step.path ?? '');
+  if (!path) {
+    throw new Error(`compute:${step.name}:path must be provided.`);
+  }
+  if (items.length === 0) {
+    if (step.allow_empty === true) {
+      return null;
+    }
+    throw new Error(`compute:${step.name}:items must not be empty.`);
+  }
+  return pickByPath(items, path, 'min', `compute:${step.name}`);
+}
+
+async function runListMaxBy(step: ComputeStepResolved): Promise<unknown> {
+  const items = asArray(step.items, `compute:${step.name}:items`);
+  const path = String(step.path ?? '');
+  if (!path) {
+    throw new Error(`compute:${step.name}:path must be provided.`);
+  }
+  if (items.length === 0) {
+    if (step.allow_empty === true) {
+      return null;
+    }
+    throw new Error(`compute:${step.name}:items must not be empty.`);
+  }
+  return pickByPath(items, path, 'max', `compute:${step.name}`);
+}
+
+async function runCoalesce(step: ComputeStepResolved): Promise<unknown> {
+  const values = asArray(step.values, `compute:${step.name}:values`);
+  for (const value of values) {
+    if (value !== undefined && value !== null) {
+      return value;
+    }
+  }
+  return null;
 }
 
 function encodePdaSeed(seed: PdaSeedSpec, item: unknown, label: string): Uint8Array {
   if (seed.kind === 'utf8') {
     return new TextEncoder().encode(seed.value);
   }
-
   if (seed.kind === 'pubkey') {
     return asPubkey(seed.value, `${label}:value`).toBuffer();
   }
-
   if (seed.kind === 'i32_le') {
-    return toInt32LeBytes(asInteger(seed.value, `${label}:value`), `${label}:value`);
+    const intValue = asSafeInteger(seed.value, `${label}:value`);
+    if (intValue < -2147483648 || intValue > 2147483647) {
+      throw new Error(`${label}:value must fit in i32.`);
+    }
+    const bytes = new Uint8Array(4);
+    new DataView(bytes.buffer).setInt32(0, intValue, true);
+    return bytes;
   }
-
   if (seed.kind === 'item_utf8') {
     if (typeof item !== 'string' && typeof item !== 'number' && typeof item !== 'bigint') {
       throw new Error(`${label}:item must be string/number/bigint for item_utf8.`);
@@ -176,35 +390,36 @@ function encodePdaSeed(seed: PdaSeedSpec, item: unknown, label: string): Uint8Ar
     return new TextEncoder().encode(String(item));
   }
 
-  return toInt32LeBytes(asInteger(item, `${label}:item`), `${label}:item`);
+  const intValue = asSafeInteger(item, `${label}:item`);
+  if (intValue < -2147483648 || intValue > 2147483647) {
+    throw new Error(`${label}:item must fit in i32.`);
+  }
+  const bytes = new Uint8Array(4);
+  new DataView(bytes.buffer).setInt32(0, intValue, true);
+  return bytes;
 }
 
 function parseSeedSpec(raw: unknown, label: string): PdaSeedSpec {
   const seed = asRecord(raw, label);
-  const kind = seed.kind;
+  const kind = String(seed.kind);
   if (kind === 'utf8') {
     if (typeof seed.value !== 'string') {
       throw new Error(`${label}: utf8 seed requires string value.`);
     }
     return { kind: 'utf8', value: seed.value };
   }
-
   if (kind === 'pubkey') {
     return { kind: 'pubkey', value: seed.value };
   }
-
   if (kind === 'i32_le') {
     return { kind: 'i32_le', value: seed.value };
   }
-
   if (kind === 'item_i32_le') {
     return { kind: 'item_i32_le' };
   }
-
   if (kind === 'item_utf8') {
     return { kind: 'item_utf8' };
   }
-
   throw new Error(`${label}: unsupported seed kind ${String(kind)}.`);
 }
 
@@ -234,22 +449,50 @@ async function runCompareEquals(step: ComputeStepResolved): Promise<boolean> {
   return valuesEqual(step.left, step.right);
 }
 
+async function runCompareNotEquals(step: ComputeStepResolved): Promise<boolean> {
+  return !valuesEqual(step.left, step.right);
+}
+
+async function runCompareGt(step: ComputeStepResolved): Promise<boolean> {
+  return compareOrdered(step.left, step.right) > 0;
+}
+
+async function runCompareGte(step: ComputeStepResolved): Promise<boolean> {
+  return compareOrdered(step.left, step.right) >= 0;
+}
+
+async function runCompareLt(step: ComputeStepResolved): Promise<boolean> {
+  return compareOrdered(step.left, step.right) < 0;
+}
+
+async function runCompareLte(step: ComputeStepResolved): Promise<boolean> {
+  return compareOrdered(step.left, step.right) <= 0;
+}
+
 async function runLogicIf(step: ComputeStepResolved): Promise<unknown> {
-  const condition = step.condition;
-  if (typeof condition !== 'boolean') {
-    throw new Error(`compute:${step.name}:condition must be boolean.`);
-  }
+  const condition = asBoolean(step.condition, `compute:${step.name}:condition`);
   return condition ? step.then : step.else;
 }
 
 const COMPUTE_EXECUTORS: Record<string, ComputeExecutor> = {
   'math.add': runMathAdd,
+  'math.sum': runMathSum,
   'math.mul': runMathMul,
   'math.floor_div': runMathFloorDiv,
   'list.range_map': runListRangeMap,
   'list.get': runListGet,
+  'list.filter': runListFilter,
+  'list.first': runListFirst,
+  'list.min_by': runListMinBy,
+  'list.max_by': runListMaxBy,
+  coalesce: runCoalesce,
   'pda(seed_spec)': runPdaSeedSpec,
   'compare.equals': runCompareEquals,
+  'compare.not_equals': runCompareNotEquals,
+  'compare.gt': runCompareGt,
+  'compare.gte': runCompareGte,
+  'compare.lt': runCompareLt,
+  'compare.lte': runCompareLte,
   'logic.if': runLogicIf,
 };
 
