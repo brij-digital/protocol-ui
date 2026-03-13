@@ -101,7 +101,8 @@ Parity fixture (`protocol-packs/rpc/parity/*.json`):
   "signature": "<TX_SIGNATURE>",
   "expect": {
     "programIdsContains": ["whirL..."],
-    "logsInclude": ["Instruction: Swap"]
+    "logsInclude": ["Instruction: Swap"],
+    "errorIncludes": ["6023"]
   }
 }
 ```

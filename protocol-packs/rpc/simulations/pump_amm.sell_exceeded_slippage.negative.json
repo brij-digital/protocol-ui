@@ -1,0 +1,11 @@
+{
+  "name": "Pump AMM negative replay: exceeded slippage",
+  "source": "replay_tx",
+  "signature": "56MhgzpSVproZpr3UVAknq7JbJkfpMeiHyQsFA5DoBx1m94qpwrWv5Qzo6x3GUU8q227CujSazCLYwhVhDEdFqy",
+  "expect": {
+    "ok": false,
+    "allowError": true,
+    "errorIncludes": ["6004"],
+    "logsInclude": ["Instruction: Sell", "ExceededSlippage"]
+  }
+}

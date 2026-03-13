@@ -154,7 +154,7 @@ async function runSimulationFixture(rpcUrl, filename) {
   }
 
   const txBase64 = txResult.transaction[0];
-  const simulation = await rpcRequest(rpcUrl, 'simulateTransaction', [
+  const simulationEnvelope = await rpcRequest(rpcUrl, 'simulateTransaction', [
     txBase64,
     {
       encoding: 'base64',
@@ -163,6 +163,10 @@ async function runSimulationFixture(rpcUrl, filename) {
       commitment: 'confirmed',
     },
   ]);
+  const simulation =
+    simulationEnvelope && typeof simulationEnvelope === 'object' && 'value' in simulationEnvelope
+      ? simulationEnvelope.value
+      : simulationEnvelope;
 
   const err = simulation?.err ?? null;
   const logs = Array.isArray(simulation?.logs) ? simulation.logs : [];
@@ -255,9 +259,12 @@ async function runParityFixture(rpcUrl, filename) {
       : asStringArray(expect.programIdsContains, `${filename}.expect.programIdsContains`);
   const logsInclude =
     expect.logsInclude === undefined ? [] : asStringArray(expect.logsInclude, `${filename}.expect.logsInclude`);
+  const errorIncludes =
+    expect.errorIncludes === undefined ? [] : asStringArray(expect.errorIncludes, `${filename}.expect.errorIncludes`);
 
   const programIds = collectProgramIdsFromTransactionJson(txResult);
   const logMessages = Array.isArray(txResult.meta?.logMessages) ? txResult.meta.logMessages : [];
+  const metaErrorText = JSON.stringify(txResult.meta?.err ?? null);
 
   for (const programId of programIdsContains) {
     if (!programIds.includes(programId)) {
@@ -267,6 +274,14 @@ async function runParityFixture(rpcUrl, filename) {
 
   if (logsInclude.length > 0) {
     assertLogInclusion(logMessages, logsInclude, filename);
+  }
+
+  if (errorIncludes.length > 0) {
+    for (const needle of errorIncludes) {
+      if (!metaErrorText.includes(needle)) {
+        fail(`${filename}: expected meta error to include "${needle}", got ${metaErrorText}.`);
+      }
+    }
   }
 
   return { name, signature, programIdsCount: programIds.length, logsCount: logMessages.length };

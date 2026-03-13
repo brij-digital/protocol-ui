@@ -1,0 +1,9 @@
+{
+  "name": "Pump core negative tx parity: overflow",
+  "signature": "59uWNCPtHADPPGee2TPzqzUJgaafaKxBRZz8xpKeLB24CKJsjsaGYUV2fdTYsHq91QqQXWL2rXbNUpgKrgk7McGH",
+  "expect": {
+    "programIdsContains": ["6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"],
+    "logsInclude": ["Instruction: Sell"],
+    "errorIncludes": ["6023"]
+  }
+}
