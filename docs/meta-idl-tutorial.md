@@ -46,6 +46,7 @@ Current derive steps used by Orca operation:
 
 Current compute steps used by Orca operation:
 - `math.mul`
+- `math.sub`
 - `math.floor_div`
 - `list.range_map`
 - `pda(seed_spec)`
@@ -59,7 +60,7 @@ New in v0.4 runtime (available primitives):
 
 ## 4) What `discover[]` Does Now
 
-In `templates.orca.swap_exact_in.v1.expand.discover`:
+In `templates.orca.swap_exact_in.v2.expand.discover`:
 
 1. `pool_candidates` (`discover.query`)
 - Runs on-chain discovery via RPC `getProgramAccounts` against Orca program.
@@ -110,24 +111,23 @@ Compute tick arrays:
 
 Build args/accounts:
 - `amount = input.amount_in`
-- `other_amount_threshold = "1"` provisional
+- `other_amount_threshold = floor(estimated_out * (10000 - slippage_bps) / 10000)`
 - `sqrt_price_limit = "0"`
 - `a_to_b = a_to_b`
 - accounts wired from derive/compute outputs
 
 ## 7) Quote vs Swap
 
-Both paths share the same prepared plan.
+Both paths share the same declarative operation and account wiring.
 
 `/quote`:
-- Simulates with provisional threshold.
-- Computes estimated output and min output from slippage bps.
-- Displays summary.
+- Pass 1: simulates with `estimated_out=0` to obtain output estimate from account deltas.
+- Pass 2: reruns Meta IDL with `estimated_out` input so `other_amount_threshold` is computed in Meta.
+- Simulates final executable args and displays summary.
 
 `/swap`:
-- Reuses same plan.
-- Replaces `other_amount_threshold` with computed min output.
-- Sends transaction.
+- Uses the same two-pass flow as `/quote`.
+- Sends transaction with final pass executable args (no app-side arg override).
 
 ## 8) Why It Feels Slow
 

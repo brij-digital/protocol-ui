@@ -357,7 +357,7 @@ function App() {
       throw new Error('Connect wallet first to derive owner token accounts.');
     }
     const walletPublicKey = wallet.publicKey;
-    const prepared = await prepareMetaInstruction({
+    const preparedInitial = await prepareMetaInstruction({
       protocolId: ORCA_PROTOCOL_ID,
       operationId: ORCA_OPERATION_ID,
       input: {
@@ -371,7 +371,7 @@ function App() {
       walletPublicKey,
     });
 
-    const poolCandidates = normalizePoolCandidates(prepared.derived.pool_candidates);
+    const poolCandidates = normalizePoolCandidates(preparedInitial.derived.pool_candidates);
     if (poolCandidates.length > 1 && options.whirlpool === undefined) {
       setPendingPoolSelection({
         command: options.value,
@@ -390,47 +390,52 @@ function App() {
 
     setPendingPoolSelection(null);
 
-    const selectedPoolRaw = prepared.derived.selected_pool;
+    const selectedPoolRaw = preparedInitial.derived.selected_pool;
     if (!selectedPoolRaw || typeof selectedPoolRaw !== 'object') {
       throw new Error('Missing derived selected_pool from meta runtime.');
     }
     const selectedPool = asRecord(selectedPoolRaw, 'selected_pool');
-    const whirlpoolData = prepared.derived.whirlpool_data as Record<string, unknown> | undefined;
+    const selectedWhirlpool = asString(selectedPool.whirlpool, 'selected_pool.whirlpool');
+    const whirlpoolDataInitial = preparedInitial.derived.whirlpool_data as Record<string, unknown> | undefined;
     const inputTokenMeta = resolveToken(options.value.inputMint);
     const outputTokenMeta = resolveToken(options.value.outputMint);
 
-    if (!whirlpoolData) {
+    if (!whirlpoolDataInitial) {
       throw new Error('Missing derived whirlpool data from meta runtime.');
     }
 
-    const preInstructions = buildOwnerAtaPreInstructions({
+    const preInstructionsInitial = buildOwnerAtaPreInstructions({
       owner: walletPublicKey,
       pairs: [
         {
-          ata: prepared.accounts.token_owner_account_a,
-          mint: String(whirlpoolData.token_mint_a),
+          ata: preparedInitial.accounts.token_owner_account_a,
+          mint: String(whirlpoolDataInitial.token_mint_a),
         },
         {
-          ata: prepared.accounts.token_owner_account_b,
-          mint: String(whirlpoolData.token_mint_b),
+          ata: preparedInitial.accounts.token_owner_account_b,
+          mint: String(whirlpoolDataInitial.token_mint_b),
         },
       ],
     });
-    const postInstructions = buildMetaPostInstructions(prepared.postInstructions);
+    const postInstructionsInitial = buildMetaPostInstructions(preparedInitial.postInstructions);
 
-    const aToB = asBoolean(prepared.derived.a_to_b, 'a_to_b');
-    const inputAta = aToB ? prepared.accounts.token_owner_account_a : prepared.accounts.token_owner_account_b;
-    const outputAta = aToB ? prepared.accounts.token_owner_account_b : prepared.accounts.token_owner_account_a;
+    const aToBInitial = asBoolean(preparedInitial.derived.a_to_b, 'a_to_b');
+    const inputAtaInitial = aToBInitial
+      ? preparedInitial.accounts.token_owner_account_a
+      : preparedInitial.accounts.token_owner_account_b;
+    const outputAtaInitial = aToBInitial
+      ? preparedInitial.accounts.token_owner_account_b
+      : preparedInitial.accounts.token_owner_account_a;
     let inputBalanceAtomic = '0';
     try {
-      const inputBalance = await connection.getTokenAccountBalance(new PublicKey(inputAta), 'confirmed');
+      const inputBalance = await connection.getTokenAccountBalance(new PublicKey(inputAtaInitial), 'confirmed');
       inputBalanceAtomic = inputBalance.value.amount;
     } catch {
       inputBalanceAtomic = '0';
     }
     let outputBalanceAtomic = '0';
     try {
-      const outputBalance = await connection.getTokenAccountBalance(new PublicKey(outputAta), 'confirmed');
+      const outputBalance = await connection.getTokenAccountBalance(new PublicKey(outputAtaInitial), 'confirmed');
       outputBalanceAtomic = outputBalance.value.amount;
     } catch {
       outputBalanceAtomic = '0';
@@ -451,15 +456,25 @@ function App() {
     }
 
     const rawPreviewByArgs = new Map<string, Record<string, unknown>>();
-    const getRawPreview = async (args: Record<string, unknown>): Promise<Record<string, unknown>> => {
-      const cacheKey = JSON.stringify(args);
+    const getRawPreview = async (options: {
+      prepared: Awaited<ReturnType<typeof prepareMetaInstruction>>;
+      args: Record<string, unknown>;
+      preInstructions: TransactionInstruction[];
+      postInstructions: TransactionInstruction[];
+    }): Promise<Record<string, unknown>> => {
+      const cacheKey = JSON.stringify({
+        instructionName: options.prepared.instructionName,
+        args: options.args,
+        accounts: options.prepared.accounts,
+        remaining: options.prepared.remainingAccounts,
+      });
       const cached = rawPreviewByArgs.get(cacheKey);
       if (cached) {
         return cached;
       }
 
       const preview = {
-        preInstructions: preInstructions.map((ix) => ({
+        preInstructions: options.preInstructions.map((ix) => ({
           programId: ix.programId.toBase58(),
           keys: ix.keys.map((key) => ({
             pubkey: key.pubkey.toBase58(),
@@ -468,7 +483,7 @@ function App() {
           })),
           dataBase64: encodeIxDataBase64(ix.data),
         })),
-        postInstructions: postInstructions.map((ix) => ({
+        postInstructions: options.postInstructions.map((ix) => ({
           programId: ix.programId.toBase58(),
           keys: ix.keys.map((key) => ({
             pubkey: key.pubkey.toBase58(),
@@ -478,11 +493,11 @@ function App() {
           dataBase64: encodeIxDataBase64(ix.data),
         })),
         mainInstruction: await previewIdlInstruction({
-          protocolId: prepared.protocolId,
-          instructionName: prepared.instructionName,
-          args,
-          accounts: prepared.accounts,
-          remainingAccounts: prepared.remainingAccounts,
+          protocolId: options.prepared.protocolId,
+          instructionName: options.prepared.instructionName,
+          args: options.args,
+          accounts: options.prepared.accounts,
+          remainingAccounts: options.prepared.remainingAccounts,
           walletPublicKey,
         }),
       };
@@ -491,57 +506,143 @@ function App() {
       return preview;
     };
 
-    const provisionalArgs = prepared.args as Record<string, unknown>;
-    let simulation: Awaited<ReturnType<typeof simulateIdlInstruction>>;
+    const provisionalArgs = preparedInitial.args as Record<string, unknown>;
+    let provisionalSimulation: Awaited<ReturnType<typeof simulateIdlInstruction>>;
     try {
-      simulation = await simulateIdlInstruction({
-        protocolId: prepared.protocolId,
-        instructionName: prepared.instructionName,
+      provisionalSimulation = await simulateIdlInstruction({
+        protocolId: preparedInitial.protocolId,
+        instructionName: preparedInitial.instructionName,
         args: provisionalArgs,
-        accounts: prepared.accounts,
-        remainingAccounts: prepared.remainingAccounts,
-        preInstructions,
+        accounts: preparedInitial.accounts,
+        remainingAccounts: preparedInitial.remainingAccounts,
+        preInstructions: preInstructionsInitial,
         // Estimate output on token accounts before any optional close-account post steps.
         postInstructions: [],
-        includeAccounts: [inputAta, outputAta],
+        includeAccounts: [inputAtaInitial, outputAtaInitial],
         connection,
         wallet,
       });
     } catch (error) {
       const base = error instanceof Error ? error.message : 'Unknown simulation error.';
-      const rawPreview = await getRawPreview(provisionalArgs);
+      const rawPreview = await getRawPreview({
+        prepared: preparedInitial,
+        args: provisionalArgs,
+        preInstructions: preInstructionsInitial,
+        postInstructions: postInstructionsInitial,
+      });
       throw new Error(`${base}\n\nRaw instruction preview:\n${asPrettyJson(rawPreview)}`);
     }
 
-    if (!simulation.ok) {
-      const rawPreview = await getRawPreview(provisionalArgs);
-      const simError = simulation.error ?? 'unknown';
-      const logs = simulation.logs.join('\n');
+    if (!provisionalSimulation.ok) {
+      const rawPreview = await getRawPreview({
+        prepared: preparedInitial,
+        args: provisionalArgs,
+        preInstructions: preInstructionsInitial,
+        postInstructions: postInstructionsInitial,
+      });
+      const simError = provisionalSimulation.error ?? 'unknown';
+      const logs = provisionalSimulation.logs.join('\n');
       throw new Error(`Simulation failed: ${simError}\n${logs}\n\nRaw instruction preview:\n${asPrettyJson(rawPreview)}`);
     }
 
-    const simInputAccount = simulation.accounts.find((entry) => entry.address === inputAta);
-    const simOutputAccount = simulation.accounts.find((entry) => entry.address === outputAta);
+    const simOutputAccount = provisionalSimulation.accounts.find((entry) => entry.address === outputAtaInitial);
     const preInputAtomic = availableInputAtomic;
     const preOutputAtomic = BigInt(outputBalanceAtomic);
-    const postInputAtomic = readSplTokenAmountFromSimAccount(simInputAccount?.dataBase64 ?? null);
     const postOutputAtomic = readSplTokenAmountFromSimAccount(simOutputAccount?.dataBase64 ?? null);
 
-    const estimatedInAtomicBigint = preInputAtomic > postInputAtomic ? preInputAtomic - postInputAtomic : 0n;
     const estimatedOutAtomicBigint = postOutputAtomic > preOutputAtomic ? postOutputAtomic - preOutputAtomic : 0n;
     if (estimatedOutAtomicBigint <= 0n) {
       throw new Error('Could not estimate output from simulation (estimated output is zero).');
     }
 
-    const minOutAtomicBigint = (estimatedOutAtomicBigint * BigInt(10_000 - options.value.slippageBps)) / 10_000n;
-    const minOutAtomic = (minOutAtomicBigint > 0n ? minOutAtomicBigint : 1n).toString();
-    const finalArgs = {
-      ...provisionalArgs,
-      other_amount_threshold: minOutAtomic,
-    };
+    const preparedFinal = await prepareMetaInstruction({
+      protocolId: ORCA_PROTOCOL_ID,
+      operationId: ORCA_OPERATION_ID,
+      input: {
+        token_in_mint: options.value.inputMint,
+        token_out_mint: options.value.outputMint,
+        amount_in: options.value.amountAtomic,
+        slippage_bps: options.value.slippageBps,
+        estimated_out: estimatedOutAtomicBigint.toString(),
+        whirlpool: selectedWhirlpool,
+      },
+      connection,
+      walletPublicKey,
+    });
 
-    const estimatedInAtomic = estimatedInAtomicBigint.toString();
-    const estimatedOutAtomic = estimatedOutAtomicBigint.toString();
+    const whirlpoolDataFinal = preparedFinal.derived.whirlpool_data as Record<string, unknown> | undefined;
+    if (!whirlpoolDataFinal) {
+      throw new Error('Missing derived whirlpool data from final Orca meta pass.');
+    }
+    const preInstructionsFinal = buildOwnerAtaPreInstructions({
+      owner: walletPublicKey,
+      pairs: [
+        {
+          ata: preparedFinal.accounts.token_owner_account_a,
+          mint: String(whirlpoolDataFinal.token_mint_a),
+        },
+        {
+          ata: preparedFinal.accounts.token_owner_account_b,
+          mint: String(whirlpoolDataFinal.token_mint_b),
+        },
+      ],
+    });
+    const postInstructionsFinal = buildMetaPostInstructions(preparedFinal.postInstructions);
+    const aToBFinal = asBoolean(preparedFinal.derived.a_to_b, 'a_to_b');
+    const inputAtaFinal = aToBFinal ? preparedFinal.accounts.token_owner_account_a : preparedFinal.accounts.token_owner_account_b;
+    const outputAtaFinal = aToBFinal ? preparedFinal.accounts.token_owner_account_b : preparedFinal.accounts.token_owner_account_a;
+    const finalArgs = preparedFinal.args as Record<string, unknown>;
+    const minOutAtomic = asIntegerLikeString(finalArgs.other_amount_threshold, 'args.other_amount_threshold');
+
+    let finalSimulation: Awaited<ReturnType<typeof simulateIdlInstruction>>;
+    try {
+      finalSimulation = await simulateIdlInstruction({
+        protocolId: preparedFinal.protocolId,
+        instructionName: preparedFinal.instructionName,
+        args: finalArgs,
+        accounts: preparedFinal.accounts,
+        remainingAccounts: preparedFinal.remainingAccounts,
+        preInstructions: preInstructionsFinal,
+        postInstructions: [],
+        includeAccounts: [inputAtaFinal, outputAtaFinal],
+        connection,
+        wallet,
+      });
+    } catch (error) {
+      const base = error instanceof Error ? error.message : 'Unknown simulation error.';
+      const rawPreview = await getRawPreview({
+        prepared: preparedFinal,
+        args: finalArgs,
+        preInstructions: preInstructionsFinal,
+        postInstructions: postInstructionsFinal,
+      });
+      throw new Error(`${base}\n\nRaw instruction preview:\n${asPrettyJson(rawPreview)}`);
+    }
+
+    if (!finalSimulation.ok) {
+      const rawPreview = await getRawPreview({
+        prepared: preparedFinal,
+        args: finalArgs,
+        preInstructions: preInstructionsFinal,
+        postInstructions: postInstructionsFinal,
+      });
+      const simError = finalSimulation.error ?? 'unknown';
+      const logs = finalSimulation.logs.join('\n');
+      throw new Error(`Simulation failed: ${simError}\n${logs}\n\nRaw instruction preview:\n${asPrettyJson(rawPreview)}`);
+    }
+
+    const finalSimInputAccount = finalSimulation.accounts.find((entry) => entry.address === inputAtaFinal);
+    const finalSimOutputAccount = finalSimulation.accounts.find((entry) => entry.address === outputAtaFinal);
+    const finalPostInputAtomic = readSplTokenAmountFromSimAccount(finalSimInputAccount?.dataBase64 ?? null);
+    const finalPostOutputAtomic = readSplTokenAmountFromSimAccount(finalSimOutputAccount?.dataBase64 ?? null);
+    const finalEstimatedInAtomicBigint = preInputAtomic > finalPostInputAtomic ? preInputAtomic - finalPostInputAtomic : 0n;
+    const finalEstimatedOutAtomicBigint = finalPostOutputAtomic > preOutputAtomic ? finalPostOutputAtomic - preOutputAtomic : 0n;
+    if (finalEstimatedOutAtomicBigint <= 0n) {
+      throw new Error('Could not estimate output from simulation (estimated output is zero).');
+    }
+
+    const estimatedInAtomic = finalEstimatedInAtomicBigint.toString();
+    const estimatedOutAtomic = finalEstimatedOutAtomicBigint.toString();
     const estimatedInUi = inputTokenMeta ? formatTokenAmount(estimatedInAtomic, inputTokenMeta.decimals) : estimatedInAtomic;
     const estimatedOutUi = outputTokenMeta ? formatTokenAmount(estimatedOutAtomic, outputTokenMeta.decimals) : estimatedOutAtomic;
     const minOutUi = outputTokenMeta ? formatTokenAmount(minOutAtomic, outputTokenMeta.decimals) : minOutAtomic;
@@ -554,7 +655,6 @@ function App() {
       }
     }
 
-    const selectedWhirlpool = asString(selectedPool.whirlpool, 'selected_pool.whirlpool');
     if (options.value.simulate) {
       pushMessage(
         'assistant',
@@ -566,8 +666,8 @@ function App() {
           `estimated output: ${estimatedOutUi} ${options.value.outputToken}`,
           `min output @ ${options.value.slippageBps} bps: ${minOutUi} ${options.value.outputToken}`,
           `implied rate: 1 ${options.value.inputToken} ≈ ${impliedRateText} ${options.value.outputToken}`,
-          `tick arrays: ${compactPubkey(prepared.accounts.tick_array_0)}, ${compactPubkey(prepared.accounts.tick_array_1)}, ${compactPubkey(prepared.accounts.tick_array_2)}`,
-          `simulation: ok${simulation.unitsConsumed ? ` (${simulation.unitsConsumed} CU)` : ''}`,
+          `tick arrays: ${compactPubkey(preparedFinal.accounts.tick_array_0)}, ${compactPubkey(preparedFinal.accounts.tick_array_1)}, ${compactPubkey(preparedFinal.accounts.tick_array_2)}`,
+          `simulation: ok${finalSimulation.unitsConsumed ? ` (${finalSimulation.unitsConsumed} CU)` : ''}`,
           'Run same command without --simulate to execute.',
         ].join('\n'),
       );
@@ -577,19 +677,24 @@ function App() {
     let result: Awaited<ReturnType<typeof sendIdlInstruction>>;
     try {
       result = await sendIdlInstruction({
-        protocolId: prepared.protocolId,
-        instructionName: prepared.instructionName,
+        protocolId: preparedFinal.protocolId,
+        instructionName: preparedFinal.instructionName,
         args: finalArgs,
-        accounts: prepared.accounts,
-        remainingAccounts: prepared.remainingAccounts,
-        preInstructions,
-        postInstructions,
+        accounts: preparedFinal.accounts,
+        remainingAccounts: preparedFinal.remainingAccounts,
+        preInstructions: preInstructionsFinal,
+        postInstructions: postInstructionsFinal,
         connection,
         wallet,
       });
     } catch (error) {
       const base = error instanceof Error ? error.message : 'Unknown send error.';
-      const rawPreview = await getRawPreview(finalArgs);
+      const rawPreview = await getRawPreview({
+        prepared: preparedFinal,
+        args: finalArgs,
+        preInstructions: preInstructionsFinal,
+        postInstructions: postInstructionsFinal,
+      });
       throw new Error(`${base}\n\nRaw instruction preview:\n${asPrettyJson(rawPreview)}`);
     }
 

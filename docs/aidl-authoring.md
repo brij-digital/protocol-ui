@@ -60,6 +60,7 @@ Supported shorthand:
 - `{ "name": "x", "add": [a, b, ...] }` -> `math.add`
 - `{ "name": "x", "sum": [a, ...] }` -> `math.sum`
 - `{ "name": "x", "mul": [a, b, ...] }` -> `math.mul`
+- `{ "name": "x", "sub": [a, b, ...] }` -> `math.sub`
 - `{ "name": "x", "floor_div": [dividend, divisor] }` -> `math.floor_div`
 - `{ "name": "x", "if": { "condition": c, "then": t, "else": e } }` -> `logic.if`
 - `{ "name": "x", "get": { "values": arr, "index": i } }` -> `list.get`
@@ -81,8 +82,11 @@ You can still use canonical compute format directly by specifying `compute`.
 
 - Pump AMM authoring source:
   - `aidl/pump_amm.aidl.json`
+- Orca authoring source:
+  - `aidl/orca_whirlpool.aidl.json`
 - Generated runtime file:
   - `public/idl/pump_amm.meta.json`
+  - `public/idl/orca_whirlpool.meta.json`
 
 ## Workflow recommendation
 

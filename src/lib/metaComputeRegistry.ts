@@ -216,6 +216,18 @@ async function runMathMul(step: ComputeStepResolved): Promise<string> {
   return toStringInteger(product);
 }
 
+async function runMathSub(step: ComputeStepResolved): Promise<string> {
+  const values = asArray(step.values, `compute:${step.name}:values`);
+  if (values.length < 2) {
+    throw new Error(`compute:${step.name}:values must contain at least 2 elements.`);
+  }
+  let result = asBigInt(values[0], `compute:${step.name}:values[0]`);
+  for (let index = 1; index < values.length; index += 1) {
+    result -= asBigInt(values[index], `compute:${step.name}:values[${index}]`);
+  }
+  return toStringInteger(result);
+}
+
 async function runMathFloorDiv(step: ComputeStepResolved): Promise<string> {
   const dividend = asBigInt(step.dividend, `compute:${step.name}:dividend`);
   const divisor = asBigInt(step.divisor, `compute:${step.name}:divisor`);
@@ -478,6 +490,7 @@ const COMPUTE_EXECUTORS: Record<string, ComputeExecutor> = {
   'math.add': runMathAdd,
   'math.sum': runMathSum,
   'math.mul': runMathMul,
+  'math.sub': runMathSub,
   'math.floor_div': runMathFloorDiv,
   'list.range_map': runListRangeMap,
   'list.get': runListGet,

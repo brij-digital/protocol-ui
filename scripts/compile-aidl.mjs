@@ -68,6 +68,9 @@ function compileComputeStep(step) {
   if ('mul' in step) {
     return { name, compute: 'math.mul', values: asArray(step.mul, `${name}.mul`) };
   }
+  if ('sub' in step) {
+    return { name, compute: 'math.sub', values: asArray(step.sub, `${name}.sub`) };
+  }
   if ('floor_div' in step) {
     const parts = asArray(step.floor_div, `${name}.floor_div`);
     if (parts.length !== 2) {

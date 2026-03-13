@@ -41,8 +41,8 @@ Examples:
 Raw examples:
 
 ```text
-/read-raw orca-whirlpool-mainnet swap | {"amount":"1000","other_amount_threshold":"1","sqrt_price_limit":"0","amount_specified_is_input":true,"a_to_b":true} | {"token_authority":"$WALLET","whirlpool":"<PUBKEY>","token_owner_account_a":"<PUBKEY>","token_vault_a":"<PUBKEY>","token_owner_account_b":"<PUBKEY>","token_vault_b":"<PUBKEY>","tick_array_0":"<PUBKEY>","tick_array_1":"<PUBKEY>","tick_array_2":"<PUBKEY>","oracle":"<PUBKEY>"}
-/write-raw orca-whirlpool-mainnet swap | {"amount":"1000","other_amount_threshold":"1","sqrt_price_limit":"0","amount_specified_is_input":true,"a_to_b":true} | {"token_authority":"$WALLET","whirlpool":"<PUBKEY>","token_owner_account_a":"<PUBKEY>","token_vault_a":"<PUBKEY>","token_owner_account_b":"<PUBKEY>","token_vault_b":"<PUBKEY>","tick_array_0":"<PUBKEY>","tick_array_1":"<PUBKEY>","tick_array_2":"<PUBKEY>","oracle":"<PUBKEY>"}
+/read-raw orca-whirlpool-mainnet swap | {"amount":"1000","other_amount_threshold":"<MIN_OUT_ATOMIC>","sqrt_price_limit":"0","amount_specified_is_input":true,"a_to_b":true} | {"token_authority":"$WALLET","whirlpool":"<PUBKEY>","token_owner_account_a":"<PUBKEY>","token_vault_a":"<PUBKEY>","token_owner_account_b":"<PUBKEY>","token_vault_b":"<PUBKEY>","tick_array_0":"<PUBKEY>","tick_array_1":"<PUBKEY>","tick_array_2":"<PUBKEY>","oracle":"<PUBKEY>"}
+/write-raw orca-whirlpool-mainnet swap | {"amount":"1000","other_amount_threshold":"<MIN_OUT_ATOMIC>","sqrt_price_limit":"0","amount_specified_is_input":true,"a_to_b":true} | {"token_authority":"$WALLET","whirlpool":"<PUBKEY>","token_owner_account_a":"<PUBKEY>","token_vault_a":"<PUBKEY>","token_owner_account_b":"<PUBKEY>","token_vault_b":"<PUBKEY>","tick_array_0":"<PUBKEY>","tick_array_1":"<PUBKEY>","tick_array_2":"<PUBKEY>","oracle":"<PUBKEY>"}
 ```
 
 Supported token aliases for `/swap` and `/quote`:
@@ -55,6 +55,7 @@ Supported token aliases for `/swap` and `/quote`:
 - Meta IDL: `public/idl/orca_whirlpool.meta.json`
 - Pump AMM IDL: `public/idl/pump_amm.json`
 - Pump AMM Meta IDL: `public/idl/pump_amm.meta.json`
+- Orca authoring source: `aidl/orca_whirlpool.aidl.json`
 - Pump AMM authoring source: `aidl/pump_amm.aidl.json`
 - Meta IDL schema: `public/idl/meta_idl.schema.v0.4.json`
 - Tutorial: `docs/meta-idl-tutorial.md`
@@ -91,6 +92,7 @@ Meta IDL v0.4 compute primitives currently implemented in runtime:
 - `math.add`
 - `math.sum`
 - `math.mul`
+- `math.sub`
 - `math.floor_div`
 - `list.range_map`
 - `list.get`
@@ -151,7 +153,8 @@ npm run aidl:check
 
 - The app targets `mainnet-beta` by default.
 - Swap execution requires a connected Phantom wallet.
-- `/swap`, `/quote`, `/pump-amm`, and `/pump-curve` are strict declarative wrappers: discover + derive gather on-chain state, then app uses RPC simulation to estimate output and compute slippage threshold before send.
+- `/swap`, `/quote`, `/pump-amm`, and `/pump-curve` are strict declarative wrappers: discover + derive gather on-chain state, compute fills executable args in Meta IDL, then app runs RPC simulation and send.
+- Orca `/swap` and `/quote` use a two-pass flow: pass 1 simulates to derive `estimated_out`; pass 2 feeds `estimated_out` back into Meta IDL so `other_amount_threshold` is computed declaratively.
 - Pool discovery uses declarative `discover.query`:
   - if `whirlpool` is provided, runtime fetches that account directly;
   - otherwise runtime scans via `getProgramAccounts` filters.

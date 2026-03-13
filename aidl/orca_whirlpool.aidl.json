@@ -1,26 +1,20 @@
 {
-  "$schema": "/idl/meta_idl.schema.v0.4.json",
-  "schema": "meta-idl.v0.4",
-  "version": "0.1.0",
-  "protocolId": "orca-whirlpool-mainnet",
+  "kind": "aidl.v0.1",
+  "target": {
+    "output": "public/idl/orca_whirlpool.meta.json",
+    "schema": "meta-idl.v0.4",
+    "schemaPath": "/idl/meta_idl.schema.v0.4.json",
+    "version": "0.1.0",
+    "protocolId": "orca-whirlpool-mainnet"
+  },
   "templates": {
     "orca.swap_exact_in.v2": {
       "params": {
-        "token_in_mint": {
-          "type": "pubkey"
-        },
-        "token_out_mint": {
-          "type": "pubkey"
-        },
-        "amount_in": {
-          "type": "u64"
-        },
-        "slippage_bps": {
-          "type": "u16"
-        },
-        "estimated_out": {
-          "type": "u64"
-        }
+        "token_in_mint": { "type": "pubkey" },
+        "token_out_mint": { "type": "pubkey" },
+        "amount_in": { "type": "u64" },
+        "slippage_bps": { "type": "u16" },
+        "estimated_out": { "type": "u64" }
       },
       "expand": {
         "instruction": "swap_v2",
@@ -121,55 +115,37 @@
             "name": "oracle",
             "resolver": "pda",
             "program_id": "$protocol.programId",
-            "seeds": [
-              "utf8:oracle",
-              "$selected_pool.whirlpool"
-            ]
+            "seeds": ["utf8:oracle", "$selected_pool.whirlpool"]
           }
         ],
         "compute": [
           {
             "name": "a_to_b",
-            "compute": "compare.equals",
-            "left": "$selected_pool.tokenMintA",
-            "right": "$param.token_in_mint"
+            "eq": ["$selected_pool.tokenMintA", "$param.token_in_mint"]
           },
           {
             "name": "tick_array_direction",
-            "compute": "logic.if",
-            "condition": "$a_to_b",
-            "then": -1,
-            "else": 1
+            "if": {
+              "condition": "$a_to_b",
+              "then": -1,
+              "else": 1
+            }
           },
           {
             "name": "ticks_per_array",
-            "compute": "math.mul",
-            "values": [
-              "$whirlpool_data.tick_spacing",
-              88
-            ]
+            "mul": ["$whirlpool_data.tick_spacing", 88]
           },
           {
             "name": "direction_step",
-            "compute": "math.mul",
-            "values": [
-              "$ticks_per_array",
-              "$tick_array_direction"
-            ]
+            "mul": ["$ticks_per_array", "$tick_array_direction"]
           },
           {
             "name": "current_array_index",
-            "compute": "math.floor_div",
-            "dividend": "$whirlpool_data.tick_current_index",
-            "divisor": "$ticks_per_array"
+            "floor_div": ["$whirlpool_data.tick_current_index", "$ticks_per_array"]
           },
           {
             "name": "current_start_index",
-            "compute": "math.mul",
-            "values": [
-              "$current_array_index",
-              "$ticks_per_array"
-            ]
+            "mul": ["$current_array_index", "$ticks_per_array"]
           },
           {
             "name": "tick_array_starts",
@@ -180,44 +156,27 @@
           },
           {
             "name": "tick_arrays",
-            "compute": "pda(seed_spec)",
-            "program_id": "$protocol.programId",
-            "map_over": "$tick_array_starts",
-            "seeds": [
-              {
-                "kind": "utf8",
-                "value": "tick_array"
-              },
-              {
-                "kind": "pubkey",
-                "value": "$selected_pool.whirlpool"
-              },
-              {
-                "kind": "item_utf8"
-              }
-            ]
+            "pda": {
+              "program_id": "$protocol.programId",
+              "map_over": "$tick_array_starts",
+              "seeds": [
+                { "kind": "utf8", "value": "tick_array" },
+                { "kind": "pubkey", "value": "$selected_pool.whirlpool" },
+                { "kind": "item_utf8" }
+              ]
+            }
           },
           {
             "name": "slippage_keep_bps",
-            "compute": "math.sub",
-            "values": [
-              "10000",
-              "$param.slippage_bps"
-            ]
+            "sub": ["10000", "$param.slippage_bps"]
           },
           {
             "name": "other_amount_threshold_numerator",
-            "compute": "math.mul",
-            "values": [
-              "$param.estimated_out",
-              "$slippage_keep_bps"
-            ]
+            "mul": ["$param.estimated_out", "$slippage_keep_bps"]
           },
           {
             "name": "other_amount_threshold",
-            "compute": "math.floor_div",
-            "dividend": "$other_amount_threshold_numerator",
-            "divisor": "10000"
+            "floor_div": ["$other_amount_threshold_numerator", "10000"]
           }
         ],
         "args": {
@@ -253,24 +212,9 @@
             "owner": "$wallet",
             "when": {
               "all": [
-                {
-                  "equals": [
-                    "$input.unwrap_sol_output",
-                    true
-                  ]
-                },
-                {
-                  "equals": [
-                    "$a_to_b",
-                    false
-                  ]
-                },
-                {
-                  "equals": [
-                    "$input.token_out_mint",
-                    "So11111111111111111111111111111111111111112"
-                  ]
-                }
+                { "equals": ["$input.unwrap_sol_output", true] },
+                { "equals": ["$a_to_b", false] },
+                { "equals": ["$input.token_out_mint", "So11111111111111111111111111111111111111112"] }
               ]
             }
           },
@@ -281,24 +225,9 @@
             "owner": "$wallet",
             "when": {
               "all": [
-                {
-                  "equals": [
-                    "$input.unwrap_sol_output",
-                    true
-                  ]
-                },
-                {
-                  "equals": [
-                    "$a_to_b",
-                    true
-                  ]
-                },
-                {
-                  "equals": [
-                    "$input.token_out_mint",
-                    "So11111111111111111111111111111111111111112"
-                  ]
-                }
+                { "equals": ["$input.unwrap_sol_output", true] },
+                { "equals": ["$a_to_b", true] },
+                { "equals": ["$input.token_out_mint", "So11111111111111111111111111111111111111112"] }
               ]
             }
           }
@@ -309,38 +238,15 @@
   "operations": {
     "swap_exact_in": {
       "inputs": {
-        "token_in_mint": {
-          "type": "pubkey",
-          "required": true
-        },
-        "token_out_mint": {
-          "type": "pubkey",
-          "required": true
-        },
-        "amount_in": {
-          "type": "u64",
-          "required": true
-        },
-        "slippage_bps": {
-          "type": "u16",
-          "required": true
-        },
-        "estimated_out": {
-          "type": "u64",
-          "required": false,
-          "default": "0"
-        },
-        "whirlpool": {
-          "type": "pubkey",
-          "required": false
-        },
-        "unwrap_sol_output": {
-          "type": "bool",
-          "required": false,
-          "default": true
-        }
+        "token_in_mint": { "type": "pubkey", "required": true },
+        "token_out_mint": { "type": "pubkey", "required": true },
+        "amount_in": { "type": "u64", "required": true },
+        "slippage_bps": { "type": "u16", "required": true },
+        "estimated_out": { "type": "u64", "required": false, "default": "0" },
+        "whirlpool": { "type": "pubkey", "required": false },
+        "unwrap_sol_output": { "type": "bool", "required": false, "default": true }
       },
-      "use": [
+      "useTemplate": [
         {
           "template": "orca.swap_exact_in.v2",
           "with": {
