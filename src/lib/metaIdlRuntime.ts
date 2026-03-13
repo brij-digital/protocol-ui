@@ -86,7 +86,7 @@ type MaterializedActionSpec = {
   compute: ComputeStep[];
   args: Record<string, unknown>;
   accounts: Record<string, unknown>;
-  remainingAccounts: Array<Record<string, unknown>>;
+  remainingAccounts: unknown;
   post?: PostInstructionSpec[];
 };
 
@@ -201,7 +201,7 @@ export type MetaOperationExplain = {
   compute: Array<Record<string, unknown>>;
   args: Record<string, unknown>;
   accounts: Record<string, unknown>;
-  remainingAccounts: Array<Record<string, unknown>>;
+  remainingAccounts: unknown;
   post: Array<Record<string, unknown>>;
 };
 
@@ -583,8 +583,13 @@ function mergeActionFragment(target: MaterializedActionSpec, fragment: Omit<Acti
     };
   }
 
-  if (fragment.remaining_accounts && fragment.remaining_accounts.length > 0) {
-    target.remainingAccounts.push(...cloneJsonLike(fragment.remaining_accounts));
+  if (fragment.remaining_accounts !== undefined) {
+    const cloned = cloneJsonLike(fragment.remaining_accounts);
+    if (Array.isArray(cloned) && Array.isArray(target.remainingAccounts)) {
+      target.remainingAccounts.push(...cloned);
+    } else {
+      target.remainingAccounts = cloned;
+    }
   }
 
   if (fragment.post && fragment.post.length > 0) {

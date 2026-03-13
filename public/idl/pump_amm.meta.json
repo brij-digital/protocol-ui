@@ -4,16 +4,16 @@
   "version": "0.1.0",
   "protocolId": "pump-amm-mainnet",
   "templates": {
-    "pump.buy_exact_quote_in.v1": {
+    "pump.buy.v1": {
       "params": {
         "base_mint": { "type": "pubkey" },
         "quote_mint": { "type": "pubkey" },
-        "spendable_quote_in": { "type": "u64" },
-        "min_base_amount_out": { "type": "u64" },
+        "base_amount_out": { "type": "u64" },
+        "max_quote_amount_in": { "type": "u64" },
         "track_volume": { "type": "bool" }
       },
       "expand": {
-        "instruction": "buy_exact_quote_in",
+        "instruction": "buy",
         "discover": [
           {
             "name": "pool_candidates",
@@ -143,6 +143,18 @@
             "resolver": "pda",
             "program_id": "pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ",
             "seeds": ["utf8:fee_config", "$protocol.programId"]
+          },
+          {
+            "name": "fee_config_data",
+            "resolver": "decode_account",
+            "address": "$fee_config",
+            "account_type": "FeeConfig"
+          },
+          {
+            "name": "pool_v2",
+            "resolver": "pda",
+            "program_id": "$protocol.programId",
+            "seeds": ["utf8:pool-v2", "$pool_data.base_mint"]
           }
         ],
         "compute": [
@@ -161,11 +173,35 @@
               { "kind": "pubkey", "value": "$quote_token_program" },
               { "kind": "pubkey", "value": "$pool_data.quote_mint" }
             ]
+          },
+          {
+            "name": "remaining_accounts",
+            "compute": "logic.if",
+            "condition": "$pool_data.is_cashback_coin",
+            "then": [
+              {
+                "pubkey": "$user_volume_accumulator_wsol_ata",
+                "isSigner": false,
+                "isWritable": true
+              },
+              {
+                "pubkey": "$pool_v2",
+                "isSigner": false,
+                "isWritable": false
+              }
+            ],
+            "else": [
+              {
+                "pubkey": "$pool_v2",
+                "isSigner": false,
+                "isWritable": false
+              }
+            ]
           }
         ],
         "args": {
-          "spendable_quote_in": "$param.spendable_quote_in",
-          "min_base_amount_out": "$param.min_base_amount_out",
+          "base_amount_out": "$param.base_amount_out",
+          "max_quote_amount_in": "$param.max_quote_amount_in",
           "track_volume": "$param.track_volume"
         },
         "accounts": {
@@ -193,13 +229,7 @@
           "fee_config": "$fee_config",
           "fee_program": "pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ"
         },
-        "remaining_accounts": [
-          {
-            "pubkey": "$user_volume_accumulator_wsol_ata",
-            "isSigner": false,
-            "isWritable": true
-          }
-        ]
+        "remaining_accounts": "$remaining_accounts"
       }
     }
   },
@@ -212,20 +242,20 @@
           "required": false,
           "default": "So11111111111111111111111111111111111111112"
         },
-        "spendable_quote_in": { "type": "u64", "required": true },
-        "min_base_amount_out": { "type": "u64", "required": false, "default": "1" },
+        "base_amount_out": { "type": "u64", "required": false, "default": "1" },
+        "max_quote_amount_in": { "type": "u64", "required": true },
         "track_volume": { "type": "bool", "required": false, "default": true },
         "pool": { "type": "pubkey", "required": false },
         "slippage_bps": { "type": "u16", "required": true }
       },
       "use": [
         {
-          "template": "pump.buy_exact_quote_in.v1",
+          "template": "pump.buy.v1",
           "with": {
             "base_mint": "$input.base_mint",
             "quote_mint": "$input.quote_mint",
-            "spendable_quote_in": "$input.spendable_quote_in",
-            "min_base_amount_out": "$input.min_base_amount_out",
+            "base_amount_out": "$input.base_amount_out",
+            "max_quote_amount_in": "$input.max_quote_amount_in",
             "track_volume": "$input.track_volume"
           }
         }
