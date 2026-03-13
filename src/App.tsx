@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
-import { BorshAccountsCoder, utils, type Idl } from '@coral-xyz/anchor';
 import {
   createAssociatedTokenAccountIdempotentInstruction,
   createCloseAccountInstruction,
@@ -35,19 +34,19 @@ import {
   prepareMetaInstruction,
   type MetaOperationExplain,
 } from './lib/metaIdlRuntime';
-import { normalizeIdlForAnchorCoder } from './lib/normalizeIdl';
 
 const ORCA_PROTOCOL_ID = 'orca-whirlpool-mainnet';
 const ORCA_OPERATION_ID = 'swap_exact_in';
+const ORCA_RESOLVE_POOL_OPERATION_ID = 'resolve_pool';
 const PUMP_AMM_PROTOCOL_ID = 'pump-amm-mainnet';
 const PUMP_AMM_OPERATION_ID = 'buy';
+const PUMP_AMM_RESOLVE_POOL_OPERATION_ID = 'resolve_pool';
 const PUMP_CURVE_PROTOCOL_ID = 'pump-core-mainnet';
 const PUMP_CURVE_OPERATION_ID = 'buy_exact_sol_in';
 const KAMINO_KLEND_PROTOCOL_ID = 'kamino-klend-mainnet';
 const KAMINO_DEPOSIT_OPERATION_ID = 'deposit_reserve_liquidity';
 const KAMINO_WITHDRAW_OPERATION_ID = 'redeem_reserve_collateral';
 const KAMINO_VIEW_OPERATION_ID = 'view_position';
-const KAMINO_KLEND_PROGRAM_ID = 'KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD';
 const QUICK_PREFILL_SWAP_COMMAND =
   '/orca EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v So11111111111111111111111111111111111111112 0.01 50 --simulate';
 const QUICK_PREFILL_PUMP_QUOTE_COMMAND =
@@ -56,18 +55,16 @@ const QUICK_PREFILL_PUMP_CURVE_COMMAND =
   '/pump-curve EuN3FubSnMCCxZahkxneNcRFSXdweeLXuWnXKYMc18H5 0.01 100 --simulate';
 const QUICK_PREFILL_KAMINO_DEPOSIT_COMMAND =
   '/kamino-deposit 8J5NcJX4RScwC9hWfW2MtgQ8v4D6vQkYvA4K4GcCbn8J EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v 0.1 --simulate';
-const KAMINO_FIXED_SLOT_MS = 400;
-const KAMINO_SLOTS_PER_SECOND = 2;
-const KAMINO_SLOTS_PER_YEAR = KAMINO_SLOTS_PER_SECOND * 60 * 60 * 24 * 365;
-const KAMINO_SF_SCALE = 1n << 60n;
-let kaminoLookupIdlCache: Idl | null = null;
-let kaminoReserveDiscriminatorCache: string | null = null;
-let kaminoReserveScanCache: { fetchedAt: number; reserves: KaminoReserveSnapshot[] } | null = null;
 
 type Message = {
   id: number;
   role: 'user' | 'assistant';
   text: string;
+};
+
+type PendingPoolSelection = {
+  command: OrcaCommand;
+  candidates: OrcaPoolCandidate[];
 };
 
 type OrcaPoolCandidate = {
@@ -76,37 +73,6 @@ type OrcaPoolCandidate = {
   tokenMintB: string;
   tickSpacing: string;
   liquidity: string;
-};
-
-type PumpPoolCandidate = {
-  pool: string;
-  baseMint: string;
-  quoteMint: string;
-  lpSupply: string;
-};
-
-type KaminoReserveSnapshot = {
-  address: string;
-  lendingMarket: string;
-  liquidityMint: string;
-  liquiditySupplyVault: string;
-  liquidityTokenProgram: string;
-  collateralMint: string;
-  collateralSupplyVault: string;
-  mintDecimals: number;
-  availableAmount: bigint;
-  borrowedAmountSf: bigint;
-  accumulatedProtocolFeesSf: bigint;
-  accumulatedReferrerFeesSf: bigint;
-  pendingReferrerFeesSf: bigint;
-  collateralMintTotalSupply: bigint;
-  protocolTakeRatePct: number;
-  borrowCurvePoints: Array<{ utilizationRateBps: number; borrowRateBps: number }>;
-};
-
-type PendingPoolSelection = {
-  command: OrcaCommand;
-  candidates: OrcaPoolCandidate[];
 };
 
 const HELP_TEXT = [
@@ -207,7 +173,7 @@ function App() {
     return value;
   }
 
-  function normalizePoolCandidates(raw: unknown): OrcaPoolCandidate[] {
+  function normalizeOrcaPoolCandidates(raw: unknown): OrcaPoolCandidate[] {
     if (!Array.isArray(raw)) {
       return [];
     }
@@ -224,7 +190,7 @@ function App() {
     });
   }
 
-  function normalizePumpPoolCandidates(raw: unknown): PumpPoolCandidate[] {
+  function normalizePumpPoolCandidates(raw: unknown): Array<Record<string, unknown>> {
     if (!Array.isArray(raw)) {
       return [];
     }
@@ -238,6 +204,17 @@ function App() {
         lpSupply: asIntegerLikeString(candidate.lpSupply, `pool_candidates[${index}].lpSupply`),
       };
     });
+  }
+
+  function compactInteger(value: string): string {
+    if (value.length <= 12) {
+      return value;
+    }
+    return `${value.slice(0, 6)}...${value.slice(-4)}`;
+  }
+
+  function formatOrcaPoolChoiceLine(pool: OrcaPoolCandidate, index: number): string {
+    return `${index + 1}. ${compactPubkey(pool.whirlpool)} | tickSpacing ${pool.tickSpacing} | liquidity ${compactInteger(pool.liquidity)}`;
   }
 
   function asPrettyJson(value: unknown): string {
@@ -386,315 +363,11 @@ function App() {
     });
   }
 
-  function compactInteger(value: string): string {
-    if (value.length <= 12) {
-      return value;
-    }
-    return `${value.slice(0, 6)}...${value.slice(-4)}`;
-  }
-
-  function formatPoolChoiceLine(pool: OrcaPoolCandidate, index: number): string {
-    return `${index + 1}. ${compactPubkey(pool.whirlpool)} | tickSpacing ${pool.tickSpacing} | liquidity ${compactInteger(pool.liquidity)}`;
-  }
-
-  async function loadKaminoLookupIdl(): Promise<Idl> {
-    if (kaminoLookupIdlCache) {
-      return kaminoLookupIdlCache;
-    }
-
-    const response = await fetch('/idl/kamino_klend.json');
-    if (!response.ok) {
-      throw new Error('Failed to load local Kamino IDL.');
-    }
-    const parsed = normalizeIdlForAnchorCoder((await response.json()) as Idl);
-    kaminoLookupIdlCache = parsed;
-    return parsed;
-  }
-
-  function toPubkeyString(value: unknown, label: string): string {
-    if (value instanceof PublicKey) {
-      return value.toBase58();
-    }
-    if (typeof value === 'string') {
-      return new PublicKey(value).toBase58();
-    }
-    if (value && typeof value === 'object' && 'toBase58' in (value as Record<string, unknown>)) {
-      const toBase58 = (value as { toBase58?: () => string }).toBase58;
-      if (typeof toBase58 === 'function') {
-        return new PublicKey(toBase58()).toBase58();
-      }
-    }
-    throw new Error(`${label} must be a public key.`);
-  }
-
-  function toBigIntLike(value: unknown, label: string): bigint {
-    if (typeof value === 'bigint') {
-      return value;
-    }
-    if (typeof value === 'number' && Number.isFinite(value) && Number.isInteger(value)) {
-      return BigInt(value);
-    }
-    if (typeof value === 'string' && /^-?\d+$/.test(value)) {
-      return BigInt(value);
-    }
-    if (value && typeof value === 'object' && 'toString' in (value as Record<string, unknown>)) {
-      const rendered = String((value as { toString: () => string }).toString());
-      if (/^-?\d+$/.test(rendered)) {
-        return BigInt(rendered);
-      }
-    }
-    throw new Error(`${label} must be bigint-compatible integer.`);
-  }
-
-  function toNumberLike(value: unknown, label: string): number {
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return value;
-    }
-    if (typeof value === 'string' && value.trim().length > 0) {
-      const parsed = Number(value);
-      if (Number.isFinite(parsed)) {
-        return parsed;
-      }
-    }
-    if (value && typeof value === 'object' && 'toString' in (value as Record<string, unknown>)) {
-      const parsed = Number(String((value as { toString: () => string }).toString()));
-      if (Number.isFinite(parsed)) {
-        return parsed;
-      }
-    }
-    throw new Error(`${label} must be number-like.`);
-  }
-
-  function parseKaminoReserveSnapshot(decoded: unknown, address: string): KaminoReserveSnapshot {
-    const reserve = asRecord(decoded, 'kamino.reserve');
-    const liquidity = asRecord(reserve.liquidity, 'kamino.reserve.liquidity');
-    const collateral = asRecord(reserve.collateral, 'kamino.reserve.collateral');
-    const config = asRecord(reserve.config, 'kamino.reserve.config');
-    const borrowRateCurve = asRecord(config.borrowRateCurve, 'kamino.reserve.config.borrowRateCurve');
-    const pointsRaw = Array.isArray(borrowRateCurve.points) ? borrowRateCurve.points : [];
-    const borrowCurvePoints = pointsRaw.map((entry, index) => {
-      const point = asRecord(entry, `kamino.reserve.config.borrowRateCurve.points[${index}]`);
-      return {
-        utilizationRateBps: Math.trunc(toNumberLike(point.utilizationRateBps, `curve[${index}].utilizationRateBps`)),
-        borrowRateBps: Math.trunc(toNumberLike(point.borrowRateBps, `curve[${index}].borrowRateBps`)),
-      };
-    });
-
-    return {
-      address: new PublicKey(address).toBase58(),
-      lendingMarket: toPubkeyString(reserve.lendingMarket, 'reserve.lendingMarket'),
-      liquidityMint: toPubkeyString(liquidity.mintPubkey, 'reserve.liquidity.mintPubkey'),
-      liquiditySupplyVault: toPubkeyString(liquidity.supplyVault, 'reserve.liquidity.supplyVault'),
-      liquidityTokenProgram: toPubkeyString(liquidity.tokenProgram, 'reserve.liquidity.tokenProgram'),
-      collateralMint: toPubkeyString(collateral.mintPubkey, 'reserve.collateral.mintPubkey'),
-      collateralSupplyVault: toPubkeyString(collateral.supplyVault, 'reserve.collateral.supplyVault'),
-      mintDecimals: Math.trunc(toNumberLike(liquidity.mintDecimals, 'reserve.liquidity.mintDecimals')),
-      availableAmount: toBigIntLike(liquidity.availableAmount, 'reserve.liquidity.availableAmount'),
-      borrowedAmountSf: toBigIntLike(liquidity.borrowedAmountSf, 'reserve.liquidity.borrowedAmountSf'),
-      accumulatedProtocolFeesSf: toBigIntLike(
-        liquidity.accumulatedProtocolFeesSf,
-        'reserve.liquidity.accumulatedProtocolFeesSf',
-      ),
-      accumulatedReferrerFeesSf: toBigIntLike(
-        liquidity.accumulatedReferrerFeesSf,
-        'reserve.liquidity.accumulatedReferrerFeesSf',
-      ),
-      pendingReferrerFeesSf: toBigIntLike(
-        liquidity.pendingReferrerFeesSf,
-        'reserve.liquidity.pendingReferrerFeesSf',
-      ),
-      collateralMintTotalSupply: toBigIntLike(collateral.mintTotalSupply, 'reserve.collateral.mintTotalSupply'),
-      protocolTakeRatePct: Math.trunc(toNumberLike(config.protocolTakeRatePct, 'reserve.config.protocolTakeRatePct')),
-      borrowCurvePoints,
-    };
-  }
-
-  function estimateKaminoTotalSupplyAtomic(snapshot: KaminoReserveSnapshot): bigint {
-    const borrowed = snapshot.borrowedAmountSf / KAMINO_SF_SCALE;
-    const protocolFees = snapshot.accumulatedProtocolFeesSf / KAMINO_SF_SCALE;
-    const referrerFees = snapshot.accumulatedReferrerFeesSf / KAMINO_SF_SCALE;
-    const pendingFees = snapshot.pendingReferrerFeesSf / KAMINO_SF_SCALE;
-    const total = snapshot.availableAmount + borrowed - protocolFees - referrerFees - pendingFees;
-    return total > 0n ? total : 0n;
-  }
-
-  function estimateKaminoCollateralForWithdrawAtomic(
-    snapshot: KaminoReserveSnapshot,
-    liquidityAmountAtomic: bigint,
-  ): bigint {
-    const totalSupply = estimateKaminoTotalSupplyAtomic(snapshot);
-    if (totalSupply <= 0n || snapshot.collateralMintTotalSupply <= 0n) {
-      return liquidityAmountAtomic;
-    }
-    const numerator = liquidityAmountAtomic * snapshot.collateralMintTotalSupply;
-    return (numerator + totalSupply - 1n) / totalSupply;
-  }
-
-  function estimateKaminoLiquidityFromCollateralAtomic(
-    snapshot: KaminoReserveSnapshot,
-    collateralAmountAtomic: bigint,
-  ): bigint {
-    const totalSupply = estimateKaminoTotalSupplyAtomic(snapshot);
-    if (totalSupply <= 0n || snapshot.collateralMintTotalSupply <= 0n) {
-      return collateralAmountAtomic;
-    }
-    return (collateralAmountAtomic * totalSupply) / snapshot.collateralMintTotalSupply;
-  }
-
-  function getBorrowRateFromCurve(utilization: number, points: Array<{ utilizationRateBps: number; borrowRateBps: number }>): number {
-    const curve = points
-      .map((point) => ({
-        utilization: point.utilizationRateBps / 10_000,
-        rate: point.borrowRateBps / 10_000,
-      }))
-      .sort((left, right) => left.utilization - right.utilization);
-    if (curve.length < 2) {
-      return 0;
-    }
-
-    const boundedUtilization = Math.min(1, Math.max(0, utilization));
-    for (let index = 1; index < curve.length; index += 1) {
-      const left = curve[index - 1];
-      const right = curve[index];
-      if (boundedUtilization <= right.utilization) {
-        if (right.utilization <= left.utilization) {
-          return right.rate;
-        }
-        const ratio = (boundedUtilization - left.utilization) / (right.utilization - left.utilization);
-        return left.rate + ratio * (right.rate - left.rate);
-      }
-    }
-
-    return curve[curve.length - 1].rate;
-  }
-
-  function calculateKaminoSupplyYield(snapshot: KaminoReserveSnapshot): {
-    utilization: number;
-    supplyApr: number;
-    supplyApy: number;
-  } {
-    const totalSupply = estimateKaminoTotalSupplyAtomic(snapshot);
-    if (totalSupply <= 0n) {
-      return { utilization: 0, supplyApr: 0, supplyApy: 0 };
-    }
-
-    const borrowed = Number(snapshot.borrowedAmountSf / KAMINO_SF_SCALE);
-    const supply = Number(totalSupply);
-    if (!Number.isFinite(borrowed) || !Number.isFinite(supply) || supply <= 0) {
-      return { utilization: 0, supplyApr: 0, supplyApy: 0 };
-    }
-
-    const utilization = Math.min(1, Math.max(0, borrowed / supply));
-    const slotAdjustmentFactor = 1000 / KAMINO_SLOTS_PER_SECOND / KAMINO_FIXED_SLOT_MS;
-    const rawBorrowRate = getBorrowRateFromCurve(utilization, snapshot.borrowCurvePoints) * slotAdjustmentFactor;
-    const protocolTake = 1 - snapshot.protocolTakeRatePct / 100;
-    const supplyApr = Math.max(0, utilization * rawBorrowRate * protocolTake);
-    const supplyApy = Math.max(0, Math.pow(1 + supplyApr / KAMINO_SLOTS_PER_YEAR, KAMINO_SLOTS_PER_YEAR) - 1);
-    return { utilization, supplyApr, supplyApy };
-  }
-
   function formatPercent(value: number): string {
     if (!Number.isFinite(value)) {
       return 'n/a';
     }
     return `${(value * 100).toFixed(2)}%`;
-  }
-
-  async function getKaminoReserveDiscriminator(): Promise<string> {
-    if (kaminoReserveDiscriminatorCache) {
-      return kaminoReserveDiscriminatorCache;
-    }
-    const idl = await loadKaminoLookupIdl();
-    const reserveAccount = (idl.accounts ?? []).find((entry) => entry.name === 'Reserve') as
-      | { discriminator?: number[] }
-      | undefined;
-    if (reserveAccount && Array.isArray(reserveAccount.discriminator) && reserveAccount.discriminator.length === 8) {
-      kaminoReserveDiscriminatorCache = utils.bytes.bs58.encode(Uint8Array.from(reserveAccount.discriminator));
-      return kaminoReserveDiscriminatorCache;
-    }
-
-    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('account:Reserve'));
-    const discriminatorBytes = new Uint8Array(digest).slice(0, 8);
-    kaminoReserveDiscriminatorCache = utils.bytes.bs58.encode(discriminatorBytes);
-    return kaminoReserveDiscriminatorCache;
-  }
-
-  async function scanKaminoReserves(): Promise<KaminoReserveSnapshot[]> {
-    const now = Date.now();
-    if (kaminoReserveScanCache && now - kaminoReserveScanCache.fetchedAt < 30_000) {
-      return kaminoReserveScanCache.reserves;
-    }
-
-    const [idl, discriminator] = await Promise.all([loadKaminoLookupIdl(), getKaminoReserveDiscriminator()]);
-    const coder = new BorshAccountsCoder(idl);
-    const accounts = await connection.getProgramAccounts(new PublicKey(KAMINO_KLEND_PROGRAM_ID), {
-      commitment: 'confirmed',
-      filters: [{ memcmp: { offset: 0, bytes: discriminator } }],
-    });
-
-    const reserves: KaminoReserveSnapshot[] = [];
-    for (const account of accounts) {
-      try {
-        const decoded = coder.decode('Reserve', account.account.data);
-        reserves.push(parseKaminoReserveSnapshot(decoded, account.pubkey.toBase58()));
-      } catch {
-        // Skip non-decodable account data.
-      }
-    }
-
-    kaminoReserveScanCache = {
-      fetchedAt: now,
-      reserves,
-    };
-    return reserves;
-  }
-
-  async function resolveKaminoReserveForCommand(options: {
-    reserveOrVault: string;
-    tokenMint: string;
-  }): Promise<{ reserve: KaminoReserveSnapshot; resolvedBy: 'reserve' | 'vault' }> {
-    const reserveOrVault = new PublicKey(options.reserveOrVault).toBase58();
-    const tokenMint = new PublicKey(options.tokenMint).toBase58();
-
-    try {
-      const decodedDirect = await decodeIdlAccount({
-        protocolId: KAMINO_KLEND_PROTOCOL_ID,
-        accountType: 'Reserve',
-        address: reserveOrVault,
-        connection,
-      });
-      const reserveDirect = parseKaminoReserveSnapshot(decodedDirect.data, reserveOrVault);
-      if (reserveDirect.liquidityMint !== tokenMint) {
-        throw new Error(
-          `Token mint mismatch for reserve ${reserveOrVault}. Reserve mint is ${reserveDirect.liquidityMint}, input mint is ${tokenMint}.`,
-        );
-      }
-      return {
-        reserve: reserveDirect,
-        resolvedBy: 'reserve',
-      };
-    } catch {
-      // Not a direct reserve pubkey, continue with vault lookup.
-    }
-
-    const reserves = await scanKaminoReserves();
-    const tokenReserves = reserves.filter((entry) => entry.liquidityMint === tokenMint);
-    const matched = tokenReserves.find(
-      (entry) =>
-        entry.address === reserveOrVault ||
-        entry.liquiditySupplyVault === reserveOrVault ||
-        entry.collateralSupplyVault === reserveOrVault,
-    );
-    if (matched) {
-      return {
-        reserve: matched,
-        resolvedBy: matched.address === reserveOrVault ? 'reserve' : 'vault',
-      };
-    }
-
-    throw new Error(
-      `No Kamino reserve found for token ${tokenMint} matching selector ${reserveOrVault} (reserve or vault).`,
-    );
   }
 
   async function executeOrca(options: {
@@ -705,21 +378,19 @@ function App() {
       throw new Error('Connect wallet first to derive owner token accounts.');
     }
     const walletPublicKey = wallet.publicKey;
-    const preparedInitial = await prepareMetaInstruction({
+    const resolvedPool = await prepareMetaOperation({
       protocolId: ORCA_PROTOCOL_ID,
-      operationId: ORCA_OPERATION_ID,
+      operationId: ORCA_RESOLVE_POOL_OPERATION_ID,
       input: {
         token_in_mint: options.value.inputMint,
         token_out_mint: options.value.outputMint,
-        amount_in: options.value.amountAtomic,
-        slippage_bps: options.value.slippageBps,
         ...(options.whirlpool !== undefined ? { whirlpool: options.whirlpool } : {}),
       },
       connection,
       walletPublicKey,
     });
 
-    const poolCandidates = normalizePoolCandidates(preparedInitial.derived.pool_candidates);
+    const poolCandidates = normalizeOrcaPoolCandidates(resolvedPool.derived.pool_candidates);
     if (poolCandidates.length > 1 && options.whirlpool === undefined) {
       setPendingPoolSelection({
         command: options.value,
@@ -730,7 +401,7 @@ function App() {
         [
           `Multiple pools found for ${options.value.inputToken}/${options.value.outputToken}.`,
           'Pick a pool by clicking a button below or typing its number:',
-          ...poolCandidates.map((pool, index) => formatPoolChoiceLine(pool, index)),
+          ...poolCandidates.map((pool, index) => formatOrcaPoolChoiceLine(pool, index)),
         ].join('\n'),
       );
       return;
@@ -738,12 +409,27 @@ function App() {
 
     setPendingPoolSelection(null);
 
-    const selectedPoolRaw = preparedInitial.derived.selected_pool;
+    const selectedPoolRaw = resolvedPool.derived.selected_pool;
     if (!selectedPoolRaw || typeof selectedPoolRaw !== 'object') {
       throw new Error('Missing derived selected_pool from meta runtime.');
     }
     const selectedPool = asRecord(selectedPoolRaw, 'selected_pool');
     const selectedWhirlpool = asString(selectedPool.whirlpool, 'selected_pool.whirlpool');
+
+    const preparedInitial = await prepareMetaInstruction({
+      protocolId: ORCA_PROTOCOL_ID,
+      operationId: ORCA_OPERATION_ID,
+      input: {
+        token_in_mint: options.value.inputMint,
+        token_out_mint: options.value.outputMint,
+        amount_in: options.value.amountAtomic,
+        slippage_bps: options.value.slippageBps,
+        whirlpool: selectedWhirlpool,
+      },
+      connection,
+      walletPublicKey,
+    });
+
     const whirlpoolDataInitial = preparedInitial.derived.whirlpool_data as Record<string, unknown> | undefined;
     const inputTokenMeta = resolveToken(options.value.inputMint);
     const outputTokenMeta = resolveToken(options.value.outputMint);
@@ -1067,16 +753,14 @@ function App() {
     }
     const walletPublicKey = wallet.publicKey;
 
-    let prepared: Awaited<ReturnType<typeof prepareMetaInstruction>>;
+    let resolvedPool: Awaited<ReturnType<typeof prepareMetaOperation>>;
     try {
-      prepared = await prepareMetaInstruction({
+      resolvedPool = await prepareMetaOperation({
         protocolId: PUMP_AMM_PROTOCOL_ID,
-        operationId: PUMP_AMM_OPERATION_ID,
+        operationId: PUMP_AMM_RESOLVE_POOL_OPERATION_ID,
         input: {
           base_mint: options.value.tokenMint,
-          quote_amount_in: options.value.amountAtomic,
-          track_volume: true,
-          slippage_bps: options.value.slippageBps,
+          quote_mint: 'So11111111111111111111111111111111111111112',
           ...(options.value.pool ? { pool: options.value.pool } : {}),
         },
         connection,
@@ -1101,15 +785,30 @@ function App() {
       throw error;
     }
 
-    const candidates = normalizePumpPoolCandidates(prepared.derived.pool_candidates);
+    const candidates = normalizePumpPoolCandidates(resolvedPool.derived.pool_candidates);
     if (candidates.length === 0) {
       throw new Error(
         'No Pump AMM pool found for this token mint against SOL. The token may exist on Pump bonding-curve but not be migrated/listed in Pump AMM yet.',
       );
     }
 
-    const selectedPool = asRecord(prepared.derived.selected_pool, 'selected_pool');
+    const selectedPool = asRecord(resolvedPool.derived.selected_pool, 'selected_pool');
     const selectedPoolAddress = asString(selectedPool.pool, 'selected_pool.pool');
+
+    const prepared = await prepareMetaInstruction({
+      protocolId: PUMP_AMM_PROTOCOL_ID,
+      operationId: PUMP_AMM_OPERATION_ID,
+      input: {
+        base_mint: options.value.tokenMint,
+        quote_amount_in: options.value.amountAtomic,
+        track_volume: true,
+        slippage_bps: options.value.slippageBps,
+        pool: selectedPoolAddress,
+      },
+      connection,
+      walletPublicKey,
+    });
+
     const poolData = asRecord(prepared.derived.pool_data, 'pool_data');
 
     const userBaseAta = prepared.accounts.user_base_token_account;
@@ -1562,6 +1261,59 @@ function App() {
     ];
   }
 
+  async function prepareKaminoResolvedReserve(options: {
+    reserveOrVault: string;
+    tokenMint: string;
+    walletPublicKey: PublicKey;
+  }): Promise<{
+    reserveAddress: string;
+    resolvedBy: string;
+    reserveData: Record<string, unknown>;
+    mintDecimals: number;
+    liquidityMint: string;
+  }> {
+    const prepared = await prepareMetaOperation({
+      protocolId: KAMINO_KLEND_PROTOCOL_ID,
+      operationId: 'resolve_reserve',
+      input: {
+        reserve_or_vault: options.reserveOrVault,
+        token_mint: options.tokenMint,
+      },
+      connection,
+      walletPublicKey: options.walletPublicKey,
+    });
+
+    const reserveAddress = asString(prepared.derived.reserve, 'reserve');
+    const resolvedByRaw = prepared.derived.resolved_by ?? prepared.derived.resolvedBy;
+    const resolvedBy = resolvedByRaw === undefined ? 'unknown' : asString(resolvedByRaw, 'resolved_by');
+    const reserveData = asRecord(prepared.derived.reserve_data ?? prepared.derived.reserveData, 'reserve_data');
+    const reserveLiquidity = asRecord(reserveData.liquidity, 'reserve_data.liquidity');
+    const liquidityMint = asString(reserveLiquidity.mintPubkey, 'reserve_data.liquidity.mintPubkey');
+    const mintDecimals = Number(asIntegerLikeString(reserveLiquidity.mintDecimals, 'reserve_data.liquidity.mintDecimals'));
+    if (!Number.isFinite(mintDecimals) || mintDecimals < 0 || mintDecimals > 18) {
+      throw new Error(`Invalid Kamino mint decimals: ${String(reserveLiquidity.mintDecimals)}.`);
+    }
+
+    return {
+      reserveAddress,
+      resolvedBy,
+      reserveData,
+      mintDecimals,
+      liquidityMint,
+    };
+  }
+
+  function formatBpsAsPercent(bpsRaw: unknown): string {
+    const bps = Number(asIntegerLikeString(bpsRaw, 'bps'));
+    return `${(bps / 100).toFixed(2)}%`;
+  }
+
+  function estimateApyFromAprBps(aprBpsRaw: unknown): number {
+    const aprBps = Number(asIntegerLikeString(aprBpsRaw, 'apr_bps'));
+    const apr = aprBps / 10_000;
+    return Math.pow(1 + apr / 365, 365) - 1;
+  }
+
   async function executeKaminoDeposit(options: {
     value: KaminoDepositCommand;
   }): Promise<void> {
@@ -1569,11 +1321,12 @@ function App() {
       throw new Error('Connect wallet first to run Kamino deposit.');
     }
     const walletPublicKey = wallet.publicKey;
-    const resolved = await resolveKaminoReserveForCommand({
+    const resolved = await prepareKaminoResolvedReserve({
       reserveOrVault: options.value.reserveOrVault,
       tokenMint: options.value.tokenMint,
+      walletPublicKey,
     });
-    const liquidityAmountAtomic = parseUiAmountToAtomic(options.value.amountUi, resolved.reserve.mintDecimals);
+    const liquidityAmountAtomic = parseUiAmountToAtomic(options.value.amountUi, resolved.mintDecimals);
     if (liquidityAmountAtomic <= 0n) {
       throw new Error('AMOUNT must be greater than zero.');
     }
@@ -1582,8 +1335,8 @@ function App() {
       protocolId: KAMINO_KLEND_PROTOCOL_ID,
       operationId: KAMINO_DEPOSIT_OPERATION_ID,
       input: {
-        reserve: resolved.reserve.address,
-        liquidity_mint: resolved.reserve.liquidityMint,
+        reserve_or_vault: options.value.reserveOrVault,
+        token_mint: options.value.tokenMint,
         liquidity_amount: liquidityAmountAtomic.toString(),
       },
       connection,
@@ -1646,8 +1399,8 @@ function App() {
         'assistant',
         [
           'Kamino deposit simulate:',
-          `resolved reserve: ${resolved.reserve.address} (${resolved.resolvedBy})`,
-          `liquidity mint: ${resolved.reserve.liquidityMint}`,
+          `resolved reserve: ${resolved.reserveAddress} (${resolved.resolvedBy})`,
+          `liquidity mint: ${resolved.liquidityMint}`,
           `input amount: ${options.value.amountUi} (${liquidityAmountAtomic.toString()} atomic)`,
           `estimated liquidity spent: ${estimatedLiquiditySpent.toString()} atomic`,
           `estimated collateral minted: ${estimatedCollateralMinted.toString()} atomic`,
@@ -1672,7 +1425,7 @@ function App() {
       'assistant',
       [
         'Kamino deposit tx sent.',
-        `reserve: ${resolved.reserve.address}`,
+        `reserve: ${resolved.reserveAddress}`,
         `liquidity amount: ${options.value.amountUi} (${liquidityAmountAtomic.toString()} atomic)`,
         result.signature,
         result.explorerUrl,
@@ -1687,11 +1440,12 @@ function App() {
       throw new Error('Connect wallet first to run Kamino withdraw.');
     }
     const walletPublicKey = wallet.publicKey;
-    const resolved = await resolveKaminoReserveForCommand({
+    const resolved = await prepareKaminoResolvedReserve({
       reserveOrVault: options.value.reserveOrVault,
       tokenMint: options.value.tokenMint,
+      walletPublicKey,
     });
-    const liquidityAmountAtomic = parseUiAmountToAtomic(options.value.amountUi, resolved.reserve.mintDecimals);
+    const liquidityAmountAtomic = parseUiAmountToAtomic(options.value.amountUi, resolved.mintDecimals);
     if (liquidityAmountAtomic <= 0n) {
       throw new Error('AMOUNT must be greater than zero.');
     }
@@ -1700,8 +1454,8 @@ function App() {
       protocolId: KAMINO_KLEND_PROTOCOL_ID,
       operationId: KAMINO_WITHDRAW_OPERATION_ID,
       input: {
-        reserve: resolved.reserve.address,
-        liquidity_mint: resolved.reserve.liquidityMint,
+        reserve_or_vault: options.value.reserveOrVault,
+        token_mint: options.value.tokenMint,
         liquidity_amount: liquidityAmountAtomic.toString(),
       },
       connection,
@@ -1709,10 +1463,6 @@ function App() {
     });
     const args = prepared.args as Record<string, unknown>;
     const collateralAmount = asIntegerLikeString(args.collateralAmount, 'args.collateralAmount');
-    const localEstimatedCollateral = estimateKaminoCollateralForWithdrawAtomic(
-      resolved.reserve,
-      liquidityAmountAtomic,
-    ).toString();
 
     const preInstructions = buildKaminoAtaPreInstructions({
       owner: walletPublicKey,
@@ -1770,10 +1520,9 @@ function App() {
         'assistant',
         [
           'Kamino withdraw simulate:',
-          `resolved reserve: ${resolved.reserve.address} (${resolved.resolvedBy})`,
+          `resolved reserve: ${resolved.reserveAddress} (${resolved.resolvedBy})`,
           `requested liquidity out: ${options.value.amountUi} (${liquidityAmountAtomic.toString()} atomic)`,
           `computed collateralAmount arg: ${collateralAmount}`,
-          `local collateral estimate: ${localEstimatedCollateral}`,
           `estimated liquidity out: ${estimatedLiquidityOut.toString()} atomic`,
           `estimated collateral spent: ${estimatedCollateralSpent.toString()} atomic`,
           `simulation: ok${simulation.unitsConsumed ? ` (${simulation.unitsConsumed} CU)` : ''}`,
@@ -1797,7 +1546,7 @@ function App() {
       'assistant',
       [
         'Kamino withdraw tx sent.',
-        `reserve: ${resolved.reserve.address}`,
+        `reserve: ${resolved.reserveAddress}`,
         `computed collateralAmount: ${collateralAmount}`,
         result.signature,
         result.explorerUrl,
@@ -1812,65 +1561,59 @@ function App() {
       throw new Error('Connect wallet first to view Kamino position.');
     }
     const walletPublicKey = wallet.publicKey;
-    const resolved = await resolveKaminoReserveForCommand({
-      reserveOrVault: options.value.reserveOrVault,
-      tokenMint: options.value.tokenMint,
-    });
     const prepared = await prepareMetaOperation({
       protocolId: KAMINO_KLEND_PROTOCOL_ID,
       operationId: KAMINO_VIEW_OPERATION_ID,
       input: {
-        reserve: resolved.reserve.address,
-        liquidity_mint: resolved.reserve.liquidityMint,
+        reserve_or_vault: options.value.reserveOrVault,
+        token_mint: options.value.tokenMint,
       },
       connection,
       walletPublicKey,
     });
 
-    const reserveData = parseKaminoReserveSnapshot(
-      prepared.derived.reserve_data ?? prepared.derived.reserveData,
-      resolved.reserve.address,
-    );
+    const reserveAddress = asString(prepared.derived.reserve, 'reserve');
+    const resolvedByRaw = prepared.derived.resolved_by ?? prepared.derived.resolvedBy;
+    const resolvedBy = resolvedByRaw === undefined ? 'unknown' : asString(resolvedByRaw, 'resolved_by');
+    const reserveData = asRecord(prepared.derived.reserve_data ?? prepared.derived.reserveData, 'reserve_data');
+    const reserveLiquidity = asRecord(reserveData.liquidity, 'reserve_data.liquidity');
+    const liquidityMint = asString(reserveLiquidity.mintPubkey, 'reserve_data.liquidity.mintPubkey');
+    const mintDecimals = Number(asIntegerLikeString(reserveLiquidity.mintDecimals, 'reserve_data.liquidity.mintDecimals'));
+
     const userLiquidityAta = asString(prepared.derived.user_liquidity_ata, 'user_liquidity_ata');
     const userCollateralAta = asString(prepared.derived.user_collateral_ata, 'user_collateral_ata');
-
-    let userLiquidityBalanceAtomic = 0n;
-    try {
-      const balance = await connection.getTokenAccountBalance(new PublicKey(userLiquidityAta), 'confirmed');
-      userLiquidityBalanceAtomic = BigInt(balance.value.amount);
-    } catch {
-      userLiquidityBalanceAtomic = 0n;
-    }
-    let userCollateralBalanceAtomic = 0n;
-    try {
-      const balance = await connection.getTokenAccountBalance(new PublicKey(userCollateralAta), 'confirmed');
-      userCollateralBalanceAtomic = BigInt(balance.value.amount);
-    } catch {
-      userCollateralBalanceAtomic = 0n;
-    }
-
-    const estimatedLiquidityClaimAtomic = estimateKaminoLiquidityFromCollateralAtomic(
-      reserveData,
-      userCollateralBalanceAtomic,
+    const userLiquidityBalanceAtomic = asIntegerLikeString(
+      prepared.derived.user_liquidity_balance,
+      'user_liquidity_balance',
     );
-    const liquidityUi = formatTokenAmount(userLiquidityBalanceAtomic.toString(), reserveData.mintDecimals);
-    const claimUi = formatTokenAmount(estimatedLiquidityClaimAtomic.toString(), reserveData.mintDecimals);
-    const supplyYield = calculateKaminoSupplyYield(reserveData);
+    const userCollateralBalanceAtomic = asIntegerLikeString(
+      prepared.derived.user_collateral_balance,
+      'user_collateral_balance',
+    );
+    const estimatedLiquidityClaimAtomic = asIntegerLikeString(
+      prepared.derived.estimated_redeemable_liquidity,
+      'estimated_redeemable_liquidity',
+    );
+    const reserveUtilizationBps = asIntegerLikeString(prepared.derived.reserve_utilization_bps, 'reserve_utilization_bps');
+    const supplyAprBps = asIntegerLikeString(prepared.derived.supply_apr_bps, 'supply_apr_bps');
+    const supplyApyApprox = estimateApyFromAprBps(supplyAprBps);
+    const liquidityUi = formatTokenAmount(userLiquidityBalanceAtomic, mintDecimals);
+    const claimUi = formatTokenAmount(estimatedLiquidityClaimAtomic, mintDecimals);
 
     pushMessage(
       'assistant',
       [
         'Kamino position:',
-        `resolved reserve: ${reserveData.address} (${resolved.resolvedBy})`,
-        `liquidity mint: ${reserveData.liquidityMint}`,
+        `resolved reserve: ${reserveAddress} (${resolvedBy})`,
+        `liquidity mint: ${liquidityMint}`,
         `liquidity ATA: ${userLiquidityAta}`,
         `collateral ATA: ${userCollateralAta}`,
-        `wallet liquidity balance: ${liquidityUi} (${userLiquidityBalanceAtomic.toString()} atomic)`,
-        `wallet collateral balance: ${userCollateralBalanceAtomic.toString()} cToken atomic`,
-        `estimated redeemable liquidity: ${claimUi} (${estimatedLiquidityClaimAtomic.toString()} atomic)`,
-        `reserve utilization: ${formatPercent(supplyYield.utilization)}`,
-        `estimated supply APR: ${formatPercent(supplyYield.supplyApr)}`,
-        `estimated supply APY: ${formatPercent(supplyYield.supplyApy)}`,
+        `wallet liquidity balance: ${liquidityUi} (${userLiquidityBalanceAtomic} atomic)`,
+        `wallet collateral balance: ${userCollateralBalanceAtomic} cToken atomic`,
+        `estimated redeemable liquidity: ${claimUi} (${estimatedLiquidityClaimAtomic} atomic)`,
+        `reserve utilization: ${formatBpsAsPercent(reserveUtilizationBps)} (${reserveUtilizationBps} bps)`,
+        `estimated supply APR: ${formatBpsAsPercent(supplyAprBps)} (${supplyAprBps} bps)`,
+        `estimated supply APY (daily comp approximation): ${formatPercent(supplyApyApprox)}`,
       ].join('\n'),
     );
   }
@@ -2102,7 +1845,7 @@ function App() {
                   }}
                   disabled={isWorking}
                 >
-                  {formatPoolChoiceLine(candidate, index)}
+                  {formatOrcaPoolChoiceLine(candidate, index)}
                 </button>
               ))}
             </div>

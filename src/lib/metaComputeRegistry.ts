@@ -486,6 +486,60 @@ async function runLogicIf(step: ComputeStepResolved): Promise<unknown> {
   return condition ? step.then : step.else;
 }
 
+async function runAssertNotNull(step: ComputeStepResolved): Promise<unknown> {
+  const value = step.value;
+  if (value === null || value === undefined) {
+    const message =
+      step.message === undefined
+        ? `compute:${step.name}:value must not be null or undefined.`
+        : String(step.message);
+    throw new Error(message);
+  }
+  return value;
+}
+
+async function runCurveLinearInterpolateBps(step: ComputeStepResolved): Promise<string> {
+  const pointsRaw = asArray(step.points, `compute:${step.name}:points`);
+  if (pointsRaw.length === 0) {
+    throw new Error(`compute:${step.name}:points must not be empty.`);
+  }
+
+  const xField = step.x_field === undefined ? 'utilizationRateBps' : String(step.x_field);
+  const yField = step.y_field === undefined ? 'borrowRateBps' : String(step.y_field);
+  const xBps = asBigInt(step.x_bps, `compute:${step.name}:x_bps`);
+
+  const points = pointsRaw
+    .map((entry, index) => {
+      const row = asRecord(entry, `compute:${step.name}:points[${index}]`);
+      return {
+        x: asBigInt(row[xField], `compute:${step.name}:points[${index}].${xField}`),
+        y: asBigInt(row[yField], `compute:${step.name}:points[${index}].${yField}`),
+      };
+    })
+    .sort((left, right) => (left.x === right.x ? 0 : left.x > right.x ? 1 : -1));
+
+  if (xBps <= points[0].x) {
+    return points[0].y.toString();
+  }
+
+  for (let index = 1; index < points.length; index += 1) {
+    const left = points[index - 1];
+    const right = points[index];
+    if (xBps <= right.x) {
+      if (right.x === left.x) {
+        return right.y.toString();
+      }
+      const xDelta = xBps - left.x;
+      const span = right.x - left.x;
+      const yDelta = right.y - left.y;
+      const yOffset = floorDivBigInt(xDelta * yDelta, span);
+      return (left.y + yOffset).toString();
+    }
+  }
+
+  return points[points.length - 1].y.toString();
+}
+
 const COMPUTE_EXECUTORS: Record<string, ComputeExecutor> = {
   'math.add': runMathAdd,
   'math.sum': runMathSum,
@@ -507,6 +561,8 @@ const COMPUTE_EXECUTORS: Record<string, ComputeExecutor> = {
   'compare.lt': runCompareLt,
   'compare.lte': runCompareLte,
   'logic.if': runLogicIf,
+  'assert.not_null': runAssertNotNull,
+  'curve.linear_interpolate_bps': runCurveLinearInterpolateBps,
 };
 
 export async function runRegisteredComputeStep(step: ComputeStepResolved, ctx: ComputeRuntimeContext): Promise<unknown> {

@@ -494,6 +494,88 @@
     }
   },
   "operations": {
+    "resolve_pool": {
+      "inputs": {
+        "base_mint": {
+          "type": "pubkey",
+          "required": true
+        },
+        "quote_mint": {
+          "type": "pubkey",
+          "required": false,
+          "default": "So11111111111111111111111111111111111111112"
+        },
+        "pool": {
+          "type": "pubkey",
+          "required": false
+        }
+      },
+      "discover": [
+        {
+          "name": "pool_candidates",
+          "discover": "discover.query",
+          "source": "rpc.getProgramAccounts",
+          "program_id": "$protocol.programId",
+          "account_type": "Pool",
+          "discriminator_filter": false,
+          "commitment": "confirmed",
+          "account_pubkeys": "$input.pool",
+          "filters": [
+            {
+              "memcmp": {
+                "offset": 43,
+                "bytesFrom": "$input.base_mint"
+              }
+            },
+            {
+              "memcmp": {
+                "offset": 75,
+                "bytesFrom": "$input.quote_mint"
+              }
+            }
+          ],
+          "where": [
+            {
+              "path": "decoded.base_mint",
+              "op": "=",
+              "value": "$input.base_mint"
+            },
+            {
+              "path": "decoded.quote_mint",
+              "op": "=",
+              "value": "$input.quote_mint"
+            },
+            {
+              "path": "decoded.lp_supply",
+              "op": ">",
+              "value": "0"
+            }
+          ],
+          "sort": [
+            {
+              "path": "decoded.lp_supply",
+              "dir": "desc"
+            }
+          ],
+          "limit": 10,
+          "select": {
+            "pool": "$account.pubkey",
+            "baseMint": "$decoded.base_mint",
+            "quoteMint": "$decoded.quote_mint",
+            "lpSupply": "$decoded.lp_supply",
+            "coinCreator": "$decoded.coin_creator"
+          }
+        },
+        {
+          "name": "selected_pool",
+          "discover": "discover.pick_list_item_by_value",
+          "items": "$pool_candidates",
+          "value_path": "pool",
+          "match_value": "$input.pool",
+          "fallback_index": 0
+        }
+      ]
+    },
     "buy": {
       "inputs": {
         "base_mint": {

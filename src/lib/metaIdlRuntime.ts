@@ -8,7 +8,13 @@ import { runRegisteredComputeStep } from './metaComputeRegistry';
 import { runRegisteredDiscoverStep } from './metaDiscoverRegistry';
 import { normalizeIdlForAnchorCoder } from './normalizeIdl';
 
-const SUPPORTED_META_IDL_SCHEMAS = new Set(['meta-idl.v0.1', 'meta-idl.v0.2', 'meta-idl.v0.3', 'meta-idl.v0.4']);
+const SUPPORTED_META_IDL_SCHEMAS = new Set([
+  'meta-idl.v0.1',
+  'meta-idl.v0.2',
+  'meta-idl.v0.3',
+  'meta-idl.v0.4',
+  'meta-idl.v0.5',
+]);
 const DEFAULT_SPL_TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 
 type BuiltinResolverName =
@@ -820,8 +826,28 @@ async function runResolver(step: DeriveStep, ctx: ResolverContext): Promise<unkn
       resolveTemplateValue(step.address, ctx.scope),
       `token_account_balance:${step.name}:address`,
     );
-    const balance = await ctx.connection.getTokenAccountBalance(address, 'confirmed');
-    return balance.value.amount;
+    try {
+      const balance = await ctx.connection.getTokenAccountBalance(address, 'confirmed');
+      return balance.value.amount;
+    } catch (error) {
+      const allowMissing =
+        step.allow_missing === undefined
+          ? false
+          : Boolean(resolveTemplateValue(step.allow_missing, ctx.scope));
+      if (!allowMissing) {
+        throw error;
+      }
+      const fallbackValue =
+        step.default === undefined ? '0' : normalizeRuntimeValue(resolveTemplateValue(step.default, ctx.scope));
+      if (
+        typeof fallbackValue !== 'string' &&
+        typeof fallbackValue !== 'number' &&
+        typeof fallbackValue !== 'bigint'
+      ) {
+        throw new Error(`Resolver token_account_balance fallback for ${step.name} must be integer-like.`);
+      }
+      return String(fallbackValue);
+    }
   }
 
   if (step.resolver === 'token_supply') {
