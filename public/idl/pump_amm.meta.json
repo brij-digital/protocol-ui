@@ -21,10 +21,10 @@
             "source": "rpc.getProgramAccounts",
             "program_id": "$protocol.programId",
             "account_type": "Pool",
+            "discriminator_filter": false,
             "commitment": "confirmed",
             "account_pubkeys": "$input.pool",
             "filters": [
-              { "dataSize": 245 },
               { "memcmp": { "offset": 43, "bytesFrom": "$param.base_mint" } },
               { "memcmp": { "offset": 75, "bytesFrom": "$param.quote_mint" } }
             ],
@@ -75,16 +75,28 @@
             "account_type": "GlobalConfig"
           },
           {
+            "name": "base_token_program",
+            "resolver": "account_owner",
+            "address": "$pool_data.base_mint"
+          },
+          {
+            "name": "quote_token_program",
+            "resolver": "account_owner",
+            "address": "$pool_data.quote_mint"
+          },
+          {
             "name": "user_base_token_account",
             "resolver": "ata",
             "owner": "$wallet",
-            "mint": "$pool_data.base_mint"
+            "mint": "$pool_data.base_mint",
+            "token_program": "$base_token_program"
           },
           {
             "name": "user_quote_token_account",
             "resolver": "ata",
             "owner": "$wallet",
-            "mint": "$pool_data.quote_mint"
+            "mint": "$pool_data.quote_mint",
+            "token_program": "$quote_token_program"
           },
           {
             "name": "coin_creator_vault_authority",
@@ -97,6 +109,7 @@
             "resolver": "ata",
             "owner": "$coin_creator_vault_authority",
             "mint": "$pool_data.quote_mint",
+            "token_program": "$quote_token_program",
             "allow_owner_off_curve": true
           },
           {
@@ -137,7 +150,7 @@
             "program_id": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
             "seeds": [
               { "kind": "pubkey", "value": "$protocol_fee_recipient" },
-              { "kind": "pubkey", "value": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" },
+              { "kind": "pubkey", "value": "$quote_token_program" },
               { "kind": "pubkey", "value": "$pool_data.quote_mint" }
             ]
           }
@@ -159,8 +172,8 @@
           "pool_quote_token_account": "$pool_data.pool_quote_token_account",
           "protocol_fee_recipient": "$protocol_fee_recipient",
           "protocol_fee_recipient_token_account": "$protocol_fee_recipient_token_account",
-          "base_token_program": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
-          "quote_token_program": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "base_token_program": "$base_token_program",
+          "quote_token_program": "$quote_token_program",
           "system_program": "11111111111111111111111111111111",
           "associated_token_program": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
           "event_authority": "$event_authority",

@@ -1,6 +1,7 @@
 import { BN, BorshAccountsCoder, utils } from '@coral-xyz/anchor';
 import type { Idl } from '@coral-xyz/anchor';
 import { PublicKey, type Connection, type Commitment, type GetProgramAccountsFilter } from '@solana/web3.js';
+import { Buffer } from 'buffer';
 
 export type DiscoverStepResolved = {
   name: string;
@@ -361,13 +362,8 @@ function parseRpcProgramFilter(raw: unknown, label: string): GetProgramAccountsF
   throw new Error(`${label} must be a memcmp or dataSize filter.`);
 }
 
-function decodeBase64ToBytes(base64: string): Uint8Array {
-  const binary = atob(base64);
-  const out = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) {
-    out[i] = binary.charCodeAt(i);
-  }
-  return out;
+function decodeBase64ToBytes(base64: string): Buffer {
+  return Buffer.from(base64, 'base64');
 }
 
 function isTooManyAccountsError(error: unknown): boolean {
@@ -733,6 +729,10 @@ async function runDiscoverQuery(step: DiscoverStepResolved, ctx: DiscoverRuntime
     resolvedStep.account_type === undefined
       ? null
       : asString(resolvedStep.account_type, `discover:${step.name}:account_type`);
+  const discriminatorFilterEnabled =
+    resolvedStep.discriminator_filter === undefined
+      ? true
+      : asBoolean(resolvedStep.discriminator_filter, `discover:${step.name}:discriminator_filter`);
 
   const baseFilters = resolvedStep.filters
     ? asArray(resolvedStep.filters, `discover:${step.name}:filters`).map((entry, index) =>
@@ -755,7 +755,8 @@ async function runDiscoverQuery(step: DiscoverStepResolved, ctx: DiscoverRuntime
   const requestedLimit =
     resolvedStep.limit === undefined ? null : asSafeInteger(resolvedStep.limit, `discover:${step.name}:limit`);
 
-  const discriminator = accountType ? idlDiscriminatorFilter(ctx.idl, accountType, `discover:${step.name}`) : null;
+  const discriminator =
+    accountType && discriminatorFilterEnabled ? idlDiscriminatorFilter(ctx.idl, accountType, `discover:${step.name}`) : null;
   const finalFilterGroups = filterGroups.map((group) => {
     const merged = [...baseFilters, ...group];
     if (discriminator) {

@@ -660,6 +660,12 @@ function App() {
     const userQuoteAta = prepared.accounts.user_quote_token_account;
     const poolBaseMint = asString(poolData.base_mint, 'pool_data.base_mint');
     const poolQuoteMint = asString(poolData.quote_mint, 'pool_data.quote_mint');
+    const baseTokenProgram = new PublicKey(
+      asString(prepared.accounts.base_token_program, 'accounts.base_token_program'),
+    );
+    const quoteTokenProgram = new PublicKey(
+      asString(prepared.accounts.quote_token_program, 'accounts.quote_token_program'),
+    );
     if (poolQuoteMint !== 'So11111111111111111111111111111111111111112') {
       throw new Error(
         `Unsupported Pump quote mint ${poolQuoteMint}. This command currently supports SOL-quoted pools only.`,
@@ -672,12 +678,14 @@ function App() {
         new PublicKey(userBaseAta),
         walletPublicKey,
         new PublicKey(poolBaseMint),
+        baseTokenProgram,
       ),
       createAssociatedTokenAccountIdempotentInstruction(
         walletPublicKey,
         new PublicKey(userQuoteAta),
         walletPublicKey,
         new PublicKey(poolQuoteMint),
+        quoteTokenProgram,
       ),
       SystemProgram.transfer({
         fromPubkey: walletPublicKey,
