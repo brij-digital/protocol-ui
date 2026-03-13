@@ -1,7 +1,7 @@
 {
   "$schema": "/idl/meta_idl.schema.v0.5.json",
   "schema": "meta-idl.v0.5",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "protocolId": "pump-amm-mainnet",
   "templates": {
     "pump.buy.v1": {

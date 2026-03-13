@@ -4,7 +4,7 @@
     "output": "public/idl/pump_amm.meta.json",
     "schema": "meta-idl.v0.5",
     "schemaPath": "/idl/meta_idl.schema.v0.5.json",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "protocolId": "pump-amm-mainnet"
   },
   "templates": {
