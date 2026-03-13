@@ -1,8 +1,8 @@
 import { parseUiAmountToAtomic, resolveToken } from '../constants/tokens';
 import { PublicKey } from '@solana/web3.js';
 
-export type SwapPrefillCommand = {
-  kind: 'swap';
+export type OrcaCommand = {
+  kind: 'orca';
   inputToken: string;
   outputToken: string;
   amountUi: string;
@@ -10,35 +10,26 @@ export type SwapPrefillCommand = {
   inputMint: string;
   outputMint: string;
   slippageBps: number;
+  simulate: boolean;
 };
 
-export type QuotePrefillCommand = {
-  kind: 'quote';
-  inputToken: string;
-  outputToken: string;
-  amountUi: string;
-  amountAtomic: string;
-  inputMint: string;
-  outputMint: string;
-  slippageBps: number;
-};
-
-export type PumpBuyCommand = {
-  kind: 'pump-buy';
+export type PumpAmmCommand = {
+  kind: 'pump-amm';
   tokenMint: string;
   amountUiSol: string;
   amountAtomic: string;
   slippageBps: number;
+  simulate: boolean;
   pool?: string;
 };
 
-export type PumpQuoteCommand = {
-  kind: 'pump-quote';
+export type PumpCurveCommand = {
+  kind: 'pump-curve';
   tokenMint: string;
   amountUiSol: string;
   amountAtomic: string;
   slippageBps: number;
-  pool?: string;
+  simulate: boolean;
 };
 
 export type IdlSendCommand = {
@@ -69,10 +60,9 @@ export type MetaExplainCommand = {
 };
 
 export type ParsedCommand =
-  | { kind: 'swap'; value: SwapPrefillCommand }
-  | { kind: 'quote'; value: QuotePrefillCommand }
-  | { kind: 'pump-buy'; value: PumpBuyCommand }
-  | { kind: 'pump-quote'; value: PumpQuoteCommand }
+  | { kind: 'orca'; value: OrcaCommand }
+  | { kind: 'pump-amm'; value: PumpAmmCommand }
+  | { kind: 'pump-curve'; value: PumpCurveCommand }
   | { kind: 'write-raw'; value: IdlSendCommand }
   | { kind: 'read-raw'; value: IdlSendCommand }
   | { kind: 'help' }
@@ -168,12 +158,13 @@ function parseRawCommand(trimmed: string, commandName: '/write-raw' | '/read-raw
   };
 }
 
-function parseMetaSwapArgs(args: string[], kind: 'swap' | 'quote'): SwapPrefillCommand | QuotePrefillCommand {
-  if (args.length !== 4) {
-    throw new Error(`Usage: /${kind} <INPUT_TOKEN> <OUTPUT_TOKEN> <AMOUNT> <SLIPPAGE_BPS>`);
+function parseOrcaArgs(args: string[]): OrcaCommand {
+  const { argsWithoutFlag, simulate } = splitSimulationFlag(args);
+  if (argsWithoutFlag.length !== 4) {
+    throw new Error('Usage: /orca <INPUT_TOKEN> <OUTPUT_TOKEN> <AMOUNT> <SLIPPAGE_BPS> [--simulate]');
   }
 
-  const [inputRaw, outputRaw, amountUi, slippageRaw] = args;
+  const [inputRaw, outputRaw, amountUi, slippageRaw] = argsWithoutFlag;
   const inputToken = resolveToken(inputRaw);
   const outputToken = resolveToken(outputRaw);
 
@@ -199,8 +190,8 @@ function parseMetaSwapArgs(args: string[], kind: 'swap' | 'quote'): SwapPrefillC
     throw new Error('SLIPPAGE_BPS must be an integer between 1 and 5000.');
   }
 
-  const payload = {
-    kind,
+  return {
+    kind: 'orca',
     inputToken: inputToken.symbol,
     outputToken: outputToken.symbol,
     amountUi,
@@ -208,21 +199,30 @@ function parseMetaSwapArgs(args: string[], kind: 'swap' | 'quote'): SwapPrefillC
     inputMint: inputToken.mint,
     outputMint: outputToken.mint,
     slippageBps,
+    simulate,
   };
-
-  if (kind === 'swap') {
-    return payload as SwapPrefillCommand;
-  }
-
-  return payload as QuotePrefillCommand;
 }
 
-function parsePumpArgs(args: string[], kind: 'pump-buy' | 'pump-quote'): PumpBuyCommand | PumpQuoteCommand {
-  if (args.length < 3 || args.length > 4) {
-    throw new Error(`Usage: /${kind} <TOKEN_MINT> <AMOUNT_SOL> <SLIPPAGE_BPS> [POOL_PUBKEY]`);
+function splitSimulationFlag(args: string[]): { argsWithoutFlag: string[]; simulate: boolean } {
+  let simulate = false;
+  const argsWithoutFlag: string[] = [];
+  for (const arg of args) {
+    if (arg === '--simulate') {
+      simulate = true;
+      continue;
+    }
+    argsWithoutFlag.push(arg);
+  }
+  return { argsWithoutFlag, simulate };
+}
+
+function parsePumpAmmArgs(args: string[]): PumpAmmCommand {
+  const { argsWithoutFlag, simulate } = splitSimulationFlag(args);
+  if (argsWithoutFlag.length < 3 || argsWithoutFlag.length > 4) {
+    throw new Error('Usage: /pump-amm <TOKEN_MINT> <AMOUNT_SOL> <SLIPPAGE_BPS> [POOL_PUBKEY] [--simulate]');
   }
 
-  const [tokenMintRaw, amountUiSol, slippageRaw, poolRaw] = args;
+  const [tokenMintRaw, amountUiSol, slippageRaw, poolRaw] = argsWithoutFlag;
   const tokenMint = new PublicKey(tokenMintRaw).toBase58();
   const amountAtomic = parseUiAmountToAtomic(amountUiSol, 9);
   if (amountAtomic <= 0n) {
@@ -236,19 +236,43 @@ function parsePumpArgs(args: string[], kind: 'pump-buy' | 'pump-quote'): PumpBuy
 
   const pool = poolRaw ? new PublicKey(poolRaw).toBase58() : undefined;
 
-  const payload = {
-    kind,
+  return {
+    kind: 'pump-amm',
     tokenMint,
     amountUiSol,
     amountAtomic: amountAtomic.toString(),
     slippageBps,
+    simulate,
     ...(pool ? { pool } : {}),
   };
+}
 
-  if (kind === 'pump-buy') {
-    return payload as PumpBuyCommand;
+function parsePumpCurveArgs(args: string[]): PumpCurveCommand {
+  const { argsWithoutFlag, simulate } = splitSimulationFlag(args);
+  if (argsWithoutFlag.length !== 3) {
+    throw new Error('Usage: /pump-curve <TOKEN_MINT> <AMOUNT_SOL> <SLIPPAGE_BPS> [--simulate]');
   }
-  return payload as PumpQuoteCommand;
+
+  const [tokenMintRaw, amountUiSol, slippageRaw] = argsWithoutFlag;
+  const tokenMint = new PublicKey(tokenMintRaw).toBase58();
+  const amountAtomic = parseUiAmountToAtomic(amountUiSol, 9);
+  if (amountAtomic <= 0n) {
+    throw new Error('AMOUNT_SOL must be greater than zero.');
+  }
+
+  const slippageBps = Number(slippageRaw);
+  if (!Number.isInteger(slippageBps) || slippageBps < 1 || slippageBps > 5000) {
+    throw new Error('SLIPPAGE_BPS must be an integer between 1 and 5000.');
+  }
+
+  return {
+    kind: 'pump-curve',
+    tokenMint,
+    amountUiSol,
+    amountAtomic: amountAtomic.toString(),
+    slippageBps,
+    simulate,
+  };
 }
 
 export function parseCommand(raw: string): ParsedCommand {
@@ -328,20 +352,16 @@ export function parseCommand(raw: string): ParsedCommand {
     };
   }
 
-  if (command === '/swap') {
-    return { kind: 'swap', value: parseMetaSwapArgs(args, 'swap') as SwapPrefillCommand };
+  if (command === '/orca') {
+    return { kind: 'orca', value: parseOrcaArgs(args) };
   }
 
-  if (command === '/quote') {
-    return { kind: 'quote', value: parseMetaSwapArgs(args, 'quote') as QuotePrefillCommand };
+  if (command === '/pump-amm') {
+    return { kind: 'pump-amm', value: parsePumpAmmArgs(args) };
   }
 
-  if (command === '/pump-buy') {
-    return { kind: 'pump-buy', value: parsePumpArgs(args, 'pump-buy') as PumpBuyCommand };
-  }
-
-  if (command === '/pump-quote') {
-    return { kind: 'pump-quote', value: parsePumpArgs(args, 'pump-quote') as PumpQuoteCommand };
+  if (command === '/pump-curve') {
+    return { kind: 'pump-curve', value: parsePumpCurveArgs(args) };
   }
 
   throw new Error(`Unknown command: ${command}. Try /help.`);

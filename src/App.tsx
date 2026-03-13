@@ -13,10 +13,9 @@ import './App.css';
 import { formatTokenAmount, listSupportedTokens, resolveToken } from './constants/tokens';
 import {
   parseCommand,
-  type PumpBuyCommand,
-  type PumpQuoteCommand,
-  type QuotePrefillCommand,
-  type SwapPrefillCommand,
+  type OrcaCommand,
+  type PumpAmmCommand,
+  type PumpCurveCommand,
 } from './lib/commandParser';
 import {
   decodeIdlAccount,
@@ -32,10 +31,11 @@ const ORCA_PROTOCOL_ID = 'orca-whirlpool-mainnet';
 const ORCA_OPERATION_ID = 'swap_exact_in';
 const PUMP_PROTOCOL_ID = 'pump-amm-mainnet';
 const PUMP_OPERATION_ID = 'buy_exact_quote_in';
+const PUMP_BONDING_PROGRAM_ID = new PublicKey('6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P');
 const QUICK_PREFILL_SWAP_COMMAND =
-  '/swap EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v So11111111111111111111111111111111111111112 0.01 50';
+  '/orca EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v So11111111111111111111111111111111111111112 0.01 50 --simulate';
 const QUICK_PREFILL_PUMP_QUOTE_COMMAND =
-  '/pump-quote 6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN 0.01 100';
+  '/pump-amm C4yDhKwkikpVGCQWD9BT2SJyHAtRFFnKPDM9Nyshpump 0.01 100 --simulate';
 
 type Message = {
   id: number;
@@ -59,17 +59,15 @@ type PumpPoolCandidate = {
 };
 
 type PendingPoolSelection = {
-  kind: 'swap' | 'quote';
-  command: SwapPrefillCommand | QuotePrefillCommand;
+  command: OrcaCommand;
   candidates: OrcaPoolCandidate[];
 };
 
 const HELP_TEXT = [
   'Commands:',
-  '/swap <INPUT_TOKEN> <OUTPUT_TOKEN> <AMOUNT> <SLIPPAGE_BPS>',
-  '/quote <INPUT_TOKEN> <OUTPUT_TOKEN> <AMOUNT> <SLIPPAGE_BPS>',
-  '/pump-quote <TOKEN_MINT> <AMOUNT_SOL> <SLIPPAGE_BPS> [POOL_PUBKEY]',
-  '/pump-buy <TOKEN_MINT> <AMOUNT_SOL> <SLIPPAGE_BPS> [POOL_PUBKEY]',
+  '/orca <INPUT_TOKEN> <OUTPUT_TOKEN> <AMOUNT> <SLIPPAGE_BPS> [--simulate]',
+  '/pump-amm <TOKEN_MINT> <AMOUNT_SOL> <SLIPPAGE_BPS> [POOL_PUBKEY] [--simulate]',
+  '/pump-curve <TOKEN_MINT> <AMOUNT_SOL> <SLIPPAGE_BPS> [--simulate]',
   '/write-raw <PROTOCOL_ID> <INSTRUCTION_NAME> | <ARGS_JSON> | <ACCOUNTS_JSON>',
   '/read-raw <PROTOCOL_ID> <INSTRUCTION_NAME> | <ARGS_JSON> | <ACCOUNTS_JSON>',
   '/idl-list',
@@ -85,10 +83,12 @@ const HELP_TEXT = [
   'If multiple pools match a pair, you will be asked to pick one (or provide a whirlpool override internally).',
   '',
   'Examples:',
-  '/quote SOL USDC 0.1 50',
-  '/swap SOL USDC 0.1 50',
-  '/pump-quote <TOKEN_MINT> 0.01 100',
-  '/pump-buy <TOKEN_MINT> 0.01 100',
+  '/orca SOL USDC 0.1 50 --simulate',
+  '/orca SOL USDC 0.1 50',
+  '/pump-amm <TOKEN_MINT> 0.01 100 --simulate',
+  '/pump-amm <TOKEN_MINT> 0.01 100',
+  '/pump-curve <TOKEN_MINT> 0.01 100 --simulate',
+  '/pump-curve <TOKEN_MINT> 0.01 100',
   '/meta-explain orca-whirlpool-mainnet swap_exact_in',
   '/meta-explain pump-amm-mainnet buy_exact_quote_in',
 ].join('\n');
@@ -341,9 +341,8 @@ function App() {
     return `${index + 1}. ${compactPubkey(pool.whirlpool)} | tickSpacing ${pool.tickSpacing} | liquidity ${compactInteger(pool.liquidity)}`;
   }
 
-  async function executeSwapOrQuote(options: {
-    kind: 'swap' | 'quote';
-    value: SwapPrefillCommand | QuotePrefillCommand;
+  async function executeOrca(options: {
+    value: OrcaCommand;
     whirlpool?: string;
   }): Promise<void> {
     if (!wallet.publicKey) {
@@ -367,7 +366,6 @@ function App() {
     const poolCandidates = normalizePoolCandidates(prepared.derived.pool_candidates);
     if (poolCandidates.length > 1 && options.whirlpool === undefined) {
       setPendingPoolSelection({
-        kind: options.kind,
         command: options.value,
         candidates: poolCandidates,
       });
@@ -547,11 +545,11 @@ function App() {
     }
 
     const selectedWhirlpool = asString(selectedPool.whirlpool, 'selected_pool.whirlpool');
-    if (options.kind === 'quote') {
+    if (options.value.simulate) {
       pushMessage(
         'assistant',
         [
-          'Quote (meta IDL + simulation):',
+          'Orca simulate (meta IDL + simulation):',
           `pair: ${options.value.inputToken}/${options.value.outputToken}`,
           `pool: ${selectedWhirlpool}`,
           `input: ${estimatedInUi} ${options.value.inputToken}`,
@@ -560,7 +558,7 @@ function App() {
           `implied rate: 1 ${options.value.inputToken} ≈ ${impliedRateText} ${options.value.outputToken}`,
           `tick arrays: ${compactPubkey(prepared.accounts.tick_array_0)}, ${compactPubkey(prepared.accounts.tick_array_1)}, ${compactPubkey(prepared.accounts.tick_array_2)}`,
           `simulation: ok${simulation.unitsConsumed ? ` (${simulation.unitsConsumed} CU)` : ''}`,
-          'Run /swap with same params to execute.',
+          'Run same command without --simulate to execute.',
         ].join('\n'),
       );
       return;
@@ -587,7 +585,7 @@ function App() {
     pushMessage(
       'assistant',
       [
-        'Swap sent (meta IDL -> write-raw).',
+        'Orca tx sent (meta IDL -> write-raw).',
         `pair: ${options.value.inputToken}/${options.value.outputToken}`,
         `pool: ${selectedWhirlpool}`,
         `estimatedOut: ${estimatedOutUi} ${options.value.outputToken} (${estimatedOutAtomic})`,
@@ -597,32 +595,53 @@ function App() {
     );
   }
 
-  async function executePumpBuyOrQuote(options: {
-    kind: 'pump-buy' | 'pump-quote';
-    value: PumpBuyCommand | PumpQuoteCommand;
+  async function executePumpAmm(options: {
+    value: PumpAmmCommand;
   }): Promise<void> {
     if (!wallet.publicKey) {
       throw new Error('Connect wallet first to execute Pump AMM operations.');
     }
     const walletPublicKey = wallet.publicKey;
 
-    const prepared = await prepareMetaInstruction({
-      protocolId: PUMP_PROTOCOL_ID,
-      operationId: PUMP_OPERATION_ID,
-      input: {
-        base_mint: options.value.tokenMint,
-        spendable_quote_in: options.value.amountAtomic,
-        min_base_amount_out: '1',
-        slippage_bps: options.value.slippageBps,
-        ...(options.value.pool ? { pool: options.value.pool } : {}),
-      },
-      connection,
-      walletPublicKey,
-    });
+    let prepared: Awaited<ReturnType<typeof prepareMetaInstruction>>;
+    try {
+      prepared = await prepareMetaInstruction({
+        protocolId: PUMP_PROTOCOL_ID,
+        operationId: PUMP_OPERATION_ID,
+        input: {
+          base_mint: options.value.tokenMint,
+          spendable_quote_in: options.value.amountAtomic,
+          min_base_amount_out: '1',
+          slippage_bps: options.value.slippageBps,
+          ...(options.value.pool ? { pool: options.value.pool } : {}),
+        },
+        connection,
+        walletPublicKey,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const noPoolFound =
+        message.includes('discover:selected_pool: no candidates found.') ||
+        message.includes('discover:pool_candidates: no candidates found.');
+      if (noPoolFound) {
+        throw new Error(
+          [
+            `No Pump AMM pool found for token ${options.value.tokenMint} against SOL.`,
+            options.value.pool
+              ? `The provided pool ${options.value.pool} does not match this token/SOL pair in Pump AMM.`
+              : 'This token may still be on bonding-curve or on another venue.',
+            'Use /pump-curve <TOKEN_MINT> <AMOUNT_SOL> <SLIPPAGE_BPS> --simulate to quote bonding-curve directly.',
+          ].join(' '),
+        );
+      }
+      throw error;
+    }
 
     const candidates = normalizePumpPoolCandidates(prepared.derived.pool_candidates);
     if (candidates.length === 0) {
-      throw new Error('No Pump AMM pool found for this token mint against SOL.');
+      throw new Error(
+        'No Pump AMM pool found for this token mint against SOL. The token may exist on Pump bonding-curve but not be migrated/listed in Pump AMM yet.',
+      );
     }
 
     const selectedPool = asRecord(prepared.derived.selected_pool, 'selected_pool');
@@ -752,7 +771,7 @@ function App() {
       min_base_amount_out: minOutAtomic,
     };
 
-    if (options.kind === 'pump-quote') {
+    if (options.value.simulate) {
       pushMessage(
         'assistant',
         [
@@ -764,7 +783,7 @@ function App() {
           `min output @ ${options.value.slippageBps} bps: ${minOutAtomic} base atomic`,
           `quote ATA post-sim amount: ${postQuoteAtomic.toString()} lamports`,
           `simulation: ok${simulation.unitsConsumed ? ` (${simulation.unitsConsumed} CU)` : ''}`,
-          'Run /pump-buy with same params to execute.',
+          'Run same command without --simulate to execute.',
         ].join('\n'),
       );
       return;
@@ -789,14 +808,89 @@ function App() {
     }
 
     pushMessage(
-      'assistant',
-      [
-        'Pump buy sent (meta IDL -> write-raw).',
-        `token: ${options.value.tokenMint}`,
-        `pool: ${selectedPoolAddress}`,
-        `minBaseOut: ${minOutAtomic}`,
+        'assistant',
+        [
+          'Pump AMM tx sent (meta IDL -> write-raw).',
+          `token: ${options.value.tokenMint}`,
+          `pool: ${selectedPoolAddress}`,
+          `minBaseOut: ${minOutAtomic}`,
         result.signature,
         result.explorerUrl,
+      ].join('\n'),
+    );
+  }
+
+  async function executePumpCurve(options: {
+    value: PumpCurveCommand;
+  }): Promise<void> {
+    if (!options.value.simulate) {
+      throw new Error(
+        'Pump curve send is not implemented in this MVP yet. Use --simulate for quote-only path.',
+      );
+    }
+
+    const mint = new PublicKey(options.value.tokenMint);
+    const [bondingCurve] = PublicKey.findProgramAddressSync(
+      [new TextEncoder().encode('bonding-curve'), mint.toBuffer()],
+      PUMP_BONDING_PROGRAM_ID,
+    );
+
+    const curveAccount = await connection.getAccountInfo(bondingCurve, 'confirmed');
+    if (!curveAccount) {
+      throw new Error(
+        'No Pump bonding-curve account found for this mint. It may be non-Pump token or only tradable on another venue.',
+      );
+    }
+
+    const decoded = await decodeIdlAccount({
+      protocolId: PUMP_PROTOCOL_ID,
+      accountType: 'BondingCurve',
+      address: bondingCurve.toBase58(),
+      connection,
+    });
+    const data = asRecord(decoded.data, 'bonding_curve');
+    const virtualTokenReserves = BigInt(
+      asIntegerLikeString(data.virtual_token_reserves, 'bonding_curve.virtual_token_reserves'),
+    );
+    const virtualSolReserves = BigInt(
+      asIntegerLikeString(data.virtual_sol_reserves, 'bonding_curve.virtual_sol_reserves'),
+    );
+    const realTokenReserves = BigInt(asIntegerLikeString(data.real_token_reserves, 'bonding_curve.real_token_reserves'));
+    const realSolReserves = BigInt(asIntegerLikeString(data.real_sol_reserves, 'bonding_curve.real_sol_reserves'));
+    const complete = asBoolean(data.complete, 'bonding_curve.complete');
+
+    const solIn = BigInt(options.value.amountAtomic);
+    let estimatedOut = 0n;
+    if (!complete && realTokenReserves > 0n && virtualTokenReserves > 0n && virtualSolReserves > 0n && solIn > 0n) {
+      const k = virtualTokenReserves * virtualSolReserves;
+      const newVirtualSol = virtualSolReserves + solIn;
+      const newVirtualToken = k / newVirtualSol;
+      const grossOut = virtualTokenReserves > newVirtualToken ? virtualTokenReserves - newVirtualToken : 0n;
+      estimatedOut = grossOut > realTokenReserves ? realTokenReserves : grossOut;
+    }
+
+    const minOut = (estimatedOut * BigInt(10_000 - options.value.slippageBps)) / 10_000n;
+    let tokenDecimals = 6;
+    try {
+      const tokenSupply = await connection.getTokenSupply(mint, 'confirmed');
+      tokenDecimals = tokenSupply.value.decimals;
+    } catch {
+      tokenDecimals = 6;
+    }
+
+    const estimatedOutUi = formatTokenAmount(estimatedOut.toString(), tokenDecimals);
+    const minOutUi = formatTokenAmount(minOut.toString(), tokenDecimals);
+    pushMessage(
+      'assistant',
+      [
+        'Pump bonding-curve simulate:',
+        `token: ${options.value.tokenMint}`,
+        `bondingCurve: ${bondingCurve.toBase58()}`,
+        `input: ${options.value.amountUiSol} SOL (${options.value.amountAtomic} lamports)`,
+        `estimated output: ${estimatedOutUi} tokens (${estimatedOut.toString()} atomic)`,
+        `min output @ ${options.value.slippageBps} bps: ${minOutUi} tokens (${minOut.toString()} atomic)`,
+        `curve status: complete=${complete}, real_token_reserves=${realTokenReserves.toString()}, real_sol_reserves=${realSolReserves.toString()}`,
+        'note: curve quote uses deterministic reserve math from on-chain bonding-curve account state.',
       ].join('\n'),
     );
   }
@@ -821,8 +915,7 @@ function App() {
           if (zeroBasedIndex < 0 || zeroBasedIndex >= pendingPoolSelection.candidates.length) {
             throw new Error(`Pool selection out of range. Choose 1-${pendingPoolSelection.candidates.length}.`);
           }
-          await executeSwapOrQuote({
-            kind: pendingPoolSelection.kind,
+          await executeOrca({
             value: pendingPoolSelection.command,
             whirlpool: pendingPoolSelection.candidates[zeroBasedIndex].whirlpool,
           });
@@ -897,17 +990,22 @@ function App() {
         return;
       }
 
-      if (parsed.kind === 'swap' || parsed.kind === 'quote') {
-        await executeSwapOrQuote({
-          kind: parsed.kind,
+      if (parsed.kind === 'orca') {
+        await executeOrca({
           value: parsed.value,
         });
         return;
       }
 
-      if (parsed.kind === 'pump-buy' || parsed.kind === 'pump-quote') {
-        await executePumpBuyOrQuote({
-          kind: parsed.kind,
+      if (parsed.kind === 'pump-amm') {
+        await executePumpAmm({
+          value: parsed.value,
+        });
+        return;
+      }
+
+      if (parsed.kind === 'pump-curve') {
+        await executePumpCurve({
           value: parsed.value,
         });
         return;
@@ -956,8 +1054,7 @@ function App() {
     pushMessage('user', String(oneBased));
     setIsWorking(true);
     try {
-      await executeSwapOrQuote({
-        kind: pendingPoolSelection.kind,
+      await executeOrca({
         value: pendingPoolSelection.command,
         whirlpool: pendingPoolSelection.candidates[index].whirlpool,
       });
@@ -1016,7 +1113,7 @@ function App() {
             type="text"
             value={commandInput}
             onChange={(event) => setCommandInput(event.target.value)}
-            placeholder="/swap SOL USDC 0.1 50"
+            placeholder="/orca SOL USDC 0.1 50 --simulate"
             disabled={isWorking}
             aria-label="Command input"
           />

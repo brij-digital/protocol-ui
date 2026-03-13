@@ -19,7 +19,7 @@
       "idlPath": "/idl/orca_whirlpool.json",
       "metaPath": "/idl/orca_whirlpool.meta.json",
       "transport": "local-orca-whirlpool",
-      "supportedCommands": ["/swap", "/quote"],
+      "supportedCommands": ["/orca"],
       "status": "active"
     },
     {
@@ -30,7 +30,7 @@
       "idlPath": "/idl/pump_amm.json",
       "metaPath": "/idl/pump_amm.meta.json",
       "transport": "local-pump-amm",
-      "supportedCommands": ["/pump-quote", "/pump-buy"],
+      "supportedCommands": ["/pump-amm", "/pump-curve"],
       "status": "active"
     }
   ]

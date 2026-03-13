@@ -36,7 +36,7 @@
             "sort": [
               { "path": "decoded.lp_supply", "dir": "desc" }
             ],
-            "limit": 1,
+            "limit": 10,
             "select": {
               "pool": "$account.pubkey",
               "baseMint": "$decoded.base_mint",

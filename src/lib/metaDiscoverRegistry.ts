@@ -417,9 +417,9 @@ async function fetchProgramAccountsViaV2(options: {
   maxAccounts?: number;
 }): Promise<ProgramAccountLike[]> {
   const output: ProgramAccountLike[] = [];
-  const pageLimit = Math.min(1000, Math.max(1, options.maxAccounts ?? 1000));
-  const maxPages = 25;
   const maxAccounts = options.maxAccounts ?? 25_000;
+  const pageLimit = Math.min(1000, Math.max(1, maxAccounts));
+  const maxPages = Math.max(1, Math.ceil(maxAccounts / pageLimit));
   let paginationKey: string | null = null;
 
   for (let page = 0; page < maxPages; page += 1) {
@@ -459,6 +459,7 @@ async function fetchProgramAccountsViaV2(options: {
       body.result && typeof body.result === 'object' && !Array.isArray(body.result)
         ? (body.result as Record<string, unknown>)
         : null;
+    const resultCount = resultObject?.count === undefined ? null : asNumberLike(resultObject.count, 'getProgramAccountsV2.result.count');
     const accountsRaw = Array.isArray(body.result)
       ? body.result
       : Array.isArray(resultObject?.accounts)
@@ -469,6 +470,9 @@ async function fetchProgramAccountsViaV2(options: {
     const accounts = accountsRaw.map((entry, index) =>
       asProgramAccountLike(entry, `getProgramAccountsV2.accounts[${index}]`),
     );
+    if (accounts.length === 0 || resultCount === 0) {
+      break;
+    }
     output.push(...accounts);
 
     if (output.length >= maxAccounts) {
@@ -591,7 +595,7 @@ async function runDiscoverQueryHttpJson(step: DiscoverStepResolved): Promise<unk
 async function runDiscoverCompareValues(step: DiscoverStepResolved): Promise<unknown> {
   const items = asArray(step.items, `discover:${step.name}:items`);
   if (items.length === 0) {
-    throw new Error(`discover:${step.name}:items must not be empty.`);
+    throw new Error(`discover:${step.name}: no candidates found.`);
   }
 
   const mode = step.mode === undefined ? 'first' : asString(step.mode, `discover:${step.name}:mode`);
@@ -629,7 +633,7 @@ async function runDiscoverCompareValues(step: DiscoverStepResolved): Promise<unk
 async function runDiscoverPickListItem(step: DiscoverStepResolved): Promise<unknown> {
   const items = asArray(step.items, `discover:${step.name}:items`);
   if (items.length === 0) {
-    throw new Error(`discover:${step.name}:items must not be empty.`);
+    throw new Error(`discover:${step.name}: no candidates found.`);
   }
 
   const indexRaw = step.index === undefined ? 0 : asSafeInteger(step.index, `discover:${step.name}:index`);
@@ -665,7 +669,7 @@ function resolveOptionalMatchValue(step: DiscoverStepResolved, ctx: DiscoverRunt
 async function runDiscoverPickListItemByValue(step: DiscoverStepResolved, ctx: DiscoverRuntimeContext): Promise<unknown> {
   const items = resolveItemsMaybe(step, ctx);
   if (items.length === 0) {
-    throw new Error(`discover:${step.name}:items must not be empty.`);
+    throw new Error(`discover:${step.name}: no candidates found.`);
   }
 
   const valuePath = asString(step.value_path, `discover:${step.name}:value_path`);
