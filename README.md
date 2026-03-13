@@ -22,15 +22,17 @@ Global tooling commands:
 
 Protocol-native commands:
 - Orca: `/swap <INPUT_TOKEN> <OUTPUT_TOKEN> <AMOUNT> <SLIPPAGE_BPS>`, `/quote <INPUT_TOKEN> <OUTPUT_TOKEN> <AMOUNT> <SLIPPAGE_BPS>`
-- Pump AMM: `/pump-quote <TOKEN_MINT> <AMOUNT_SOL> <SLIPPAGE_BPS> [POOL_PUBKEY]`, `/pump-buy <TOKEN_MINT> <AMOUNT_SOL> <SLIPPAGE_BPS> [POOL_PUBKEY]`
+- Pump AMM: `/pump-amm <TOKEN_MINT> <AMOUNT_SOL> <SLIPPAGE_BPS> [POOL_PUBKEY] [--simulate]`
+- Pump curve: `/pump-curve <TOKEN_MINT> <AMOUNT_SOL> <SLIPPAGE_BPS> [--simulate]`
 
 Examples:
 
 ```text
 /quote SOL USDC 0.1 50
 /swap SOL USDC 0.1 50
-/pump-quote <TOKEN_MINT> 0.01 100
-/pump-buy <TOKEN_MINT> 0.01 100
+/pump-amm <TOKEN_MINT> 0.01 100 --simulate
+/pump-amm <TOKEN_MINT> 0.01 100
+/pump-curve <TOKEN_MINT> 0.01 100 --simulate
 /meta-explain orca-whirlpool-mainnet swap_exact_in
 /meta-explain pump-amm-mainnet buy
 ```
@@ -122,7 +124,7 @@ npm run build
 
 - The app targets `mainnet-beta` by default.
 - Swap execution requires a connected Phantom wallet.
-- `/swap`, `/quote`, `/pump-quote`, and `/pump-buy` are strict declarative wrappers: discover + derive gather on-chain state, then app uses RPC simulation to estimate output and compute slippage threshold before send.
+- `/swap`, `/quote`, `/pump-amm`, and `/pump-curve` are strict declarative wrappers: discover + derive gather on-chain state, then app uses RPC simulation to estimate output and compute slippage threshold before send.
 - Pool discovery uses declarative `discover.query`:
   - if `whirlpool` is provided, runtime fetches that account directly;
   - otherwise runtime scans via `getProgramAccounts` filters.

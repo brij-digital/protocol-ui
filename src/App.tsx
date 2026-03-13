@@ -621,7 +621,8 @@ function App() {
         operationId: PUMP_AMM_OPERATION_ID,
         input: {
           base_mint: options.value.tokenMint,
-          max_quote_amount_in: options.value.amountAtomic,
+          spendable_quote_in: options.value.amountAtomic,
+          min_base_amount_out: '1',
           slippage_bps: options.value.slippageBps,
           ...(options.value.pool ? { pool: options.value.pool } : {}),
         },
@@ -753,13 +754,13 @@ function App() {
       return preview;
     };
 
-    const finalArgs = prepared.args as Record<string, unknown>;
+    const provisionalArgs = prepared.args as Record<string, unknown>;
     let simulation: Awaited<ReturnType<typeof simulateIdlInstruction>>;
     try {
       simulation = await simulateIdlInstruction({
         protocolId: prepared.protocolId,
         instructionName: prepared.instructionName,
-        args: finalArgs,
+        args: provisionalArgs,
         accounts: prepared.accounts,
         remainingAccounts: prepared.remainingAccounts,
         preInstructions,
@@ -770,12 +771,12 @@ function App() {
       });
     } catch (error) {
       const base = error instanceof Error ? error.message : 'Unknown simulation error.';
-      const rawPreview = await getRawPreview(finalArgs);
+      const rawPreview = await getRawPreview(provisionalArgs);
       throw new Error(`${base}\n\nRaw instruction preview:\n${asPrettyJson(rawPreview)}`);
     }
 
     if (!simulation.ok) {
-      const rawPreview = await getRawPreview(finalArgs);
+      const rawPreview = await getRawPreview(provisionalArgs);
       const simError = simulation.error ?? 'unknown';
       const logs = simulation.logs.join('\n');
       throw new Error(`Simulation failed: ${simError}\n${logs}\n\nRaw instruction preview:\n${asPrettyJson(rawPreview)}`);
@@ -791,8 +792,13 @@ function App() {
     if (estimatedOutAtomicBigint <= 0n) {
       throw new Error('Could not estimate Pump output from simulation (estimated output is zero).');
     }
-    const requestedBaseOut = asIntegerLikeString(finalArgs.base_amount_out, 'args.base_amount_out');
-    const maxQuoteIn = asIntegerLikeString(finalArgs.max_quote_amount_in, 'args.max_quote_amount_in');
+    const minBaseOutAtomicBigint = (estimatedOutAtomicBigint * BigInt(10_000 - options.value.slippageBps)) / 10_000n;
+    const minBaseOutAtomic = (minBaseOutAtomicBigint > 0n ? minBaseOutAtomicBigint : 1n).toString();
+    const finalArgs: Record<string, unknown> = {
+      ...provisionalArgs,
+      min_base_amount_out: minBaseOutAtomic,
+    };
+    const spendableQuoteIn = asIntegerLikeString(finalArgs['spendable_quote_in'], 'args.spendable_quote_in');
 
     if (options.value.simulate) {
       pushMessage(
@@ -802,8 +808,8 @@ function App() {
           `token: ${options.value.tokenMint}`,
           `pool: ${selectedPoolAddress}`,
           `input: ${options.value.amountUiSol} SOL (${options.value.amountAtomic} lamports)`,
-          `requested base out: ${requestedBaseOut} base atomic`,
-          `max quote in: ${maxQuoteIn} lamports`,
+          `spendable quote in: ${spendableQuoteIn} lamports`,
+          `min base out @ ${options.value.slippageBps} bps: ${minBaseOutAtomic} base atomic`,
           `estimated output: ${estimatedOutAtomicBigint.toString()} base atomic`,
           `estimated quote spent: ${estimatedQuoteSpentAtomicBigint.toString()} lamports`,
           `simulation: ok${simulation.unitsConsumed ? ` (${simulation.unitsConsumed} CU)` : ''}`,
@@ -838,8 +844,8 @@ function App() {
         'Pump AMM tx sent (meta IDL -> write-raw).',
         `token: ${options.value.tokenMint}`,
         `pool: ${selectedPoolAddress}`,
-        `baseAmountOut: ${requestedBaseOut}`,
-        `maxQuoteIn: ${maxQuoteIn}`,
+        `minBaseAmountOut: ${minBaseOutAtomic}`,
+        `spendableQuoteIn: ${spendableQuoteIn}`,
         result.signature,
         result.explorerUrl,
       ].join('\n'),
