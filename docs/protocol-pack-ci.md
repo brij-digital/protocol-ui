@@ -9,6 +9,7 @@ npm run pack:check
 npm run ci:protocol-packs
 npm run pack:rpc-check
 npm run ci:protocol-packs:rpc
+npm run pack:doctor -- --protocol <protocol-id>
 ```
 
 `ci:protocol-packs` runs:

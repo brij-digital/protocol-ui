@@ -232,86 +232,86 @@
           }
         ]
       }
+    },
+    "orca.list_pools.v1": {
+      "params": {
+        "token_in_mint": {
+          "type": "pubkey"
+        },
+        "token_out_mint": {
+          "type": "pubkey"
+        }
+      },
+      "expand": {
+        "discover": [
+          {
+            "name": "pool_candidates",
+            "discover": "discover.query",
+            "source": "rpc.getProgramAccounts",
+            "program_id": "$protocol.programId",
+            "account_type": "Whirlpool",
+            "commitment": "confirmed",
+            "or_filters": [
+              [
+                {
+                  "memcmp": {
+                    "offset": 101,
+                    "bytesFrom": "$param.token_in_mint"
+                  }
+                },
+                {
+                  "memcmp": {
+                    "offset": 181,
+                    "bytesFrom": "$param.token_out_mint"
+                  }
+                }
+              ],
+              [
+                {
+                  "memcmp": {
+                    "offset": 101,
+                    "bytesFrom": "$param.token_out_mint"
+                  }
+                },
+                {
+                  "memcmp": {
+                    "offset": 181,
+                    "bytesFrom": "$param.token_in_mint"
+                  }
+                }
+              ]
+            ],
+            "where": [
+              {
+                "path": "decoded.liquidity",
+                "op": ">",
+                "value": "0"
+              }
+            ],
+            "sort": [
+              {
+                "path": "decoded.liquidity",
+                "dir": "desc"
+              }
+            ],
+            "limit": 20,
+            "select": {
+              "whirlpool": "$account.pubkey",
+              "tokenMintA": "$decoded.token_mint_a",
+              "tokenMintB": "$decoded.token_mint_b",
+              "tickSpacing": "$decoded.tick_spacing",
+              "liquidity": "$decoded.liquidity"
+            }
+          }
+        ],
+        "derive": [],
+        "compute": [],
+        "args": {},
+        "accounts": {}
+      }
     }
   },
   "operations": {
-    "list_pools": {
-      "inputs": {
-        "token_in_mint": {
-          "type": "pubkey",
-          "required": true
-        },
-        "token_out_mint": {
-          "type": "pubkey",
-          "required": true
-        }
-      },
-      "discover": [
-        {
-          "name": "pool_candidates",
-          "discover": "discover.query",
-          "source": "rpc.getProgramAccounts",
-          "program_id": "$protocol.programId",
-          "account_type": "Whirlpool",
-          "commitment": "confirmed",
-          "or_filters": [
-            [
-              {
-                "memcmp": {
-                  "offset": 101,
-                  "bytesFrom": "$input.token_in_mint"
-                }
-              },
-              {
-                "memcmp": {
-                  "offset": 181,
-                  "bytesFrom": "$input.token_out_mint"
-                }
-              }
-            ],
-            [
-              {
-                "memcmp": {
-                  "offset": 101,
-                  "bytesFrom": "$input.token_out_mint"
-                }
-              },
-              {
-                "memcmp": {
-                  "offset": 181,
-                  "bytesFrom": "$input.token_in_mint"
-                }
-              }
-            ]
-          ],
-          "where": [
-            {
-              "path": "decoded.liquidity",
-              "op": ">",
-              "value": "0"
-            }
-          ],
-          "sort": [
-            {
-              "path": "decoded.liquidity",
-              "dir": "desc"
-            }
-          ],
-          "limit": 20,
-          "select": {
-            "whirlpool": "$account.pubkey",
-            "tokenMintA": "$decoded.token_mint_a",
-            "tokenMintB": "$decoded.token_mint_b",
-            "tickSpacing": "$decoded.tick_spacing",
-            "liquidity": "$decoded.liquidity"
-          }
-        }
-      ],
-      "derive": [],
-      "compute": [],
-      "args": {},
-      "accounts": {}
-    },
     "swap_exact_in": {
       "inputs": {
         "token_in_mint": {
@@ -353,6 +353,27 @@
             "amount_in": "$input.amount_in",
             "slippage_bps": "$input.slippage_bps",
             "estimated_out": "$input.estimated_out"
+          }
+        }
+      ]
+    },
+    "list_pools": {
+      "inputs": {
+        "token_in_mint": {
+          "type": "pubkey",
+          "required": true
+        },
+        "token_out_mint": {
+          "type": "pubkey",
+          "required": true
+        }
+      },
+      "use": [
+        {
+          "template": "orca.list_pools.v1",
+          "with": {
+            "token_in_mint": "$input.token_in_mint",
+            "token_out_mint": "$input.token_out_mint"
           }
         }
       ]

@@ -61,6 +61,7 @@ Supported token aliases for `/swap` and `/quote`:
 - Tutorial: `docs/meta-idl-tutorial.md`
   - Detailed end-to-end walkthrough of current `/quote` and `/swap` flow
 - AIDL authoring guide: `docs/aidl-authoring.md`
+- Pack builder guide: `docs/pack-builder.md`
 - Protocol pack CI guide: `docs/protocol-pack-ci.md`
 - Registry: `public/idl/registry.json`
 - Discover registry: `src/lib/metaDiscoverRegistry.ts`
@@ -142,6 +143,18 @@ Compile AIDL authoring files to canonical Meta IDL JSON:
 
 ```bash
 npm run aidl:compile
+```
+
+Scaffold a new protocol pack (IDL + AIDL + registry entry):
+
+```bash
+npm run pack:init -- --id my-protocol-mainnet --name "My Protocol" --program-id <PROGRAM_ID_BASE58>
+```
+
+Run pack diagnostics while authoring:
+
+```bash
+npm run pack:doctor -- --protocol my-protocol-mainnet
 ```
 
 Check that generated Meta IDL files are up to date:
