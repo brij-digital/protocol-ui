@@ -398,7 +398,22 @@
           "id": "discover",
           "operation": "list_pools",
           "title": "Discover Pools",
-          "description": "Fetch Whirlpool candidates sorted by liquidity."
+          "description": "Fetch Whirlpool candidates sorted by liquidity.",
+          "ui": {
+            "kind": "select_from_derived",
+            "source": "pool_candidates",
+            "bind_to": "selected_pool",
+            "value_path": "whirlpool",
+            "label_fields": [
+              "whirlpool",
+              "tickSpacing",
+              "liquidity"
+            ],
+            "require_selection": true,
+            "auto_advance": true,
+            "title": "Select a pool",
+            "description": "Pick one discovered pool to continue to swap."
+          }
         },
         {
           "id": "swap",

@@ -162,6 +162,46 @@
         "input_from": {
           "type": "object",
           "additionalProperties": {}
+        },
+        "ui": {
+          "type": "object",
+          "required": [
+            "kind",
+            "source"
+          ],
+          "properties": {
+            "kind": {
+              "const": "select_from_derived"
+            },
+            "source": {
+              "type": "string"
+            },
+            "bind_to": {
+              "type": "string"
+            },
+            "value_path": {
+              "type": "string"
+            },
+            "label_fields": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "require_selection": {
+              "type": "boolean"
+            },
+            "auto_advance": {
+              "type": "boolean"
+            },
+            "title": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

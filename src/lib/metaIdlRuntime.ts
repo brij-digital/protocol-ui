@@ -96,6 +96,17 @@ type UserAppStepSpec = {
   title?: string;
   description?: string;
   input_from?: Record<string, unknown>;
+  ui?: {
+    kind: 'select_from_derived';
+    source: string;
+    bind_to?: string;
+    value_path?: string;
+    label_fields?: string[];
+    require_selection?: boolean;
+    auto_advance?: boolean;
+    title?: string;
+    description?: string;
+  };
 };
 
 type UserAppSpec = {
@@ -257,6 +268,17 @@ export type MetaAppStepSummary = {
   title: string;
   description?: string;
   inputFrom: Record<string, unknown>;
+  ui?: {
+    kind: 'select_from_derived';
+    source: string;
+    bindTo: string;
+    valuePath: string;
+    labelFields: string[];
+    requireSelection: boolean;
+    autoAdvance: boolean;
+    title?: string;
+    description?: string;
+  };
 };
 
 export type MetaAppSummary = {
@@ -1369,6 +1391,40 @@ export async function listMetaApps(options: {
               step.input_from && typeof step.input_from === 'object' && !Array.isArray(step.input_from)
                 ? (cloneJsonLike(step.input_from) as Record<string, unknown>)
                 : {},
+            ...(step.ui && typeof step.ui === 'object' && !Array.isArray(step.ui)
+              ? {
+                  ui:
+                    step.ui.kind === 'select_from_derived' &&
+                    typeof step.ui.source === 'string' &&
+                    step.ui.source.length > 0
+                      ? {
+                          kind: 'select_from_derived' as const,
+                          source: step.ui.source,
+                          bindTo:
+                            typeof step.ui.bind_to === 'string' && step.ui.bind_to.length > 0
+                              ? step.ui.bind_to
+                              : 'selected_item',
+                          valuePath:
+                            typeof step.ui.value_path === 'string' && step.ui.value_path.length > 0
+                              ? step.ui.value_path
+                              : 'id',
+                          labelFields: Array.isArray(step.ui.label_fields)
+                            ? step.ui.label_fields
+                                .filter((entry): entry is string => typeof entry === 'string' && entry.length > 0)
+                            : [],
+                          requireSelection:
+                            step.ui.require_selection === undefined ? true : Boolean(step.ui.require_selection),
+                          autoAdvance: step.ui.auto_advance === undefined ? true : Boolean(step.ui.auto_advance),
+                          ...(typeof step.ui.title === 'string' && step.ui.title.length > 0
+                            ? { title: step.ui.title }
+                            : {}),
+                          ...(typeof step.ui.description === 'string' && step.ui.description.length > 0
+                            ? { description: step.ui.description }
+                            : {}),
+                        }
+                      : undefined,
+                }
+              : {}),
           } as MetaAppStepSummary;
         })
         .filter((entry): entry is MetaAppStepSummary => entry !== null);

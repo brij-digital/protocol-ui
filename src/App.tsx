@@ -196,6 +196,7 @@ function App() {
   const [builderAppId, setBuilderAppId] = useState('');
   const [builderAppStepIndex, setBuilderAppStepIndex] = useState(0);
   const [builderAppStepContexts, setBuilderAppStepContexts] = useState<Record<string, BuilderAppStepContext>>({});
+  const [builderAppStepCompleted, setBuilderAppStepCompleted] = useState<Record<string, boolean>>({});
   const [builderForms, setBuilderForms] = useState<BuilderUserForm[]>([]);
   const [builderFormId, setBuilderFormId] = useState('');
   const [builderOperations, setBuilderOperations] = useState<MetaOperationSummary[]>([]);
@@ -203,6 +204,7 @@ function App() {
   const [builderViewMode, setBuilderViewMode] = useState<BuilderViewMode>('enduser');
   const [builderInputValues, setBuilderInputValues] = useState<Record<string, string>>({});
   const [builderSimulate, setBuilderSimulate] = useState(true);
+  const [builderAppSubmitMode, setBuilderAppSubmitMode] = useState<'simulate' | 'send'>('simulate');
   const [builderStatusText, setBuilderStatusText] = useState<string | null>(null);
   const [builderRawDetails, setBuilderRawDetails] = useState<string | null>(null);
   const [builderShowRawDetails, setBuilderShowRawDetails] = useState(false);
@@ -219,12 +221,52 @@ function App() {
     () => builderApps.find((entry) => entry.appId === builderAppId) ?? null,
     [builderApps, builderAppId],
   );
+  const isBuilderAppMode = builderViewMode === 'enduser' && !!selectedBuilderApp;
   const selectedBuilderAppStep = useMemo(() => {
     if (!selectedBuilderApp) {
       return null;
     }
     return selectedBuilderApp.steps[builderAppStepIndex] ?? null;
   }, [selectedBuilderApp, builderAppStepIndex]);
+  const selectedBuilderAppStepContext = useMemo(() => {
+    if (!selectedBuilderAppStep) {
+      return null;
+    }
+    return builderAppStepContexts[selectedBuilderAppStep.stepId] ?? null;
+  }, [selectedBuilderAppStep, builderAppStepContexts]);
+  const selectedBuilderAppSelectUi = useMemo(() => {
+    if (!selectedBuilderAppStep || !selectedBuilderAppStep.ui) {
+      return null;
+    }
+    return selectedBuilderAppStep.ui.kind === 'select_from_derived' ? selectedBuilderAppStep.ui : null;
+  }, [selectedBuilderAppStep]);
+  const selectedBuilderAppSelectableItems = useMemo(() => {
+    if (!selectedBuilderAppStepContext || !selectedBuilderAppSelectUi) {
+      return [] as unknown[];
+    }
+    const fromDerived = readBuilderPath(
+      selectedBuilderAppStepContext.derived,
+      selectedBuilderAppSelectUi.source,
+    );
+    return Array.isArray(fromDerived) ? fromDerived : [];
+  }, [selectedBuilderAppStepContext, selectedBuilderAppSelectUi]);
+  const showBuilderSelectableItems = useMemo(
+    () =>
+      builderViewMode === 'enduser' &&
+      !!selectedBuilderAppSelectUi &&
+      selectedBuilderAppSelectableItems.length > 0,
+    [builderViewMode, selectedBuilderAppSelectUi, selectedBuilderAppSelectableItems],
+  );
+  const selectedBuilderSelectedItemValue = useMemo(() => {
+    if (!selectedBuilderAppStepContext || !selectedBuilderAppSelectUi) {
+      return null;
+    }
+    const selectedItem = readBuilderPath(selectedBuilderAppStepContext.derived, selectedBuilderAppSelectUi.bindTo);
+    if (selectedItem === undefined) {
+      return null;
+    }
+    return readBuilderPath(selectedItem, selectedBuilderAppSelectUi.valuePath);
+  }, [selectedBuilderAppStepContext, selectedBuilderAppSelectUi]);
   const effectiveBuilderOperationId = useMemo(
     () =>
       builderViewMode === 'enduser'
@@ -301,6 +343,7 @@ function App() {
       setBuilderAppId('');
       setBuilderAppStepIndex(0);
       setBuilderAppStepContexts({});
+      setBuilderAppStepCompleted({});
       setBuilderForms([]);
       setBuilderFormId('');
       setBuilderOperations([]);
@@ -334,6 +377,7 @@ function App() {
       });
       setBuilderAppStepIndex(0);
       setBuilderAppStepContexts({});
+      setBuilderAppStepCompleted({});
       setBuilderForms(formsView.forms);
       setBuilderFormId((current) => {
         if (current && formsView.forms.some((entry) => entry.formId === current)) {
@@ -368,6 +412,7 @@ function App() {
         setBuilderAppId('');
         setBuilderAppStepIndex(0);
         setBuilderAppStepContexts({});
+        setBuilderAppStepCompleted({});
         setBuilderForms([]);
         setBuilderFormId('');
         setBuilderOperations([]);
@@ -471,6 +516,33 @@ function App() {
     return current;
   }
 
+  function writeBuilderPath(value: Record<string, unknown>, path: string, nextValue: unknown): Record<string, unknown> {
+    const cleaned = path.startsWith('$') ? path.slice(1) : path;
+    const parts = cleaned.split('.').filter(Boolean);
+    if (parts.length === 0) {
+      return value;
+    }
+
+    const nextRoot: Record<string, unknown> = { ...value };
+    let current: Record<string, unknown> = nextRoot;
+    for (let i = 0; i < parts.length - 1; i += 1) {
+      const key = parts[i];
+      const existing = current[key];
+      if (!existing || typeof existing !== 'object' || Array.isArray(existing)) {
+        current[key] = {};
+      } else {
+        current[key] = { ...(existing as Record<string, unknown>) };
+      }
+      current = current[key] as Record<string, unknown>;
+    }
+    current[parts[parts.length - 1]] = nextValue;
+    return nextRoot;
+  }
+
+  function valuesEqualForSelection(left: unknown, right: unknown): boolean {
+    return JSON.stringify(left) === JSON.stringify(right);
+  }
+
   function resolveBuilderAppInputFrom(
     value: unknown,
     contexts: Record<string, BuilderAppStepContext>,
@@ -484,6 +556,34 @@ function App() {
       );
     }
     return value;
+  }
+
+  function formatBuilderSelectableItemLabel(
+    item: unknown,
+    index: number,
+    ui: NonNullable<MetaAppSummary['steps'][number]['ui']>,
+  ): string {
+    if (item && typeof item === 'object' && !Array.isArray(item)) {
+      const record = item as Record<string, unknown>;
+      if (ui.labelFields.length > 0) {
+        const values = ui.labelFields
+          .map((field) => readBuilderPath(record, field))
+          .filter((entry) => entry !== undefined && entry !== null)
+          .map((entry) => String(entry));
+        if (values.length > 0) {
+          return `${index + 1}. ${values.join(' | ')}`;
+        }
+      }
+      const selected = readBuilderPath(record, ui.valuePath);
+      if (selected !== undefined) {
+        return `${index + 1}. ${String(selected)}`;
+      }
+      const firstKeys = Object.keys(record).slice(0, 3);
+      if (firstKeys.length > 0) {
+        return `${index + 1}. ${firstKeys.map((key) => `${key}=${String(record[key])}`).join(' | ')}`;
+      }
+    }
+    return `${index + 1}. ${String(item)}`;
   }
 
   function isAutoResolvedBuilderInput(spec: MetaOperationSummary['inputs'][string]): boolean {
@@ -622,6 +722,8 @@ function App() {
     if (firstApp && firstApp.steps.length > 0) {
       setBuilderAppId(firstApp.appId);
       setBuilderAppStepIndex(0);
+      setBuilderAppStepContexts({});
+      setBuilderAppStepCompleted({});
       setBuilderOperationId(firstApp.steps[0].operationId);
       return;
     }
@@ -636,6 +738,71 @@ function App() {
 
   function handleBuilderModeGeek() {
     setBuilderViewMode('geek');
+  }
+
+  function handleBuilderAppBackStep() {
+    if (!selectedBuilderApp || builderAppStepIndex <= 0) {
+      return;
+    }
+    const previousIndex = builderAppStepIndex - 1;
+    const previousStep = selectedBuilderApp.steps[previousIndex];
+    setBuilderAppStepIndex(previousIndex);
+    setBuilderOperationId(previousStep.operationId);
+  }
+
+  function handleBuilderAppSelectItem(item: unknown) {
+    if (!selectedBuilderAppStep || !selectedBuilderApp || !selectedBuilderAppSelectUi) {
+      return;
+    }
+    clearBuilderAppProgressFrom(builderAppStepIndex + 1);
+    const currentStepId = selectedBuilderAppStep.stepId;
+    const bindPath = selectedBuilderAppSelectUi.bindTo;
+    setBuilderAppStepContexts((prev) => {
+      const current = prev[currentStepId];
+      if (!current) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [currentStepId]: {
+          ...current,
+          derived: writeBuilderPath({ ...current.derived }, bindPath, item),
+        },
+      };
+    });
+    setBuilderAppStepCompleted((prev) => ({
+      ...prev,
+      [currentStepId]: true,
+    }));
+
+    if (builderAppStepIndex + 1 < selectedBuilderApp.steps.length) {
+      const nextIndex = builderAppStepIndex + 1;
+      const nextStep = selectedBuilderApp.steps[nextIndex];
+      if (selectedBuilderAppSelectUi.autoAdvance) {
+        setBuilderAppStepIndex(nextIndex);
+        setBuilderOperationId(nextStep.operationId);
+      }
+      const selectedValue = readBuilderPath(item, selectedBuilderAppSelectUi.valuePath);
+      setBuilderStatusText(
+        `Selected item: ${selectedValue === undefined ? 'n/a' : String(selectedValue)}. ${
+          selectedBuilderAppSelectUi.autoAdvance
+            ? `Continue on step ${nextIndex + 1}: ${nextStep.title}.`
+            : 'Proceed to the next step when ready.'
+        }`,
+      );
+      setBuilderRawDetails(null);
+      setBuilderShowRawDetails(false);
+    }
+  }
+
+  function handleBuilderAppResetCurrentStep() {
+    if (!selectedBuilderApp) {
+      return;
+    }
+    clearBuilderAppProgressFrom(builderAppStepIndex);
+    setBuilderStatusText('Step reset. Adjust inputs and run again.');
+    setBuilderRawDetails(null);
+    setBuilderShowRawDetails(false);
   }
 
   function asRecord(value: unknown, label: string): Record<string, unknown> {
@@ -753,6 +920,59 @@ function App() {
         instructionName: options.prepared.instructionName,
       },
     }));
+  }
+
+  function setBuilderAppCurrentStepCompleted(completed: boolean) {
+    if (builderViewMode !== 'enduser' || !selectedBuilderAppStep) {
+      return;
+    }
+    setBuilderAppStepCompleted((prev) => ({
+      ...prev,
+      [selectedBuilderAppStep.stepId]: completed,
+    }));
+  }
+
+  function clearBuilderAppProgressFrom(startIndex: number) {
+    if (!selectedBuilderApp) {
+      return;
+    }
+    const stepIdsToClear = selectedBuilderApp.steps.slice(startIndex).map((step) => step.stepId);
+    if (stepIdsToClear.length === 0) {
+      return;
+    }
+    setBuilderAppStepContexts((prev) => {
+      const next = { ...prev };
+      for (const stepId of stepIdsToClear) {
+        delete next[stepId];
+      }
+      return next;
+    });
+    setBuilderAppStepCompleted((prev) => {
+      const next = { ...prev };
+      for (const stepId of stepIdsToClear) {
+        delete next[stepId];
+      }
+      return next;
+    });
+  }
+
+  function canOpenBuilderAppStep(targetIndex: number): boolean {
+    if (!selectedBuilderApp) {
+      return false;
+    }
+    if (targetIndex < 0 || targetIndex >= selectedBuilderApp.steps.length) {
+      return false;
+    }
+    if (targetIndex === 0) {
+      return true;
+    }
+    for (let i = 0; i < targetIndex; i += 1) {
+      const stepId = selectedBuilderApp.steps[i].stepId;
+      if (!builderAppStepCompleted[stepId]) {
+        return false;
+      }
+    }
+    return true;
   }
 
   function getMintDisplay(mint: string): { label: string; decimals: number | null } {
@@ -2224,6 +2444,14 @@ function App() {
     setBuilderRawDetails(null);
     setBuilderShowRawDetails(false);
 
+    if (builderViewMode === 'enduser' && selectedBuilderAppStep && selectedBuilderApp) {
+      clearBuilderAppProgressFrom(builderAppStepIndex);
+      setBuilderAppStepCompleted((prev) => ({
+        ...prev,
+        [selectedBuilderAppStep.stepId]: false,
+      }));
+    }
+
     try {
       const inputPayload: Record<string, unknown> = {};
       for (const [inputName, spec] of Object.entries(selectedBuilderOperation.inputs)) {
@@ -2424,6 +2652,14 @@ function App() {
           executionInput,
           prepared,
         });
+        if (selectedBuilderAppSelectUi?.kind === 'select_from_derived' && selectedBuilderAppSelectUi.requireSelection) {
+          setBuilderAppStepCompleted((prev) => ({
+            ...prev,
+            [selectedBuilderAppStep!.stepId]: false,
+          }));
+        } else {
+          setBuilderAppCurrentStepCompleted(true);
+        }
         pushMessage('assistant', resultLines.join('\n'));
         return;
       }
@@ -2435,8 +2671,9 @@ function App() {
         walletPublicKey: wallet.publicKey,
       });
       const postInstructions = buildMetaPostInstructions(prepared.postInstructions);
+      const runAsSimulation = isBuilderAppMode ? builderAppSubmitMode === 'simulate' : builderSimulate;
 
-      if (builderSimulate) {
+      if (runAsSimulation) {
         const simulation = await simulateIdlInstruction({
           protocolId: prepared.protocolId,
           instructionName: prepared.instructionName,
@@ -2492,7 +2729,13 @@ function App() {
           ...(simulationHighlights.length > 0 ? simulationHighlights : []),
           ...(builderNotes.length > 0 ? builderNotes : []),
           `error: ${simulation.error ?? 'none'}`,
-          ...(simulation.ok ? ['next: disable simulate and click Send Transaction.'] : []),
+          ...(simulation.ok
+            ? [
+                isBuilderAppMode
+                  ? 'next: click Send Transaction when ready.'
+                  : 'next: disable simulate and click Send Transaction.',
+              ]
+            : []),
         ];
         setBuilderResult(resultLines, {
           input: executionInput,
@@ -2506,6 +2749,7 @@ function App() {
             executionInput,
             prepared,
           });
+          setBuilderAppCurrentStepCompleted(true);
         }
         pushMessage('assistant', resultLines.join('\n'));
         return;
@@ -2535,6 +2779,7 @@ function App() {
         executionInput,
         prepared,
       });
+      setBuilderAppCurrentStepCompleted(true);
       pushMessage('assistant', resultLines.join('\n'));
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown builder error.';
@@ -2853,6 +3098,8 @@ function App() {
                             onClick={() => {
                               setBuilderAppId(app.appId);
                               setBuilderAppStepIndex(0);
+                              setBuilderAppStepContexts({});
+                              setBuilderAppStepCompleted({});
                               if (app.steps[0]) {
                                 setBuilderOperationId(app.steps[0].operationId);
                               }
@@ -2915,8 +3162,11 @@ function App() {
                           key={step.stepId}
                           type="button"
                           className={builderAppStepIndex === index ? 'active' : ''}
-                          disabled={isWorking}
+                          disabled={isWorking || !canOpenBuilderAppStep(index)}
                           onClick={() => {
+                            if (!canOpenBuilderAppStep(index)) {
+                              return;
+                            }
                             setBuilderAppStepIndex(index);
                             setBuilderOperationId(step.operationId);
                           }}
@@ -2925,6 +3175,16 @@ function App() {
                         </button>
                       ))}
                     </div>
+                    {builderAppStepIndex > 0 ? (
+                      <button
+                        type="button"
+                        className="builder-back"
+                        onClick={handleBuilderAppBackStep}
+                        disabled={isWorking}
+                      >
+                        Back to previous step
+                      </button>
+                    ) : null}
                     {selectedBuilderAppStep?.description ? (
                       <p className="builder-note">{selectedBuilderAppStep.description}</p>
                     ) : null}
@@ -2940,68 +3200,154 @@ function App() {
                   instruction: <code>{selectedBuilderOperation.instruction || 'read-only'}</code>
                 </p>
 
-                {hiddenBuilderInputsCount > 0 && builderViewMode === 'enduser' ? (
-                  <p className="builder-note">
-                    {hiddenBuilderInputsCount} field(s) auto-resolved (default/derived/computed). Switch to Geek mode to view them.
-                  </p>
-                ) : null}
-
-                <div className="builder-inputs">
-                  {visibleBuilderInputs.map(([inputName, spec]) => {
-                    const editable = isBuilderInputEditable(spec);
-                    const fieldTag = getBuilderInputTag(spec);
-                    return (
-                    <label key={inputName}>
-                      <span>
-                        {inputName} <code>{spec.type}</code>{' '}
-                        {spec.required ? <strong>({fieldTag})</strong> : <em>({fieldTag})</em>}
-                      </span>
-                      <input
-                        type="text"
-                        value={builderInputValues[inputName] ?? ''}
-                        onChange={(event) =>
-                          setBuilderInputValues((prev) => ({
-                            ...prev,
-                            [inputName]: event.target.value,
-                          }))
-                        }
-                        placeholder={
-                          spec.default !== undefined
-                            ? `default: ${stringifyBuilderDefault(spec.default)}`
-                            : spec.discover_from
-                              ? `discover_from: ${spec.discover_from}`
-                            : ''
-                        }
-                        disabled={isWorking || !editable}
-                      />
-                    </label>
-                    );
-                  })}
-                </div>
-
-                <div className="builder-controls">
-                  <label className="builder-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={builderSimulate}
-                      onChange={(event) => setBuilderSimulate(event.target.checked)}
+                {showBuilderSelectableItems ? (
+                  <div className="builder-pool-selection">
+                    <p className="builder-note">
+                      {selectedBuilderAppSelectUi?.title ?? 'Choose one item to unlock the next step.'}
+                    </p>
+                    {selectedBuilderAppSelectUi?.description ? (
+                      <p className="builder-note">{selectedBuilderAppSelectUi.description}</p>
+                    ) : null}
+                    <div className="builder-pool-list">
+                      {selectedBuilderAppSelectableItems.map((item, index) => {
+                        const itemValue =
+                          selectedBuilderAppSelectUi
+                            ? readBuilderPath(item, selectedBuilderAppSelectUi.valuePath)
+                            : undefined;
+                        const isSelected = valuesEqualForSelection(itemValue, selectedBuilderSelectedItemValue);
+                        return (
+                        <button
+                          key={`${String(itemValue ?? index)}-${index}`}
+                          type="button"
+                          className={isSelected ? 'active' : ''}
+                          disabled={isWorking}
+                          onClick={() => handleBuilderAppSelectItem(item)}
+                        >
+                          {selectedBuilderAppSelectUi
+                            ? formatBuilderSelectableItemLabel(item, index, selectedBuilderAppSelectUi)
+                            : `${index + 1}. ${String(item)}`}
+                        </button>
+                        );
+                      })}
+                    </div>
+                    <button
+                      type="button"
+                      className="builder-back"
+                      onClick={handleBuilderAppResetCurrentStep}
                       disabled={isWorking}
-                    />
-                    simulate only (recommended first)
-                  </label>
-                  <button
-                    type="button"
-                    className="builder-prefill"
-                    onClick={handleBuilderPrefillExample}
-                    disabled={isWorking}
-                  >
-                    Prefill Example Data
-                  </button>
-                </div>
+                    >
+                      Back to search form
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {hiddenBuilderInputsCount > 0 && builderViewMode === 'enduser' ? (
+                      <p className="builder-note">
+                        {hiddenBuilderInputsCount} field(s) auto-resolved (default/derived/computed). Switch to Geek mode to view them.
+                      </p>
+                    ) : null}
 
-                <button type="submit" className="builder-submit" disabled={isWorking}>
-                  {isWorking ? 'Running...' : builderSimulate ? 'Run Simulation' : 'Send Transaction'}
-                </button>
+                    <div className="builder-inputs">
+                      {visibleBuilderInputs.map(([inputName, spec]) => {
+                        const editable = isBuilderInputEditable(spec);
+                        const fieldTag = getBuilderInputTag(spec);
+                        return (
+                        <label key={inputName}>
+                          <span>
+                            {inputName} <code>{spec.type}</code>{' '}
+                            {spec.required ? <strong>({fieldTag})</strong> : <em>({fieldTag})</em>}
+                          </span>
+                          <input
+                            type="text"
+                            value={builderInputValues[inputName] ?? ''}
+                            onChange={(event) =>
+                              setBuilderInputValues((prev) => ({
+                                ...prev,
+                                [inputName]: event.target.value,
+                              }))
+                            }
+                            placeholder={
+                              spec.default !== undefined
+                                ? `default: ${stringifyBuilderDefault(spec.default)}`
+                                : spec.discover_from
+                                  ? `discover_from: ${spec.discover_from}`
+                                : ''
+                            }
+                            disabled={isWorking || !editable}
+                          />
+                        </label>
+                        );
+                      })}
+                    </div>
+
+                    {isBuilderAppMode ? (
+                      <div className="builder-controls builder-controls-app">
+                        <button
+                          type="button"
+                          className="builder-prefill"
+                          onClick={handleBuilderPrefillExample}
+                          disabled={isWorking}
+                        >
+                          Prefill Example Data
+                        </button>
+                        {selectedBuilderOperation.instruction ? (
+                          <>
+                            <button
+                              type="submit"
+                              className="builder-submit"
+                              disabled={isWorking}
+                              onClick={() => setBuilderAppSubmitMode('simulate')}
+                            >
+                              {isWorking && builderAppSubmitMode === 'simulate' ? 'Running...' : 'Run Simulation'}
+                            </button>
+                            <button
+                              type="submit"
+                              className="builder-submit builder-submit-secondary"
+                              disabled={isWorking}
+                              onClick={() => setBuilderAppSubmitMode('send')}
+                            >
+                              {isWorking && builderAppSubmitMode === 'send' ? 'Running...' : 'Send Transaction'}
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="submit"
+                            className="builder-submit"
+                            disabled={isWorking}
+                          >
+                            {isWorking ? 'Running...' : 'Run'}
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        <div className="builder-controls">
+                          <label className="builder-checkbox">
+                            <input
+                              type="checkbox"
+                              checked={builderSimulate}
+                              onChange={(event) => setBuilderSimulate(event.target.checked)}
+                              disabled={isWorking}
+                            />
+                            simulate only (recommended first)
+                          </label>
+                          <button
+                            type="button"
+                            className="builder-prefill"
+                            onClick={handleBuilderPrefillExample}
+                            disabled={isWorking}
+                          >
+                            Prefill Example Data
+                          </button>
+                        </div>
+
+                        <button type="submit" className="builder-submit" disabled={isWorking}>
+                          {isWorking ? 'Running...' : builderSimulate ? 'Run Simulation' : 'Send Transaction'}
+                        </button>
+                      </>
+                    )}
+                  </>
+                )}
               </form>
             ) : (
               <div className="builder-empty">Select a protocol and action to start.</div>
