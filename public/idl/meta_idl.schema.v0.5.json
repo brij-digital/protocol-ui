@@ -1094,11 +1094,7 @@
             "value_path": {
               "type": "string"
             },
-            "match_value": {},
-            "fallback_index": {
-              "type": "integer",
-              "minimum": 0
-            }
+            "match_value": {}
           },
           "additionalProperties": false
         }

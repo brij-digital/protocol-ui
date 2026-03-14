@@ -1004,16 +1004,16 @@ async function runResolver(step: DeriveStep, ctx: ResolverContext): Promise<unkn
       if (!allowMissing) {
         throw error;
       }
-      const fallbackValue =
+      const defaultValue =
         step.default === undefined ? '0' : normalizeRuntimeValue(resolveTemplateValue(step.default, ctx.scope));
       if (
-        typeof fallbackValue !== 'string' &&
-        typeof fallbackValue !== 'number' &&
-        typeof fallbackValue !== 'bigint'
+        typeof defaultValue !== 'string' &&
+        typeof defaultValue !== 'number' &&
+        typeof defaultValue !== 'bigint'
       ) {
-        throw new Error(`Resolver token_account_balance fallback for ${step.name} must be integer-like.`);
+        throw new Error(`Resolver token_account_balance default for ${step.name} must be integer-like.`);
       }
-      return String(fallbackValue);
+      return String(defaultValue);
     }
   }
 

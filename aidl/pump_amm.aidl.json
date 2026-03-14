@@ -89,8 +89,7 @@
             "discover": "discover.pick_list_item_by_value",
             "items": "$pool_candidates",
             "value_path": "pool",
-            "match_value": "$input.pool",
-            "fallback_index": 0
+            "match_value": "$input.pool"
           }
         ],
         "derive": [
@@ -344,7 +343,7 @@
             }
           },
           {
-            "name": "selected_fee_tier_fallback",
+            "name": "selected_fee_tier_default",
             "max_by": {
               "items": "$fee_config_data.fee_tiers",
               "path": "market_cap_lamports_threshold",
@@ -355,7 +354,7 @@
             "name": "selected_fee_tier",
             "coalesce": [
               "$selected_fee_tier_primary",
-              "$selected_fee_tier_fallback"
+              "$selected_fee_tier_default"
             ]
           },
           {
