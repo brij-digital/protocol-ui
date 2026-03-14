@@ -517,7 +517,7 @@
             "source": "rpc.getProgramAccounts",
             "program_id": "$protocol.programId",
             "account_type": "Pool",
-            "discriminator_filter": false,
+            "discriminator_filter": true,
             "commitment": "confirmed",
             "filters": [
               {
@@ -577,7 +577,7 @@
             "source": "rpc.getProgramAccounts",
             "program_id": "$protocol.programId",
             "account_type": "Pool",
-            "discriminator_filter": false,
+            "discriminator_filter": true,
             "commitment": "confirmed",
             "account_pubkeys": "$param.pool",
             "filters": [],
