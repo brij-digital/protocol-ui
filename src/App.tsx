@@ -17,6 +17,7 @@ import {
   type KaminoViewPositionCommand,
   type KaminoWithdrawCommand,
   type OrcaCommand,
+  type OrcaListPoolsCommand,
   type PumpAmmCommand,
   type PumpCurveCommand,
 } from './app/commandParser';
@@ -52,7 +53,9 @@ const KAMINO_DEPOSIT_OPERATION_ID = 'deposit_reserve_liquidity';
 const KAMINO_WITHDRAW_OPERATION_ID = 'redeem_reserve_collateral';
 const KAMINO_VIEW_OPERATION_ID = 'view_position';
 const QUICK_PREFILL_SWAP_COMMAND =
-  '/orca EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v So11111111111111111111111111111111111111112 0.01 50 --simulate';
+  '/orca Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v So11111111111111111111111111111111111111112 0.01 50 --simulate';
+const QUICK_PREFILL_ORCA_LIST_POOLS_COMMAND =
+  '/orca-list-pools EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v So11111111111111111111111111111111111111112';
 const QUICK_PREFILL_PUMP_QUOTE_COMMAND =
   '/pump-amm C4yDhKwkikpVGCQWD9BT2SJyHAtRFFnKPDM9Nyshpump 0.01 100 --simulate';
 const QUICK_PREFILL_PUMP_CURVE_COMMAND =
@@ -112,11 +115,6 @@ type BuilderViewMode = 'enduser' | 'geek';
 
 type BuilderUserForm = MetaUserFormSummary;
 
-type PendingPoolSelection = {
-  command: OrcaCommand;
-  candidates: OrcaPoolCandidate[];
-};
-
 type OrcaPoolCandidate = {
   whirlpool: string;
   tokenMintA: string;
@@ -127,7 +125,8 @@ type OrcaPoolCandidate = {
 
 const HELP_TEXT = [
   'Commands:',
-  '/orca <INPUT_TOKEN> <OUTPUT_TOKEN> <AMOUNT> <SLIPPAGE_BPS> [--simulate]',
+  '/orca-list-pools <INPUT_TOKEN> <OUTPUT_TOKEN>',
+  '/orca <WHIRLPOOL> <INPUT_TOKEN> <OUTPUT_TOKEN> <AMOUNT> <SLIPPAGE_BPS> [--simulate]',
   '/pump-amm <TOKEN_MINT> <AMOUNT_SOL> <SLIPPAGE_BPS> [POOL_PUBKEY] [--simulate]',
   '/pump-curve <TOKEN_MINT> <AMOUNT_SOL> <SLIPPAGE_BPS> [--simulate]',
   '/kamino-deposit <RESERVE_OR_VAULT> <TOKEN_MINT> <AMOUNT> [--simulate]',
@@ -146,11 +145,11 @@ const HELP_TEXT = [
   'Pool discovery is on-chain via Orca program account scan.',
   'Pump quote/buy spends wrapped SOL (WSOL) under the hood.',
   'Kamino commands accept reserve pubkey or reserve vault pubkey as first argument.',
-  'If multiple pools match a pair, you will be asked to pick one (or provide a whirlpool override internally).',
   '',
   'Examples:',
-  '/orca SOL USDC 0.1 50 --simulate',
-  '/orca SOL USDC 0.1 50',
+  '/orca-list-pools SOL USDC',
+  '/orca <WHIRLPOOL> SOL USDC 0.1 50 --simulate',
+  '/orca <WHIRLPOOL> SOL USDC 0.1 50',
   '/pump-amm <TOKEN_MINT> 0.01 100 --simulate',
   '/pump-amm <TOKEN_MINT> 0.01 100',
   '/pump-curve <TOKEN_MINT> 0.01 100 --simulate',
@@ -174,13 +173,12 @@ function App() {
     {
       id: 1,
       role: 'assistant',
-      text: 'Espresso Cash MVP ready. Use /help to see commands.',
+      text: 'AgentForm ready. Use /help to see commands.',
     },
   ]);
   const [activeTab, setActiveTab] = useState<AppTab>('builder');
   const [commandInput, setCommandInput] = useState('');
   const [isWorking, setIsWorking] = useState(false);
-  const [pendingPoolSelection, setPendingPoolSelection] = useState<PendingPoolSelection | null>(null);
   const [builderProtocols, setBuilderProtocols] = useState<BuilderProtocol[]>([]);
   const [builderProtocolId, setBuilderProtocolId] = useState('');
   const [builderForms, setBuilderForms] = useState<BuilderUserForm[]>([]);
@@ -827,14 +825,14 @@ function App() {
     return `${(value * 100).toFixed(2)}%`;
   }
 
-  async function executeOrca(options: {
-    value: OrcaCommand;
-    whirlpool?: string;
+  async function executeOrcaListPools(options: {
+    value: OrcaListPoolsCommand;
   }): Promise<void> {
     if (!wallet.publicKey) {
-      throw new Error('Connect wallet first to derive owner token accounts.');
+      throw new Error('Connect wallet first to query Orca pools.');
     }
     const walletPublicKey = wallet.publicKey;
+
     const poolsLookup = await prepareMetaOperation({
       protocolId: ORCA_PROTOCOL_ID,
       operationId: ORCA_LIST_POOLS_OPERATION_ID,
@@ -848,33 +846,31 @@ function App() {
 
     const poolCandidates = normalizeOrcaPoolCandidates(poolsLookup.derived.pool_candidates);
     if (poolCandidates.length === 0) {
-      throw new Error(`No Orca Whirlpool pool found for ${options.value.inputToken}/${options.value.outputToken}.`);
-    }
-
-    if (poolCandidates.length > 1 && options.whirlpool === undefined) {
-      setPendingPoolSelection({
-        command: options.value,
-        candidates: poolCandidates,
-      });
       pushMessage(
         'assistant',
-        [
-          `Multiple pools found for ${options.value.inputToken}/${options.value.outputToken}.`,
-          'Pick a pool by clicking a button below or typing its number:',
-          ...poolCandidates.map((pool, index) => formatOrcaPoolChoiceLine(pool, index)),
-        ].join('\n'),
+        `No Orca Whirlpool pool found for ${options.value.inputToken}/${options.value.outputToken}.`,
       );
       return;
     }
 
-    setPendingPoolSelection(null);
-    if (options.whirlpool && !poolCandidates.some((pool) => pool.whirlpool === options.whirlpool)) {
-      throw new Error(`Selected whirlpool ${options.whirlpool} is not in discovered candidates for this pair.`);
+    const lines = [
+      `Orca pools (${options.value.inputToken}/${options.value.outputToken}):`,
+      ...poolCandidates.map((pool, index) => formatOrcaPoolChoiceLine(pool, index)),
+      '',
+      'Use one whirlpool in swap command:',
+      `/orca <WHIRLPOOL> ${options.value.inputToken} ${options.value.outputToken} <AMOUNT> <SLIPPAGE_BPS> [--simulate]`,
+    ];
+    pushMessage('assistant', lines.join('\n'));
+  }
+
+  async function executeOrca(options: {
+    value: OrcaCommand;
+  }): Promise<void> {
+    if (!wallet.publicKey) {
+      throw new Error('Connect wallet first to derive owner token accounts.');
     }
-    const selectedWhirlpool =
-      options.whirlpool !== undefined
-        ? options.whirlpool
-        : asString(poolCandidates[0]?.whirlpool, 'pool_candidates[0].whirlpool');
+    const walletPublicKey = wallet.publicKey;
+    const selectedWhirlpool = options.value.whirlpool;
 
     const preparedInitial = await prepareMetaInstruction({
       protocolId: ORCA_PROTOCOL_ID,
@@ -2379,29 +2375,6 @@ function App() {
 
     setIsWorking(true);
     try {
-      if (pendingPoolSelection) {
-        if (/^\d+$/.test(raw)) {
-          const oneBasedIndex = Number(raw);
-          const zeroBasedIndex = oneBasedIndex - 1;
-          if (zeroBasedIndex < 0 || zeroBasedIndex >= pendingPoolSelection.candidates.length) {
-            throw new Error(`Pool selection out of range. Choose 1-${pendingPoolSelection.candidates.length}.`);
-          }
-          await executeOrca({
-            value: pendingPoolSelection.command,
-            whirlpool: pendingPoolSelection.candidates[zeroBasedIndex].whirlpool,
-          });
-          return;
-        }
-
-        if (!raw.startsWith('/')) {
-          throw new Error(
-            `Select a pool by number (1-${pendingPoolSelection.candidates.length}) or enter a new command starting with /.`,
-          );
-        }
-
-        setPendingPoolSelection(null);
-      }
-
       const parsed = parseCommand(raw);
 
       if (parsed.kind === 'help') {
@@ -2463,6 +2436,13 @@ function App() {
 
       if (parsed.kind === 'orca') {
         await executeOrca({
+          value: parsed.value,
+        });
+        return;
+      }
+
+      if (parsed.kind === 'orca-list-pools') {
+        await executeOrcaListPools({
           value: parsed.value,
         });
         return;
@@ -2537,27 +2517,6 @@ function App() {
     }
   }
 
-  async function handlePoolOptionClick(index: number) {
-    if (!pendingPoolSelection) {
-      return;
-    }
-
-    const oneBased = index + 1;
-    pushMessage('user', String(oneBased));
-    setIsWorking(true);
-    try {
-      await executeOrca({
-        value: pendingPoolSelection.command,
-        whirlpool: pendingPoolSelection.candidates[index].whirlpool,
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error while selecting pool.';
-      pushMessage('assistant', `Error: ${message}`);
-    } finally {
-      setIsWorking(false);
-    }
-  }
-
   return (
     <main className="page-shell">
       <section className="card-shell">
@@ -2623,35 +2582,12 @@ function App() {
 
         {activeTab === 'command' ? (
           <>
-            {pendingPoolSelection ? (
-              <div className="pending-block" aria-live="polite">
-                <strong>
-                  Choose a pool for {pendingPoolSelection.command.inputToken}/{pendingPoolSelection.command.outputToken}
-                </strong>
-                <p>Click one option, or type the number in chat.</p>
-                <div className="option-list">
-                  {pendingPoolSelection.candidates.map((candidate, index) => (
-                    <button
-                      key={`${candidate.whirlpool}-${index}`}
-                      type="button"
-                      onClick={() => {
-                        void handlePoolOptionClick(index);
-                      }}
-                      disabled={isWorking}
-                    >
-                      {formatOrcaPoolChoiceLine(candidate, index)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
             <form className="command-form" onSubmit={handleCommandSubmit}>
               <input
                 type="text"
                 value={commandInput}
                 onChange={(event) => setCommandInput(event.target.value)}
-                placeholder="/orca SOL USDC 0.1 50 --simulate"
+                placeholder="/orca-list-pools SOL USDC"
                 disabled={isWorking}
                 aria-label="Command input"
               />
@@ -2660,6 +2596,13 @@ function App() {
               </button>
             </form>
             <div className="quick-actions">
+              <button
+                type="button"
+                onClick={() => setCommandInput(QUICK_PREFILL_ORCA_LIST_POOLS_COMMAND)}
+                disabled={isWorking}
+              >
+                Prefill Orca Pools
+              </button>
               <button
                 type="button"
                 onClick={() => setCommandInput(QUICK_PREFILL_SWAP_COMMAND)}

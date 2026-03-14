@@ -3,6 +3,7 @@ import { PublicKey } from '@solana/web3.js';
 
 export type OrcaCommand = {
   kind: 'orca';
+  whirlpool: string;
   inputToken: string;
   outputToken: string;
   amountUi: string;
@@ -11,6 +12,14 @@ export type OrcaCommand = {
   outputMint: string;
   slippageBps: number;
   simulate: boolean;
+};
+
+export type OrcaListPoolsCommand = {
+  kind: 'orca-list-pools';
+  inputToken: string;
+  outputToken: string;
+  inputMint: string;
+  outputMint: string;
 };
 
 export type PumpAmmCommand = {
@@ -83,6 +92,7 @@ export type MetaExplainCommand = {
 
 export type ParsedCommand =
   | { kind: 'orca'; value: OrcaCommand }
+  | { kind: 'orca-list-pools'; value: OrcaListPoolsCommand }
   | { kind: 'pump-amm'; value: PumpAmmCommand }
   | { kind: 'pump-curve'; value: PumpCurveCommand }
   | { kind: 'kamino-deposit'; value: KaminoDepositCommand }
@@ -185,11 +195,12 @@ function parseRawCommand(trimmed: string, commandName: '/write-raw' | '/read-raw
 
 function parseOrcaArgs(args: string[]): OrcaCommand {
   const { argsWithoutFlag, simulate } = splitSimulationFlag(args);
-  if (argsWithoutFlag.length !== 4) {
-    throw new Error('Usage: /orca <INPUT_TOKEN> <OUTPUT_TOKEN> <AMOUNT> <SLIPPAGE_BPS> [--simulate]');
+  if (argsWithoutFlag.length !== 5) {
+    throw new Error('Usage: /orca <WHIRLPOOL> <INPUT_TOKEN> <OUTPUT_TOKEN> <AMOUNT> <SLIPPAGE_BPS> [--simulate]');
   }
 
-  const [inputRaw, outputRaw, amountUi, slippageRaw] = argsWithoutFlag;
+  const [whirlpoolRaw, inputRaw, outputRaw, amountUi, slippageRaw] = argsWithoutFlag;
+  const whirlpool = new PublicKey(whirlpoolRaw).toBase58();
   const inputToken = resolveToken(inputRaw);
   const outputToken = resolveToken(outputRaw);
 
@@ -217,6 +228,7 @@ function parseOrcaArgs(args: string[]): OrcaCommand {
 
   return {
     kind: 'orca',
+    whirlpool,
     inputToken: inputToken.symbol,
     outputToken: outputToken.symbol,
     amountUi,
@@ -225,6 +237,36 @@ function parseOrcaArgs(args: string[]): OrcaCommand {
     outputMint: outputToken.mint,
     slippageBps,
     simulate,
+  };
+}
+
+function parseOrcaListPoolsArgs(args: string[]): OrcaListPoolsCommand {
+  if (args.length !== 2) {
+    throw new Error('Usage: /orca-list-pools <INPUT_TOKEN> <OUTPUT_TOKEN>');
+  }
+
+  const [inputRaw, outputRaw] = args;
+  const inputToken = resolveToken(inputRaw);
+  const outputToken = resolveToken(outputRaw);
+
+  if (!inputToken) {
+    throw new Error(`Unsupported input token: ${inputRaw}`);
+  }
+
+  if (!outputToken) {
+    throw new Error(`Unsupported output token: ${outputRaw}`);
+  }
+
+  if (inputToken.mint === outputToken.mint) {
+    throw new Error('Input and output token must differ.');
+  }
+
+  return {
+    kind: 'orca-list-pools',
+    inputToken: inputToken.symbol,
+    outputToken: outputToken.symbol,
+    inputMint: inputToken.mint,
+    outputMint: outputToken.mint,
   };
 }
 
@@ -443,6 +485,10 @@ export function parseCommand(raw: string): ParsedCommand {
 
   if (command === '/orca') {
     return { kind: 'orca', value: parseOrcaArgs(args) };
+  }
+
+  if (command === '/orca-list-pools') {
+    return { kind: 'orca-list-pools', value: parseOrcaListPoolsArgs(args) };
   }
 
   if (command === '/pump-amm') {

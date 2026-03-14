@@ -19,7 +19,7 @@
       "idlPath": "/idl/orca_whirlpool.json",
       "metaPath": "/idl/orca_whirlpool.meta.json",
       "transport": "local-orca-whirlpool",
-      "supportedCommands": ["/orca"],
+      "supportedCommands": ["/orca-list-pools", "/orca"],
       "status": "active"
     },
     {
