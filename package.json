@@ -16,11 +16,11 @@
     "ci:protocol-packs": "npm run aidl:check && npm run pack:check",
     "ci:protocol-packs:rpc": "npm run ci:protocol-packs && npm run pack:rpc-check",
     "preview": "vite preview",
-    "build:runtime": "npm run -w @agentform/apppack-runtime build",
-    "check:runtime": "npm run -w @agentform/apppack-runtime check"
+    "build:runtime": "npm --prefix \"../apppack-runtime\" run build",
+    "check:runtime": "npm --prefix \"../apppack-runtime\" run check"
   },
   "dependencies": {
-    "@agentform/apppack-runtime": "workspace:*",
+    "@agentform/apppack-runtime": "file:../apppack-runtime",
     "@coral-xyz/anchor": "^0.32.1",
     "@solana/spl-token": "^0.4.14",
     "@solana/wallet-adapter-base": "^0.9.27",
@@ -48,8 +48,5 @@
     "typescript-eslint": "^8.48.0",
     "vite": "^7.3.1",
     "vite-plugin-node-polyfills": "^0.25.0"
-  },
-  "workspaces": [
-    "packages/apppack-runtime"
-  ]
+  }
 }
