@@ -20,6 +20,7 @@ import {
   type OrcaListPoolsCommand,
   type PumpAmmCommand,
   type PumpCurveCommand,
+  type ViewRunCommand,
 } from './app/commandParser';
 import {
   decodeIdlAccount,
@@ -145,6 +146,7 @@ const HELP_TEXT = [
   '/idl-list',
   '/idl-template <PROTOCOL_ID> <INSTRUCTION_NAME>',
   '/meta-explain <PROTOCOL_ID> <OPERATION_ID>',
+  '/view-run <PROTOCOL_ID> <OPERATION_ID> <INPUT_JSON>',
   '/idl-view <PROTOCOL_ID> <ACCOUNT_TYPE> <ACCOUNT_PUBKEY>',
   '/help',
   '',
@@ -171,6 +173,7 @@ const HELP_TEXT = [
   '/meta-explain pump-core-mainnet buy_exact_sol_in',
   '/meta-explain kamino-klend-mainnet deposit_reserve_liquidity',
   '/meta-explain kamino-klend-mainnet redeem_reserve_collateral',
+  '/view-run orca-whirlpool-mainnet list_pools {"token_in_mint":"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v","token_out_mint":"So11111111111111111111111111111111111111112"}',
 ].join('\n');
 
 function App() {
@@ -2612,6 +2615,64 @@ function App() {
     );
   }
 
+  async function executeViewRun(options: {
+    value: ViewRunCommand;
+  }): Promise<void> {
+    if (!wallet.publicKey) {
+      throw new Error('Connect wallet first to run view operations.');
+    }
+
+    const prepared = await prepareMetaOperation({
+      protocolId: options.value.protocolId,
+      operationId: options.value.operationId,
+      input: options.value.input,
+      connection,
+      walletPublicKey: wallet.publicKey,
+    });
+
+    const explanation = await explainMetaOperation({
+      protocolId: options.value.protocolId,
+      operationId: options.value.operationId,
+    });
+
+    if (!prepared.readOutput) {
+      throw new Error(`Operation ${options.value.protocolId}/${options.value.operationId} has no read_output.`);
+    }
+    if (!explanation.view) {
+      throw new Error(`Operation ${options.value.protocolId}/${options.value.operationId} has no view contract.`);
+    }
+
+    const readScope = {
+      input: options.value.input,
+      args: prepared.args,
+      accounts: prepared.accounts,
+      derived: prepared.derived,
+    };
+    const readValue = readBuilderPath(readScope, prepared.readOutput.source);
+    if (readValue === undefined) {
+      throw new Error(
+        `read_output.source ${prepared.readOutput.source} did not resolve for ${options.value.protocolId}/${options.value.operationId}.`,
+      );
+    }
+
+    const highlights = buildReadOnlyHighlightsFromSpec(prepared.readOutput, readValue);
+    pushMessage(
+      'assistant',
+      [
+        `View run (${options.value.protocolId}/${options.value.operationId}):`,
+        ...(highlights.length > 0 ? highlights : ['No data returned.']),
+        '',
+        'Raw JSON:',
+        asPrettyJson({
+          input: options.value.input,
+          view: explanation.view,
+          read_output: prepared.readOutput,
+          output: readValue,
+        }),
+      ].join('\n'),
+    );
+  }
+
   async function handleBuilderSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -2974,6 +3035,13 @@ function App() {
           operationId: parsed.value.operationId,
         });
         pushMessage('assistant', renderMetaExplain(explanation));
+        return;
+      }
+
+      if (parsed.kind === 'view-run') {
+        await executeViewRun({
+          value: parsed.value,
+        });
         return;
       }
 
