@@ -31,10 +31,12 @@ import {
 } from './lib/idlDeclarativeRuntime';
 import {
   explainMetaOperation,
+  listMetaApps,
   listMetaUserForms,
   listMetaOperations,
   prepareMetaOperation,
   prepareMetaInstruction,
+  type MetaAppSummary,
   type MetaOperationExplain,
   type MetaOperationSummary,
   type MetaUserFormSummary,
@@ -114,6 +116,7 @@ type BuilderProtocol = {
 type BuilderViewMode = 'enduser' | 'geek';
 
 type BuilderUserForm = MetaUserFormSummary;
+type BuilderApp = MetaAppSummary;
 
 type OrcaPoolCandidate = {
   whirlpool: string;
@@ -121,6 +124,14 @@ type OrcaPoolCandidate = {
   tokenMintB: string;
   tickSpacing: string;
   liquidity: string;
+};
+
+type BuilderAppStepContext = {
+  input: Record<string, unknown>;
+  derived: Record<string, unknown>;
+  args: Record<string, unknown>;
+  accounts: Record<string, string>;
+  instructionName: string | null;
 };
 
 const HELP_TEXT = [
@@ -181,6 +192,10 @@ function App() {
   const [isWorking, setIsWorking] = useState(false);
   const [builderProtocols, setBuilderProtocols] = useState<BuilderProtocol[]>([]);
   const [builderProtocolId, setBuilderProtocolId] = useState('');
+  const [builderApps, setBuilderApps] = useState<BuilderApp[]>([]);
+  const [builderAppId, setBuilderAppId] = useState('');
+  const [builderAppStepIndex, setBuilderAppStepIndex] = useState(0);
+  const [builderAppStepContexts, setBuilderAppStepContexts] = useState<Record<string, BuilderAppStepContext>>({});
   const [builderForms, setBuilderForms] = useState<BuilderUserForm[]>([]);
   const [builderFormId, setBuilderFormId] = useState('');
   const [builderOperations, setBuilderOperations] = useState<MetaOperationSummary[]>([]);
@@ -200,9 +215,22 @@ function App() {
     () => builderForms.find((entry) => entry.formId === builderFormId) ?? null,
     [builderForms, builderFormId],
   );
+  const selectedBuilderApp = useMemo(
+    () => builderApps.find((entry) => entry.appId === builderAppId) ?? null,
+    [builderApps, builderAppId],
+  );
+  const selectedBuilderAppStep = useMemo(() => {
+    if (!selectedBuilderApp) {
+      return null;
+    }
+    return selectedBuilderApp.steps[builderAppStepIndex] ?? null;
+  }, [selectedBuilderApp, builderAppStepIndex]);
   const effectiveBuilderOperationId = useMemo(
-    () => (builderViewMode === 'enduser' ? selectedBuilderForm?.operationId ?? builderOperationId : builderOperationId),
-    [builderViewMode, selectedBuilderForm, builderOperationId],
+    () =>
+      builderViewMode === 'enduser'
+        ? selectedBuilderAppStep?.operationId ?? selectedBuilderForm?.operationId ?? builderOperationId
+        : builderOperationId,
+    [builderViewMode, selectedBuilderAppStep, selectedBuilderForm, builderOperationId],
   );
   const selectedBuilderOperation = useMemo(
     () => builderOperations.find((entry) => entry.operationId === effectiveBuilderOperationId) ?? null,
@@ -269,6 +297,10 @@ function App() {
 
   useEffect(() => {
     if (!builderProtocolId) {
+      setBuilderApps([]);
+      setBuilderAppId('');
+      setBuilderAppStepIndex(0);
+      setBuilderAppStepContexts({});
       setBuilderForms([]);
       setBuilderFormId('');
       setBuilderOperations([]);
@@ -278,11 +310,14 @@ function App() {
 
     let cancelled = false;
     void (async () => {
-      const [operationsView, formsView] = await Promise.all([
+      const [operationsView, formsView, appsView] = await Promise.all([
         listMetaOperations({
           protocolId: builderProtocolId,
         }),
         listMetaUserForms({
+          protocolId: builderProtocolId,
+        }),
+        listMetaApps({
           protocolId: builderProtocolId,
         }),
       ]);
@@ -290,6 +325,15 @@ function App() {
         return;
       }
 
+      setBuilderApps(appsView.apps);
+      setBuilderAppId((current) => {
+        if (current && appsView.apps.some((entry) => entry.appId === current)) {
+          return current;
+        }
+        return appsView.apps[0]?.appId ?? '';
+      });
+      setBuilderAppStepIndex(0);
+      setBuilderAppStepContexts({});
       setBuilderForms(formsView.forms);
       setBuilderFormId((current) => {
         if (current && formsView.forms.some((entry) => entry.formId === current)) {
@@ -299,6 +343,10 @@ function App() {
       });
       setBuilderOperations(operationsView.operations);
       setBuilderOperationId((current) => {
+        const appOperationId = appsView.apps[0]?.steps?.[0]?.operationId;
+        if (builderViewMode === 'enduser' && appOperationId) {
+          return appOperationId;
+        }
         const formOperationId = formsView.forms[0]?.operationId;
         if (builderViewMode === 'enduser' && formOperationId) {
           return formOperationId;
@@ -316,6 +364,10 @@ function App() {
         const message = error instanceof Error ? error.message : 'Failed to load meta operations/forms.';
         setBuilderStatusText(`Error: ${message}`);
         setBuilderRawDetails(null);
+        setBuilderApps([]);
+        setBuilderAppId('');
+        setBuilderAppStepIndex(0);
+        setBuilderAppStepContexts({});
         setBuilderForms([]);
         setBuilderFormId('');
         setBuilderOperations([]);
@@ -330,6 +382,12 @@ function App() {
 
   useEffect(() => {
     if (builderViewMode !== 'enduser') {
+      return;
+    }
+    if (selectedBuilderAppStep) {
+      if (builderOperationId !== selectedBuilderAppStep.operationId) {
+        setBuilderOperationId(selectedBuilderAppStep.operationId);
+      }
       return;
     }
     if (!builderForms.length) {
@@ -348,7 +406,16 @@ function App() {
     if (builderOperationId !== selected.operationId) {
       setBuilderOperationId(selected.operationId);
     }
-  }, [builderViewMode, builderForms, builderFormId, builderOperationId]);
+  }, [builderViewMode, selectedBuilderAppStep, builderForms, builderFormId, builderOperationId]);
+
+  useEffect(() => {
+    if (!selectedBuilderApp) {
+      return;
+    }
+    if (builderAppStepIndex < 0 || builderAppStepIndex >= selectedBuilderApp.steps.length) {
+      setBuilderAppStepIndex(0);
+    }
+  }, [selectedBuilderApp, builderAppStepIndex]);
 
   useEffect(() => {
     if (!selectedBuilderOperation) {
@@ -362,8 +429,17 @@ function App() {
         spec.default === undefined ? '' : stringifyBuilderDefault(spec.default),
       ]),
     );
+
+    if (builderViewMode === 'enduser' && selectedBuilderAppStep) {
+      for (const [inputName, rawSource] of Object.entries(selectedBuilderAppStep.inputFrom)) {
+        const resolved = resolveBuilderAppInputFrom(rawSource, builderAppStepContexts);
+        if (resolved !== undefined) {
+          nextValues[inputName] = stringifyBuilderDefault(resolved);
+        }
+      }
+    }
     setBuilderInputValues(nextValues);
-  }, [selectedBuilderOperation]);
+  }, [selectedBuilderOperation, builderViewMode, selectedBuilderAppStep, builderAppStepContexts]);
 
   function pushMessage(role: 'user' | 'assistant', text: string) {
     setMessages((prev) => [...prev, { id: prev.length + 1, role, text }]);
@@ -380,6 +456,34 @@ function App() {
       return String(value);
     }
     return JSON.stringify(value);
+  }
+
+  function readBuilderPath(value: unknown, path: string): unknown {
+    const cleaned = path.startsWith('$') ? path.slice(1) : path;
+    const parts = cleaned.split('.').filter(Boolean);
+    let current: unknown = value;
+    for (const part of parts) {
+      if (!current || typeof current !== 'object') {
+        return undefined;
+      }
+      current = (current as Record<string, unknown>)[part];
+    }
+    return current;
+  }
+
+  function resolveBuilderAppInputFrom(
+    value: unknown,
+    contexts: Record<string, BuilderAppStepContext>,
+  ): unknown {
+    if (typeof value === 'string' && value.startsWith('$')) {
+      return readBuilderPath(
+        {
+          steps: contexts,
+        },
+        value,
+      );
+    }
+    return value;
   }
 
   function isAutoResolvedBuilderInput(spec: MetaOperationSummary['inputs'][string]): boolean {
@@ -514,6 +618,13 @@ function App() {
 
   function handleBuilderModeEndUser() {
     setBuilderViewMode('enduser');
+    const firstApp = builderApps[0];
+    if (firstApp && firstApp.steps.length > 0) {
+      setBuilderAppId(firstApp.appId);
+      setBuilderAppStepIndex(0);
+      setBuilderOperationId(firstApp.steps[0].operationId);
+      return;
+    }
     const firstForm = builderForms[0];
     if (firstForm) {
       setBuilderFormId(firstForm.formId);
@@ -623,6 +734,25 @@ function App() {
     setBuilderStatusText(lines.join('\n'));
     setBuilderRawDetails(raw === undefined ? null : asPrettyJson(raw));
     setBuilderShowRawDetails(false);
+  }
+
+  function storeBuilderAppStepContext(options: {
+    executionInput: Record<string, unknown>;
+    prepared: Awaited<ReturnType<typeof prepareMetaOperation>>;
+  }) {
+    if (builderViewMode !== 'enduser' || !selectedBuilderAppStep) {
+      return;
+    }
+    setBuilderAppStepContexts((prev) => ({
+      ...prev,
+      [selectedBuilderAppStep.stepId]: {
+        input: options.executionInput,
+        derived: options.prepared.derived,
+        args: options.prepared.args,
+        accounts: options.prepared.accounts,
+        instructionName: options.prepared.instructionName,
+      },
+    }));
   }
 
   function getMintDisplay(mint: string): { label: string; decimals: number | null } {
@@ -2226,6 +2356,9 @@ function App() {
                   `${index + 1}. whirlpool ${pool.whirlpool} | tickSpacing ${pool.tickSpacing} | liquidity ${formatIntegerFull(pool.liquidity)}`,
               ),
             );
+            if (pools[0]) {
+              readOnlyHighlights.push(`selected pool (default): ${pools[0].whirlpool}`);
+            }
             if (pools.length > previewCount) {
               readOnlyHighlights.push(`...and ${pools.length - previewCount} more (open raw details below).`);
             }
@@ -2234,6 +2367,45 @@ function App() {
             }
           } else {
             readOnlyHighlights.push('pools found: 0');
+          }
+        }
+        if (readOnlyHighlights.length === 0) {
+          const derivedEntries = Object.entries(prepared.derived);
+          if (derivedEntries.length === 0) {
+            readOnlyHighlights.push('No derived output returned.');
+          } else {
+            for (const [key, value] of derivedEntries) {
+              if (Array.isArray(value)) {
+                readOnlyHighlights.push(`${key}: ${value.length} item(s)`);
+                const previewCount = Math.min(value.length, 3);
+                for (let i = 0; i < previewCount; i += 1) {
+                  const entry = value[i];
+                  if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+                    const record = entry as Record<string, unknown>;
+                    if (typeof record.whirlpool === 'string') {
+                      readOnlyHighlights.push(`${i + 1}. whirlpool ${record.whirlpool}`);
+                      continue;
+                    }
+                    const firstKeys = Object.keys(record).slice(0, 3);
+                    const compact = firstKeys
+                      .map((field) => `${field}=${String(record[field])}`)
+                      .join(' | ');
+                    readOnlyHighlights.push(`${i + 1}. ${compact}`);
+                  } else {
+                    readOnlyHighlights.push(`${i + 1}. ${String(entry)}`);
+                  }
+                }
+                continue;
+              }
+
+              if (value && typeof value === 'object') {
+                const keys = Object.keys(value as Record<string, unknown>);
+                readOnlyHighlights.push(`${key}: object (${keys.length} key(s))`);
+                continue;
+              }
+
+              readOnlyHighlights.push(`${key}: ${String(value)}`);
+            }
           }
         }
         const resultLines = [
@@ -2247,6 +2419,10 @@ function App() {
           derived: prepared.derived,
           args: prepared.args,
           accounts: prepared.accounts,
+        });
+        storeBuilderAppStepContext({
+          executionInput,
+          prepared,
         });
         pushMessage('assistant', resultLines.join('\n'));
         return;
@@ -2325,6 +2501,12 @@ function App() {
           accounts: prepared.accounts,
           logs: simulation.logs,
         });
+        if (simulation.ok) {
+          storeBuilderAppStepContext({
+            executionInput,
+            prepared,
+          });
+        }
         pushMessage('assistant', resultLines.join('\n'));
         return;
       }
@@ -2349,6 +2531,10 @@ function App() {
         `explorer: ${sent.explorerUrl}`,
       ];
       setBuilderResult(resultLines);
+      storeBuilderAppStepContext({
+        executionInput,
+        prepared,
+      });
       pushMessage('assistant', resultLines.join('\n'));
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown builder error.';
@@ -2655,28 +2841,47 @@ function App() {
               </aside>
 
               <aside className="builder-list">
-                <h3>{builderViewMode === 'enduser' ? 'User Forms' : 'Actions'}</h3>
+                <h3>{builderViewMode === 'enduser' ? (builderApps.length > 0 ? 'Apps' : 'User Forms') : 'Actions'}</h3>
                 <div className="builder-items">
                   {builderViewMode === 'enduser'
-                    ? builderForms.length > 0
-                      ? builderForms.map((form) => (
+                    ? builderApps.length > 0
+                      ? builderApps.map((app) => (
                           <button
-                            key={form.formId}
+                            key={app.appId}
                             type="button"
-                            className={builderFormId === form.formId ? 'active' : ''}
+                            className={builderAppId === app.appId ? 'active' : ''}
                             onClick={() => {
-                              setBuilderFormId(form.formId);
-                              setBuilderOperationId(form.operationId);
+                              setBuilderAppId(app.appId);
+                              setBuilderAppStepIndex(0);
+                              if (app.steps[0]) {
+                                setBuilderOperationId(app.steps[0].operationId);
+                              }
                             }}
                             disabled={isWorking}
                           >
-                            {form.title}
-                            <small>{form.operationId}</small>
+                            {app.title}
+                            <small>{app.appId}</small>
                           </button>
                         ))
-                      : (
-                          <p className="builder-empty">No user forms declared for this protocol.</p>
-                        )
+                      : builderForms.length > 0
+                        ? builderForms.map((form) => (
+                            <button
+                              key={form.formId}
+                              type="button"
+                              className={builderFormId === form.formId ? 'active' : ''}
+                              onClick={() => {
+                                setBuilderFormId(form.formId);
+                                setBuilderOperationId(form.operationId);
+                              }}
+                              disabled={isWorking}
+                            >
+                              {form.title}
+                              <small>{form.operationId}</small>
+                            </button>
+                          ))
+                        : (
+                            <p className="builder-empty">No user forms declared for this protocol.</p>
+                          )
                     : builderOperations.map((operation) => (
                         <button
                           key={operation.operationId}
@@ -2698,7 +2903,34 @@ function App() {
                 <h3>
                   {builderProtocolId}/{selectedBuilderOperation.operationId}
                 </h3>
-                {builderViewMode === 'enduser' && selectedBuilderForm ? (
+                {builderViewMode === 'enduser' && selectedBuilderApp ? (
+                  <>
+                    <p>
+                      app: <strong>{selectedBuilderApp.title}</strong>
+                      {selectedBuilderApp.description ? ` — ${selectedBuilderApp.description}` : ''}
+                    </p>
+                    <div className="builder-step-list">
+                      {selectedBuilderApp.steps.map((step, index) => (
+                        <button
+                          key={step.stepId}
+                          type="button"
+                          className={builderAppStepIndex === index ? 'active' : ''}
+                          disabled={isWorking}
+                          onClick={() => {
+                            setBuilderAppStepIndex(index);
+                            setBuilderOperationId(step.operationId);
+                          }}
+                        >
+                          {index + 1}. {step.title}
+                        </button>
+                      ))}
+                    </div>
+                    {selectedBuilderAppStep?.description ? (
+                      <p className="builder-note">{selectedBuilderAppStep.description}</p>
+                    ) : null}
+                  </>
+                ) : null}
+                {builderViewMode === 'enduser' && !selectedBuilderApp && selectedBuilderForm ? (
                   <p>
                     form: <strong>{selectedBuilderForm.title}</strong>
                     {selectedBuilderForm.description ? ` — ${selectedBuilderForm.description}` : ''}

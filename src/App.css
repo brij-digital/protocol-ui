@@ -252,6 +252,27 @@
   font-size: 0.85rem;
 }
 
+.builder-step-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.builder-step-list button {
+  border: 1px solid #cfd9ec;
+  border-radius: 8px;
+  background: #f5f8ff;
+  color: #2a3f65;
+  font-weight: 600;
+  padding: 0.35rem 0.6rem;
+}
+
+.builder-step-list button.active {
+  border-color: #1f4cc4;
+  background: #edf3ff;
+  color: #163b98;
+}
+
 .builder-form code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }

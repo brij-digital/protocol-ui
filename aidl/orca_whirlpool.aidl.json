@@ -306,6 +306,12 @@
               "tickSpacing": "$decoded.tick_spacing",
               "liquidity": "$decoded.liquidity"
             }
+          },
+          {
+            "name": "selected_pool",
+            "discover": "discover.pick_list_item",
+            "items": "$pool_candidates",
+            "index": 0
           }
         ],
         "derive": [],
@@ -378,6 +384,31 @@
           "with": {
             "token_in_mint": "$input.token_in_mint",
             "token_out_mint": "$input.token_out_mint"
+          }
+        }
+      ]
+    }
+  },
+  "apps": {
+    "swap_from_discovery": {
+      "title": "Discover -> Swap",
+      "description": "List pools for a pair, then execute swap on the selected pool.",
+      "steps": [
+        {
+          "id": "discover",
+          "operation": "list_pools",
+          "title": "Discover Pools",
+          "description": "Fetch Whirlpool candidates sorted by liquidity."
+        },
+        {
+          "id": "swap",
+          "operation": "swap_exact_in",
+          "title": "Swap By Pool",
+          "description": "Run simulation or send on selected Whirlpool.",
+          "input_from": {
+            "token_in_mint": "$steps.discover.input.token_in_mint",
+            "token_out_mint": "$steps.discover.input.token_out_mint",
+            "whirlpool": "$steps.discover.derived.selected_pool.whirlpool"
           }
         }
       ]

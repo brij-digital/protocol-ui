@@ -228,6 +228,7 @@ function compileAidl(source, sourceFile) {
   const operationsRaw = asObject(source.operations, `${sourceFile}.operations`);
   const userFormsRaw =
     source.user_forms === undefined ? undefined : asObject(source.user_forms, `${sourceFile}.user_forms`);
+  const appsRaw = source.apps === undefined ? undefined : asObject(source.apps, `${sourceFile}.apps`);
   const sourcesRaw = source.sources === undefined ? undefined : asObject(source.sources, `${sourceFile}.sources`);
 
   /** @type {Record<string, unknown>} */
@@ -253,6 +254,7 @@ function compileAidl(source, sourceFile) {
     templates,
     operations,
     ...(userFormsRaw ? { user_forms: userFormsRaw } : {}),
+    ...(appsRaw ? { apps: appsRaw } : {}),
   };
 
   return {

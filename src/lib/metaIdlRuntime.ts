@@ -90,6 +90,20 @@ type UserFormSpec = {
   description?: string;
 };
 
+type UserAppStepSpec = {
+  id?: string;
+  operation: string;
+  title?: string;
+  description?: string;
+  input_from?: Record<string, unknown>;
+};
+
+type UserAppSpec = {
+  title?: string;
+  description?: string;
+  steps: UserAppStepSpec[];
+};
+
 type MaterializedActionSpec = {
   instruction: string;
   inputs: Record<string, ActionInputSpec>;
@@ -147,6 +161,7 @@ type MetaIdlSpec = {
   templates?: Record<string, TemplateSpec>;
   operations?: Record<string, ActionSpec>;
   user_forms?: Record<string, UserFormSpec>;
+  apps?: Record<string, UserAppSpec>;
 };
 
 type ResolverContext = {
@@ -234,6 +249,21 @@ export type MetaUserFormSummary = {
   operationId: string;
   title: string;
   description?: string;
+};
+
+export type MetaAppStepSummary = {
+  stepId: string;
+  operationId: string;
+  title: string;
+  description?: string;
+  inputFrom: Record<string, unknown>;
+};
+
+export type MetaAppSummary = {
+  appId: string;
+  title: string;
+  description?: string;
+  steps: MetaAppStepSummary[];
 };
 
 function resolveDiscoverStage(path: string, operation: MaterializedActionSpec): 'discover' | 'derive' | 'compute' | 'input' | 'unknown' {
@@ -1292,5 +1322,77 @@ export async function listMetaUserForms(options: {
     schema: meta.schema ?? null,
     version: meta.version,
     forms,
+  };
+}
+
+export async function listMetaApps(options: {
+  protocolId: string;
+}): Promise<{
+  protocolId: string;
+  schema: string | null;
+  version: string;
+  apps: MetaAppSummary[];
+}> {
+  const meta = await loadMetaSpec(options.protocolId);
+  const operations = meta.operations ?? {};
+  const appsSpec = meta.apps ?? {};
+
+  const apps = Object.entries(appsSpec)
+    .map(([appId, app]) => {
+      const stepsRaw = Array.isArray(app.steps) ? app.steps : [];
+      const steps = stepsRaw
+        .map((step, index) => {
+          if (!step || typeof step !== 'object') {
+            return null;
+          }
+          const operationId = step.operation;
+          if (typeof operationId !== 'string' || operationId.length === 0) {
+            return null;
+          }
+          if (!operations[operationId]) {
+            return null;
+          }
+          return {
+            stepId:
+              typeof step.id === 'string' && step.id.length > 0
+                ? step.id
+                : `step_${index + 1}`,
+            operationId,
+            title:
+              typeof step.title === 'string' && step.title.length > 0
+                ? step.title
+                : `Step ${index + 1}`,
+            ...(typeof step.description === 'string' && step.description.length > 0
+              ? { description: step.description }
+              : {}),
+            inputFrom:
+              step.input_from && typeof step.input_from === 'object' && !Array.isArray(step.input_from)
+                ? (cloneJsonLike(step.input_from) as Record<string, unknown>)
+                : {},
+          } as MetaAppStepSummary;
+        })
+        .filter((entry): entry is MetaAppStepSummary => entry !== null);
+
+      if (steps.length === 0) {
+        return null;
+      }
+
+      return {
+        appId,
+        title: typeof app.title === 'string' && app.title.length > 0 ? app.title : appId,
+        ...(typeof app.description === 'string' && app.description.length > 0
+          ? { description: app.description }
+          : {}),
+        steps,
+      } as MetaAppSummary;
+    })
+    .filter((entry): entry is MetaAppSummary => entry !== null)
+    .sort((a, b) => a.appId.localeCompare(b.appId));
+
+  return {
+    protocolId: options.protocolId,
+    schema: meta.schema ?? null,
+    version: meta.version,
+    apps,
   };
 }
