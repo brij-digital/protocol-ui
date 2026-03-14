@@ -181,7 +181,7 @@ function App() {
     {
       id: 1,
       role: 'assistant',
-      text: 'AgentForm ready. Use /help to see commands.',
+      text: 'AppPack ready. Use /help to see commands.',
     },
   ]);
   const [activeTab, setActiveTab] = useState<AppTab>('builder');
@@ -3045,8 +3045,8 @@ function App() {
       <section className="card-shell">
         <header className="card-header">
           <div>
-            <h1>AgentForm — AI Compatible by Design</h1>
-            <p>Define once, execute everywhere: AgentForm turns protocol specs into deterministic, verifiable on-chain read and transaction flows, so users and AI agents can discover options, simulate outcomes, and execute safely without external SDK lock-in, custom API glue, or fragile wallet-connection UX.</p>
+            <h1>AppPack — AI Compatible by Design</h1>
+            <p>Define once, execute everywhere: AppPack turns protocol specs into deterministic, verifiable on-chain read and transaction flows, so users and AI agents can discover options, simulate outcomes, and execute safely without external SDK lock-in, custom API glue, or fragile wallet-connection UX.</p>
           </div>
           <WalletMultiButton />
         </header>
