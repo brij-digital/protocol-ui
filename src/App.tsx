@@ -2,10 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
-import {
-  createAssociatedTokenAccountIdempotentInstruction,
-  createCloseAccountInstruction,
-} from '@solana/spl-token';
+import { createCloseAccountInstruction } from '@solana/spl-token';
 import { PublicKey, TransactionInstruction } from '@solana/web3.js';
 import './App.css';
 import { listSupportedTokens } from './constants/tokens';
@@ -31,7 +28,6 @@ import {
 } from '@agentform/apppack-runtime/metaIdlRuntime';
 import {
   asPrettyJson,
-  asRecord,
   buildBuilderAppScope,
   buildDerivedFromReadOutputSource,
   buildExampleInputsForOperation,
@@ -773,99 +769,10 @@ function App() {
     });
   }
 
-  function maybePublicKey(value: unknown): PublicKey | null {
-    if (typeof value !== 'string' || value.length === 0) {
-      return null;
-    }
-    try {
-      return new PublicKey(value);
-    } catch {
-      return null;
-    }
-  }
-
-  function buildBuilderPreInstructions(options: {
-    derived: Record<string, unknown>;
-    accounts: Record<string, string>;
-    walletPublicKey: PublicKey;
-  }): TransactionInstruction[] {
-    const instructions: TransactionInstruction[] = [];
-    const seenAta = new Set<string>();
-    const addAtaIfValid = (ata: unknown, mint: unknown, tokenProgram?: unknown): void => {
-      const ataKey = maybePublicKey(ata);
-      const mintKey = maybePublicKey(mint);
-      if (!ataKey || !mintKey) {
-        return;
-      }
-      const ataText = ataKey.toBase58();
-      if (seenAta.has(ataText)) {
-        return;
-      }
-      const tokenProgramKey = maybePublicKey(tokenProgram);
-      instructions.push(
-        createAssociatedTokenAccountIdempotentInstruction(
-          options.walletPublicKey,
-          ataKey,
-          options.walletPublicKey,
-          mintKey,
-          tokenProgramKey ?? undefined,
-        ),
-      );
-      seenAta.add(ataText);
-    };
-
-    const whirlpoolDataRaw = options.derived.whirlpool_data;
-    if (whirlpoolDataRaw && typeof whirlpoolDataRaw === 'object' && !Array.isArray(whirlpoolDataRaw)) {
-      const whirlpoolData = asRecord(whirlpoolDataRaw, 'derived.whirlpool_data');
-      addAtaIfValid(
-        options.accounts.token_owner_account_a,
-        whirlpoolData.token_mint_a,
-        options.accounts.token_program_a,
-      );
-      addAtaIfValid(
-        options.accounts.token_owner_account_b,
-        whirlpoolData.token_mint_b,
-        options.accounts.token_program_b,
-      );
-    }
-
-    addAtaIfValid(
-      options.accounts.user_base_token_account,
-      options.accounts.base_mint,
-      options.accounts.base_token_program,
-    );
-    addAtaIfValid(
-      options.accounts.user_quote_token_account,
-      options.accounts.quote_mint,
-      options.accounts.quote_token_program,
-    );
-    addAtaIfValid(
-      options.accounts.associated_user,
-      options.accounts.mint,
-      options.accounts.token_program,
-    );
-    addAtaIfValid(
-      options.accounts.userSourceLiquidity,
-      options.accounts.reserveLiquidityMint,
-      options.accounts.liquidityTokenProgram,
-    );
-    addAtaIfValid(
-      options.accounts.userDestinationLiquidity,
-      options.accounts.reserveLiquidityMint,
-      options.accounts.liquidityTokenProgram,
-    );
-    addAtaIfValid(
-      options.accounts.userSourceCollateral,
-      options.accounts.reserveCollateralMint,
-      options.accounts.collateralTokenProgram,
-    );
-    addAtaIfValid(
-      options.accounts.userDestinationCollateral,
-      options.accounts.reserveCollateralMint,
-      options.accounts.collateralTokenProgram,
-    );
-
-    return instructions;
+  function buildBuilderPreInstructions(): TransactionInstruction[] {
+    // UI stays protocol-agnostic: no protocol/account-name heuristics here.
+    // Pre-instructions must come from declarative runtime/meta flow.
+    return [];
   }
 
   async function executeMetaRun(options: {
@@ -901,11 +808,7 @@ function App() {
       return;
     }
 
-    const preInstructions = buildBuilderPreInstructions({
-      derived: prepared.derived,
-      accounts: prepared.accounts,
-      walletPublicKey: wallet.publicKey,
-    });
+    const preInstructions = buildBuilderPreInstructions();
     const postInstructions = buildMetaPostInstructions(prepared.postInstructions);
 
     if (options.value.simulate) {
@@ -1158,11 +1061,7 @@ function App() {
         return;
       }
 
-      const preInstructions = buildBuilderPreInstructions({
-        derived: prepared.derived,
-        accounts: prepared.accounts,
-        walletPublicKey: walletPublicKey as PublicKey,
-      });
+      const preInstructions = buildBuilderPreInstructions();
       const postInstructions = buildMetaPostInstructions(prepared.postInstructions);
       const runAsSimulation = isBuilderAppMode ? builderAppSubmitMode === 'simulate' : builderSimulate;
 
