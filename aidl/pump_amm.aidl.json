@@ -519,14 +519,6 @@
             "account_type": "Pool",
             "discriminator_filter": true,
             "commitment": "confirmed",
-            "filters": [
-              {
-                "memcmp": {
-                  "offset": 75,
-                  "bytesFrom": "$param.quote_mint"
-                }
-              }
-            ],
             "where": [
               {
                 "path": "decoded.quote_mint",
@@ -558,15 +550,30 @@
               "lpSupply": "$decoded.lp_supply",
               "coinCreator": "$decoded.coin_creator",
               "isCashbackCoin": "$decoded.is_cashback_coin"
-            }
+            },
+            "or_filters": [
+              [
+                {
+                  "memcmp": {
+                    "offset": 75,
+                    "bytesFrom": "$param.quote_mint"
+                  }
+                }
+              ]
+            ]
           }
         ]
       }
     },
     "pump.view_pool.v1": {
       "params": {
-        "pool": {
+        "base_mint": {
           "type": "pubkey"
+        },
+        "quote_mint": {
+          "type": "pubkey",
+          "required": false,
+          "default": "So11111111111111111111111111111111111111112"
         }
       },
       "expand": {
@@ -579,10 +586,49 @@
             "account_type": "Pool",
             "discriminator_filter": true,
             "commitment": "confirmed",
-            "account_pubkeys": "$param.pool",
-            "filters": [],
-            "where": [],
-            "sort": [],
+            "or_filters": [
+              [
+                {
+                  "memcmp": {
+                    "offset": 43,
+                    "bytesFrom": "$param.base_mint"
+                  }
+                },
+                {
+                  "memcmp": {
+                    "offset": 75,
+                    "bytesFrom": "$param.quote_mint"
+                  }
+                }
+              ]
+            ],
+            "where": [
+              {
+                "path": "decoded.base_mint",
+                "op": "=",
+                "value": "$param.base_mint"
+              },
+              {
+                "path": "decoded.quote_mint",
+                "op": "=",
+                "value": "$param.quote_mint"
+              },
+              {
+                "path": "decoded.lp_supply",
+                "op": ">",
+                "value": "0"
+              }
+            ],
+            "sort": [
+              {
+                "path": "decoded.index",
+                "dir": "desc"
+              },
+              {
+                "path": "decoded.lp_supply",
+                "dir": "desc"
+              }
+            ],
             "limit": 1,
             "select": {
               "pool": "$account.pubkey",
@@ -863,16 +909,24 @@
     },
     "view_pool": {
       "inputs": {
-        "pool": {
+        "base_mint": {
           "type": "pubkey",
-          "required": true
+          "required": true,
+          "ui_editable": false
+        },
+        "quote_mint": {
+          "type": "pubkey",
+          "required": false,
+          "default": "So11111111111111111111111111111111111111112",
+          "ui_editable": false
         }
       },
       "useTemplate": [
         {
           "template": "pump.view_pool.v1",
           "with": {
-            "pool": "$input.pool"
+            "base_mint": "$input.base_mint",
+            "quote_mint": "$input.quote_mint"
           }
         }
       ],
@@ -1055,7 +1109,8 @@
             }
           ],
           "input_from": {
-            "pool": "$steps.discover.derived.selected_pool.pool"
+            "base_mint": "$steps.discover.derived.selected_pool.baseMint",
+            "quote_mint": "$steps.discover.derived.selected_pool.quoteMint"
           }
         },
         {
