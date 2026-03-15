@@ -237,21 +237,23 @@ export function parseBuilderInputValue(raw: string, type: string, label: string)
 
 export function buildExampleInputsForOperation(
   operation: MetaOperationSummary,
-  builderProtocolId: string,
-  builderExampleInputs: Record<string, Record<string, string>>,
 ): Record<string, string> {
-  const overrides = builderExampleInputs[`${builderProtocolId}/${operation.operationId}`] ?? {};
   const nextValues: Record<string, string> = {};
 
   for (const [inputName, spec] of Object.entries(operation.inputs)) {
-    const override = overrides[inputName];
-    if (override !== undefined) {
-      nextValues[inputName] = override;
-      continue;
-    }
-
     if (spec.default !== undefined) {
       nextValues[inputName] = stringifyBuilderDefault(spec.default);
+      continue;
+    }
+    const extra = spec as Record<string, unknown>;
+    const uiExample = extra.ui_example;
+    if (uiExample !== undefined) {
+      nextValues[inputName] = stringifyBuilderDefault(uiExample);
+      continue;
+    }
+    const example = extra.example;
+    if (example !== undefined) {
+      nextValues[inputName] = stringifyBuilderDefault(example);
       continue;
     }
 

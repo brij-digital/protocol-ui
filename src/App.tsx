@@ -47,56 +47,12 @@ import {
   type BuilderAppStepContext,
 } from './app/builderHelpers';
 
-const ORCA_PROTOCOL_ID = 'orca-whirlpool-mainnet';
-const ORCA_LIST_POOLS_OPERATION_ID = 'list_pools';
-const ORCA_OPERATION_ID = 'swap_exact_in';
-const PUMP_AMM_PROTOCOL_ID = 'pump-amm-mainnet';
-const PUMP_AMM_OPERATION_ID = 'buy';
-const PUMP_CURVE_PROTOCOL_ID = 'pump-core-mainnet';
-const PUMP_CURVE_OPERATION_ID = 'buy_exact_sol_in';
-const KAMINO_KLEND_PROTOCOL_ID = 'kamino-klend-mainnet';
-const KAMINO_DEPOSIT_OPERATION_ID = 'deposit_reserve_liquidity';
-const KAMINO_WITHDRAW_OPERATION_ID = 'redeem_reserve_collateral';
 const DEFAULT_VIEW_API_BASE_URL = 'https://apppack-view-service.onrender.com';
 const VIEW_API_BASE_URL = String(import.meta.env.VITE_VIEW_API_BASE_URL ?? DEFAULT_VIEW_API_BASE_URL)
   .trim()
   .replace(/\/+$/, '');
 const QUICK_PREFILL_META_RUN_COMMAND =
   '/meta-run orca-whirlpool-mainnet swap_exact_in {"token_in_mint":"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v","token_out_mint":"So11111111111111111111111111111111111111112","amount_in":"10000","slippage_bps":50,"estimated_out":"100000","whirlpool":"Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE","unwrap_sol_output":true} --simulate';
-const BUILDER_EXAMPLE_INPUTS: Record<string, Record<string, string>> = {
-  [`${ORCA_PROTOCOL_ID}/${ORCA_LIST_POOLS_OPERATION_ID}`]: {
-    token_in_mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-    token_out_mint: 'So11111111111111111111111111111111111111112',
-  },
-  [`${ORCA_PROTOCOL_ID}/${ORCA_OPERATION_ID}`]: {
-    token_in_mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-    token_out_mint: 'So11111111111111111111111111111111111111112',
-    amount_in: '10000',
-    slippage_bps: '50',
-    whirlpool: 'Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE',
-    unwrap_sol_output: 'true',
-  },
-  [`${PUMP_AMM_PROTOCOL_ID}/${PUMP_AMM_OPERATION_ID}`]: {
-    base_mint: 'C4yDhKwkikpVGCQWD9BT2SJyHAtRFFnKPDM9Nyshpump',
-    quote_mint: 'So11111111111111111111111111111111111111112',
-    quote_amount_in: '10000000',
-    track_volume: 'true',
-    slippage_bps: '100',
-  },
-  [`${PUMP_CURVE_PROTOCOL_ID}/${PUMP_CURVE_OPERATION_ID}`]: {
-    base_mint: '2wHC2vrKwFn87nwXcCnBbx5KRBi61km156af9YS8pump',
-    spendable_sol_in: '10000000',
-    min_tokens_out: '1',
-    track_volume: 'true',
-    slippage_bps: '100',
-  },
-  [`${KAMINO_KLEND_PROTOCOL_ID}/${KAMINO_DEPOSIT_OPERATION_ID}`]: {
-    liquidity_amount: '100000',
-  },
-  [`${KAMINO_KLEND_PROTOCOL_ID}/${KAMINO_WITHDRAW_OPERATION_ID}`]: {
-    liquidity_amount: '100000',
-  },
-};
 
 type Message = {
   id: number;
@@ -476,9 +432,7 @@ function App() {
       return;
     }
 
-    setBuilderInputValues(
-      buildExampleInputsForOperation(selectedBuilderOperation, builderProtocolId, BUILDER_EXAMPLE_INPUTS),
-    );
+    setBuilderInputValues(buildExampleInputsForOperation(selectedBuilderOperation));
     setBuilderStatusText(`Prefilled example inputs for ${builderProtocolId}/${selectedBuilderOperation.operationId}.`);
     setBuilderRawDetails(null);
     setBuilderShowRawDetails(false);
