@@ -37,9 +37,36 @@ import {
   prepareMetaOperation,
   prepareMetaInstruction,
   type MetaAppSummary,
-  type MetaOperationExplain,
   type MetaOperationSummary,
 } from '@agentform/apppack-runtime/metaIdlRuntime';
+import {
+  asBoolean,
+  asIntegerLikeString,
+  asPrettyJson,
+  asRecord,
+  asString,
+  buildBuilderAppScope,
+  buildDerivedFromReadOutputSource,
+  buildExampleInputsForOperation,
+  buildReadOnlyHighlightsFromSpec,
+  compactPubkey,
+  evaluateBuilderStepSuccess,
+  formatBuilderSelectableItemLabel,
+  formatOrcaPoolChoiceLine,
+  getBuilderInputTag,
+  isBuilderInputEditable,
+  isBuilderTruthy,
+  normalizeOrcaPoolCandidates,
+  normalizePumpPoolCandidates,
+  parseBuilderInputValue,
+  readBuilderPath,
+  renderMetaExplain,
+  resolveBuilderNextStepIndexOnSuccess,
+  stringifyBuilderDefault,
+  valuesEqualForSelection,
+  writeBuilderPath,
+  type BuilderAppStepContext,
+} from './app/builderHelpers';
 
 const ORCA_PROTOCOL_ID = 'orca-whirlpool-mainnet';
 const ORCA_LIST_POOLS_OPERATION_ID = 'list_pools';
@@ -119,22 +146,6 @@ type BuilderProtocol = {
 type BuilderViewMode = 'enduser' | 'geek';
 
 type BuilderApp = MetaAppSummary;
-
-type OrcaPoolCandidate = {
-  whirlpool: string;
-  tokenMintA: string;
-  tokenMintB: string;
-  tickSpacing: string;
-  liquidity: string;
-};
-
-type BuilderAppStepContext = {
-  input: Record<string, unknown>;
-  derived: Record<string, unknown>;
-  args: Record<string, unknown>;
-  accounts: Record<string, string>;
-  instructionName: string | null;
-};
 
 type BuilderPreparedStepResult = {
   derived: Record<string, unknown>;
@@ -506,275 +517,14 @@ function App() {
     setMessages((prev) => [...prev, { id: prev.length + 1, role, text }]);
   }
 
-  function stringifyBuilderDefault(value: unknown): string {
-    if (value === undefined) {
-      return '';
-    }
-    if (typeof value === 'string') {
-      return value;
-    }
-    if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
-      return String(value);
-    }
-    return JSON.stringify(value);
-  }
-
-  function readBuilderPath(value: unknown, path: string): unknown {
-    const cleaned = path.startsWith('$') ? path.slice(1) : path;
-    const parts = cleaned.split('.').filter(Boolean);
-    let current: unknown = value;
-    for (const part of parts) {
-      if (!current || typeof current !== 'object') {
-        return undefined;
-      }
-      current = (current as Record<string, unknown>)[part];
-    }
-    return current;
-  }
-
-  function writeBuilderPath(value: Record<string, unknown>, path: string, nextValue: unknown): Record<string, unknown> {
-    const cleaned = path.startsWith('$') ? path.slice(1) : path;
-    const parts = cleaned.split('.').filter(Boolean);
-    if (parts.length === 0) {
-      return value;
-    }
-
-    const nextRoot: Record<string, unknown> = { ...value };
-    let current: Record<string, unknown> = nextRoot;
-    for (let i = 0; i < parts.length - 1; i += 1) {
-      const key = parts[i];
-      const existing = current[key];
-      if (!existing || typeof existing !== 'object' || Array.isArray(existing)) {
-        current[key] = {};
-      } else {
-        current[key] = { ...(existing as Record<string, unknown>) };
-      }
-      current = current[key] as Record<string, unknown>;
-    }
-    current[parts[parts.length - 1]] = nextValue;
-    return nextRoot;
-  }
-
-  function valuesEqualForSelection(left: unknown, right: unknown): boolean {
-    return JSON.stringify(left) === JSON.stringify(right);
-  }
-
-  function isBuilderTruthy(value: unknown): boolean {
-    if (value === null || value === undefined) {
-      return false;
-    }
-    if (typeof value === 'boolean') {
-      return value;
-    }
-    if (typeof value === 'number') {
-      return Number.isFinite(value) && value !== 0;
-    }
-    if (typeof value === 'bigint') {
-      return value !== 0n;
-    }
-    if (typeof value === 'string') {
-      const trimmed = value.trim();
-      if (trimmed.length === 0) {
-        return false;
-      }
-      if (trimmed === '0' || trimmed.toLowerCase() === 'false' || trimmed.toLowerCase() === 'null') {
-        return false;
-      }
-      return true;
-    }
-    if (Array.isArray(value)) {
-      return value.length > 0;
-    }
-    if (typeof value === 'object') {
-      return Object.keys(value as Record<string, unknown>).length > 0;
-    }
-    return true;
-  }
-
-  function buildBuilderAppScope(contexts: Record<string, BuilderAppStepContext>): Record<string, unknown> {
-    return {
-      steps: contexts,
-    };
-  }
-
-  function evaluateBuilderStepSuccess(
-    step: MetaAppSummary['steps'][number],
-    contexts: Record<string, BuilderAppStepContext>,
-    operationSucceeded: boolean,
-  ): boolean {
-    if (step.success.kind === 'operation_ok') {
-      return operationSucceeded;
-    }
-    const value = readBuilderPath(buildBuilderAppScope(contexts), step.success.path);
-    return isBuilderTruthy(value);
-  }
-
-  function findBuilderAppStepIndexById(app: MetaAppSummary, stepId: string): number {
-    return app.steps.findIndex((step) => step.stepId === stepId);
-  }
-
-  function resolveBuilderNextStepIndexOnSuccess(
-    app: MetaAppSummary,
-    step: MetaAppSummary['steps'][number],
-  ): number | null {
-    const nextTransition = step.transitions.find((transition) => transition.on === 'success');
-    if (!nextTransition) {
-      return null;
-    }
-    const nextIndex = findBuilderAppStepIndexById(app, nextTransition.to);
-    return nextIndex >= 0 ? nextIndex : null;
-  }
-
-  function formatBuilderSelectableItemLabel(
-    item: unknown,
-    index: number,
-    ui: NonNullable<MetaAppSummary['steps'][number]['ui']>,
-  ): string {
-    if (item && typeof item === 'object' && !Array.isArray(item)) {
-      const record = item as Record<string, unknown>;
-      if (ui.labelFields.length > 0) {
-        const values = ui.labelFields
-          .map((field) => readBuilderPath(record, field))
-          .filter((entry) => entry !== undefined && entry !== null)
-          .map((entry) => String(entry));
-        if (values.length > 0) {
-          return `${index + 1}. ${values.join(' | ')}`;
-        }
-      }
-      const selected = readBuilderPath(record, ui.valuePath);
-      if (selected !== undefined) {
-        return `${index + 1}. ${String(selected)}`;
-      }
-      return `${index + 1}. [invalid selector: ui.valuePath did not resolve]`;
-    }
-    return `${index + 1}. ${String(item)}`;
-  }
-
-  function isAutoResolvedBuilderInput(spec: MetaOperationSummary['inputs'][string]): boolean {
-    return spec.default !== undefined || (typeof spec.discover_from === 'string' && spec.discover_from.length > 0);
-  }
-
-  function isBuilderInputEditable(spec: MetaOperationSummary['inputs'][string]): boolean {
-    if (typeof spec.ui_editable === 'boolean') {
-      return spec.ui_editable;
-    }
-    return !isAutoResolvedBuilderInput(spec);
-  }
-
-  function getBuilderInputTag(spec: MetaOperationSummary['inputs'][string]): string {
-    if (spec.discover_from) {
-      if (spec.discover_stage === 'compute') {
-        return 'computed';
-      }
-      if (spec.discover_stage === 'derive' || spec.discover_stage === 'discover') {
-        return 'derived';
-      }
-      if (spec.discover_stage === 'input') {
-        return 'linked';
-      }
-      return 'auto';
-    }
-    if (spec.default !== undefined) {
-      return 'default';
-    }
-    if (spec.required) {
-      return 'required';
-    }
-    if (spec.default === undefined && !spec.discover_from) {
-      return 'required via discover';
-    }
-    return 'optional';
-  }
-
-  function parseBuilderInputValue(raw: string, type: string, label: string): unknown {
-    const trimmed = raw.trim();
-    if (!trimmed) {
-      return undefined;
-    }
-
-    const normalizedType = type.toLowerCase();
-    if (normalizedType === 'bool' || normalizedType === 'boolean') {
-      if (trimmed === 'true') {
-        return true;
-      }
-      if (trimmed === 'false') {
-        return false;
-      }
-      throw new Error(`${label} must be true or false.`);
-    }
-
-    if (/^[ui]\d+$/.test(normalizedType)) {
-      if (!/^-?\d+$/.test(trimmed)) {
-        throw new Error(`${label} must be an integer.`);
-      }
-      return trimmed;
-    }
-
-    if (normalizedType === 'f32' || normalizedType === 'f64' || normalizedType === 'number') {
-      const value = Number(trimmed);
-      if (!Number.isFinite(value)) {
-        throw new Error(`${label} must be a finite number.`);
-      }
-      return value;
-    }
-
-    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-      try {
-        return JSON.parse(trimmed) as unknown;
-      } catch {
-        throw new Error(`${label} must be valid JSON.`);
-      }
-    }
-
-    if (trimmed === 'null') {
-      return null;
-    }
-
-    return trimmed;
-  }
-
-  function buildExampleInputsForOperation(operation: MetaOperationSummary): Record<string, string> {
-    const overrides = BUILDER_EXAMPLE_INPUTS[`${builderProtocolId}/${operation.operationId}`] ?? {};
-    const nextValues: Record<string, string> = {};
-
-    for (const [inputName, spec] of Object.entries(operation.inputs)) {
-      const override = overrides[inputName];
-      if (override !== undefined) {
-        nextValues[inputName] = override;
-        continue;
-      }
-
-      if (spec.default !== undefined) {
-        nextValues[inputName] = stringifyBuilderDefault(spec.default);
-        continue;
-      }
-
-      const normalizedType = spec.type.toLowerCase();
-      if (normalizedType === 'bool' || normalizedType === 'boolean') {
-        nextValues[inputName] = 'true';
-        continue;
-      }
-      if (/^[ui]\d+$/.test(normalizedType)) {
-        nextValues[inputName] = '1';
-        continue;
-      }
-      if (normalizedType === 'f32' || normalizedType === 'f64' || normalizedType === 'number') {
-        nextValues[inputName] = '0.1';
-        continue;
-      }
-
-      nextValues[inputName] = '';
-    }
-
-    return nextValues;
-  }
-
   function handleBuilderPrefillExample() {
     if (!selectedBuilderOperation) {
       return;
     }
 
-    setBuilderInputValues(buildExampleInputsForOperation(selectedBuilderOperation));
+    setBuilderInputValues(
+      buildExampleInputsForOperation(selectedBuilderOperation, builderProtocolId, BUILDER_EXAMPLE_INPUTS),
+    );
     setBuilderStatusText(`Prefilled example inputs for ${builderProtocolId}/${selectedBuilderOperation.operationId}.`);
     setBuilderRawDetails(null);
     setBuilderShowRawDetails(false);
@@ -886,40 +636,6 @@ function App() {
     setBuilderShowRawDetails(false);
   }
 
-  function asRecord(value: unknown, label: string): Record<string, unknown> {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      throw new Error(`${label} must be an object.`);
-    }
-    return value as Record<string, unknown>;
-  }
-
-  function asString(value: unknown, label: string): string {
-    if (typeof value !== 'string') {
-      throw new Error(`${label} must be a string.`);
-    }
-    return value;
-  }
-
-  function asIntegerLikeString(value: unknown, label: string): string {
-    if (typeof value === 'string' && /^-?\d+$/.test(value)) {
-      return value;
-    }
-    if (typeof value === 'number' && Number.isFinite(value) && Number.isInteger(value)) {
-      return String(value);
-    }
-    if (typeof value === 'bigint') {
-      return value.toString();
-    }
-    throw new Error(`${label} must be an integer-like value.`);
-  }
-
-  function asBoolean(value: unknown, label: string): boolean {
-    if (typeof value !== 'boolean') {
-      throw new Error(`${label} must be a boolean.`);
-    }
-    return value;
-  }
-
   async function runRemoteViewRun(options: {
     protocolId: string;
     operationId: string;
@@ -980,179 +696,10 @@ function App() {
     return result;
   }
 
-  function normalizeOrcaPoolCandidates(raw: unknown): OrcaPoolCandidate[] {
-    if (!Array.isArray(raw)) {
-      return [];
-    }
-
-    return raw.map((entry, index) => {
-      const candidate = asRecord(entry, `pool_candidates[${index}]`);
-      const tokenMintA = candidate.tokenMintA ?? candidate.token_mint_a;
-      const tokenMintB = candidate.tokenMintB ?? candidate.token_mint_b;
-      const tickSpacing = candidate.tickSpacing ?? candidate.tick_spacing;
-      return {
-        whirlpool: asString(candidate.whirlpool, `pool_candidates[${index}].whirlpool`),
-        tokenMintA: asString(tokenMintA, `pool_candidates[${index}].tokenMintA`),
-        tokenMintB: asString(tokenMintB, `pool_candidates[${index}].tokenMintB`),
-        tickSpacing: asIntegerLikeString(tickSpacing, `pool_candidates[${index}].tickSpacing`),
-        liquidity: asIntegerLikeString(candidate.liquidity, `pool_candidates[${index}].liquidity`),
-      };
-    });
-  }
-
-  function normalizePumpPoolCandidates(raw: unknown): Array<Record<string, unknown>> {
-    if (!Array.isArray(raw)) {
-      return [];
-    }
-
-    return raw.map((entry, index) => {
-      const candidate = asRecord(entry, `pool_candidates[${index}]`);
-      return {
-        pool: asString(candidate.pool, `pool_candidates[${index}].pool`),
-        baseMint: asString(candidate.baseMint, `pool_candidates[${index}].baseMint`),
-        quoteMint: asString(candidate.quoteMint, `pool_candidates[${index}].quoteMint`),
-        lpSupply: asIntegerLikeString(candidate.lpSupply, `pool_candidates[${index}].lpSupply`),
-      };
-    });
-  }
-
-  function compactInteger(value: string): string {
-    if (value.length <= 12) {
-      return value;
-    }
-    return `${value.slice(0, 6)}...${value.slice(-4)}`;
-  }
-
-  function formatOrcaPoolChoiceLine(pool: OrcaPoolCandidate, index: number): string {
-    return `${index + 1}. ${compactPubkey(pool.whirlpool)} | tickSpacing ${pool.tickSpacing} | liquidity ${compactInteger(pool.liquidity)}`;
-  }
-
-  function stringifyReadOutputValue(value: unknown): string {
-    if (value === null || value === undefined) {
-      return 'null';
-    }
-    if (typeof value === 'string') {
-      return value;
-    }
-    if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
-      return String(value);
-    }
-    try {
-      return JSON.stringify(value);
-    } catch {
-      return String(value);
-    }
-  }
-
-  function formatReadOutputItem(
-    item: unknown,
-    index: number,
-    labelFields: string[],
-  ): string {
-    if (item && typeof item === 'object' && !Array.isArray(item)) {
-      const record = item as Record<string, unknown>;
-      if (labelFields.length > 0) {
-        const parts = labelFields
-          .map((field) => readBuilderPath(record, field))
-          .filter((entry) => entry !== undefined && entry !== null)
-          .map((entry) => String(entry));
-        if (parts.length > 0) {
-          return `${index + 1}. ${parts.join(' | ')}`;
-        }
-        return `${index + 1}. [no label field resolved]`;
-      }
-      return `${index + 1}. [configure read_output.itemLabelFields]`;
-    }
-    return `${index + 1}. ${stringifyReadOutputValue(item)}`;
-  }
-
-  function buildReadOnlyHighlightsFromSpec(
-    spec: NonNullable<MetaOperationSummary['readOutput']>,
-    readValue: unknown,
-  ): string[] {
-    const highlights: string[] = [];
-    if (spec.title) {
-      highlights.push(spec.title);
-    }
-
-    if (spec.type === 'scalar') {
-      if (readValue === undefined || readValue === null || readValue === '') {
-        highlights.push(spec.emptyText ?? 'No value returned.');
-        return highlights;
-      }
-      highlights.push(`value: ${stringifyReadOutputValue(readValue)}`);
-      return highlights;
-    }
-
-    if (spec.type === 'object') {
-      if (!readValue || typeof readValue !== 'object' || Array.isArray(readValue)) {
-        highlights.push(spec.emptyText ?? 'No object returned.');
-        return highlights;
-      }
-      const entries = Object.entries(readValue as Record<string, unknown>);
-      if (entries.length === 0) {
-        highlights.push(spec.emptyText ?? 'No object fields returned.');
-        return highlights;
-      }
-      for (const [key, value] of entries) {
-        highlights.push(`${key}: ${stringifyReadOutputValue(value)}`);
-      }
-      return highlights;
-    }
-
-    if (!Array.isArray(readValue)) {
-      highlights.push(spec.emptyText ?? 'No list returned.');
-      return highlights;
-    }
-
-    if (readValue.length === 0) {
-      highlights.push(spec.emptyText ?? 'No items found.');
-      return highlights;
-    }
-
-    const maxItems = typeof spec.maxItems === 'number' && spec.maxItems > 0 ? spec.maxItems : readValue.length;
-    const shown = readValue.slice(0, maxItems);
-    highlights.push(`items: ${readValue.length}`);
-    highlights.push(...shown.map((item, index) => formatReadOutputItem(item, index, spec.itemLabelFields ?? [])));
-    if (readValue.length > shown.length) {
-      highlights.push(`...and ${readValue.length - shown.length} more.`);
-    }
-    return highlights;
-  }
-
-  function asPrettyJson(value: unknown): string {
-    return JSON.stringify(value, null, 2);
-  }
-
   function setBuilderResult(lines: string[], raw?: unknown) {
     setBuilderStatusText(lines.join('\n'));
     setBuilderRawDetails(raw === undefined ? null : asPrettyJson(raw));
     setBuilderShowRawDetails(false);
-  }
-
-  function buildDerivedFromReadOutputSource(sourcePath: string, value: unknown): Record<string, unknown> {
-    const cleaned = sourcePath.startsWith('$') ? sourcePath.slice(1) : sourcePath;
-    if (!cleaned.startsWith('derived')) {
-      throw new Error(`Unsupported read_output.source ${sourcePath}: only $derived.* is supported in Builder remote view mode.`);
-    }
-
-    if (cleaned === 'derived') {
-      if (!value || typeof value !== 'object' || Array.isArray(value)) {
-        throw new Error(`read_output.source ${sourcePath} resolved to non-object; expected object for $derived root.`);
-      }
-      return value as Record<string, unknown>;
-    }
-
-    const prefix = 'derived.';
-    if (!cleaned.startsWith(prefix)) {
-      throw new Error(`Unsupported read_output.source ${sourcePath}: expected $derived.<path>.`);
-    }
-
-    const derivedPath = cleaned.slice(prefix.length);
-    if (!derivedPath) {
-      throw new Error(`Unsupported read_output.source ${sourcePath}: missing derived path.`);
-    }
-    return writeBuilderPath({}, derivedPath, value);
   }
 
   function applyBuilderAppStepResult(options: {
@@ -1260,109 +807,12 @@ function App() {
     return `${amountAtomic} atomic (${display.label})`;
   }
 
-  function renderMetaExplain(explanation: MetaOperationExplain): string {
-    const formatRequired = (spec: Record<string, unknown>): string => {
-      const required = spec.required === false ? 'optional' : 'required';
-      const defaultText = spec.default !== undefined ? `, default=${JSON.stringify(spec.default)}` : '';
-      const discoverFromText =
-        typeof spec.discover_from === 'string' ? `, discover_from=${spec.discover_from}` : '';
-      return `${required}${defaultText}${discoverFromText}`;
-    };
-
-    const discoverLines = explanation.discover.map((step, index) => {
-      const name = String(step.name ?? `step_${index + 1}`);
-      const kind = String(step.discover ?? 'unknown');
-      return `${index + 1}. ${name} -> ${kind}`;
-    });
-
-    const deriveLines = explanation.derive.map((step, index) => {
-      const name = String(step.name ?? `step_${index + 1}`);
-      const resolver = String(step.resolver ?? 'unknown');
-      return `${index + 1}. ${name} -> ${resolver}`;
-    });
-
-    const computeLines = explanation.compute.map((step, index) => {
-      const name = String(step.name ?? `step_${index + 1}`);
-      const compute = String(step.compute ?? 'unknown');
-      return `${index + 1}. ${name} -> ${compute}`;
-    });
-
-    const inputLines = Object.entries(explanation.inputs).map(
-      ([name, spec]) => `- ${name}: ${String(spec.type ?? 'unknown')} (${formatRequired(spec)})`,
-    );
-
-    const view = explanation.view as Record<string, unknown> | undefined;
-    const viewBootstrap = view?.bootstrap as Record<string, unknown> | undefined;
-    const viewStream = view?.stream as Record<string, unknown> | undefined;
-
-    const viewBootstrapSteps = Array.isArray(viewBootstrap?.steps)
-      ? (viewBootstrap.steps as unknown[])
-          .map((entry) => String(entry))
-          .filter((entry) => entry.length > 0)
-      : [];
-    const viewEntityKeys = Array.isArray(view?.entity_keys)
-      ? (view.entity_keys as unknown[])
-          .map((entry) => String(entry))
-          .filter((entry) => entry.length > 0)
-      : [];
-    const viewStreamSource = viewStream
-      ? String(viewStream.source ?? 'n/a')
-      : null;
-    const viewStreamFilter = viewStream
-      ? String(viewStream.filter ?? 'n/a')
-      : null;
-
-    return [
-      `Meta operation: ${explanation.protocolId}/${explanation.operationId}`,
-      `schema: ${explanation.schema ?? 'n/a'} | version: ${explanation.version}`,
-      `instruction: ${explanation.instruction}`,
-      `templates used: ${explanation.templateUse.length > 0 ? explanation.templateUse.map((entry) => String(entry.template ?? entry.macro ?? 'unknown')).join(', ') : 'none'}`,
-      '',
-      'Inputs:',
-      ...(inputLines.length > 0 ? inputLines : ['- none']),
-      '',
-      'Discover phase:',
-      ...(discoverLines.length > 0 ? discoverLines : ['none']),
-      '',
-      'Derive phase:',
-      ...(deriveLines.length > 0 ? deriveLines : ['none']),
-      '',
-      'Compute phase:',
-      ...(computeLines.length > 0 ? computeLines : ['none']),
-      '',
-      'View contract:',
-      ...(view
-        ? [
-            `bootstrap steps: ${viewBootstrapSteps.join(', ') || 'none'}`,
-            `stream source: ${viewStreamSource ?? 'none'}`,
-            `stream filter: ${viewStreamFilter ?? 'none'}`,
-            `entity keys: ${viewEntityKeys.join(', ') || 'none'}`,
-          ]
-        : ['none']),
-      '',
-      `Build args keys: ${Object.keys(explanation.args).join(', ') || 'none'}`,
-      `Build accounts keys: ${Object.keys(explanation.accounts).join(', ') || 'none'}`,
-      `Post steps: ${explanation.post.length}`,
-      '',
-      'Expanded JSON:',
-      asPrettyJson(explanation),
-    ].join('\n');
-  }
-
   function encodeIxDataBase64(data: Uint8Array): string {
     let binary = '';
     for (const byte of data) {
       binary += String.fromCharCode(byte);
     }
     return btoa(binary);
-  }
-
-  function compactPubkey(value: unknown): string {
-    const text = String(value ?? 'n/a');
-    if (text.length <= 12) {
-      return text;
-    }
-    return `${text.slice(0, 4)}...${text.slice(-4)}`;
   }
 
   function readU64Le(data: Uint8Array, offset: number): bigint {
