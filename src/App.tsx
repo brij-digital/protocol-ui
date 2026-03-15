@@ -7,32 +7,20 @@ import { PublicKey, TransactionInstruction } from '@solana/web3.js';
 import './App.css';
 import { listSupportedTokens } from './constants/tokens';
 import {
-  parseCommand,
-  type MetaRunCommand,
-  type ViewRunCommand,
-} from './app/commandParser';
-import {
-  decodeIdlAccount,
-  getInstructionTemplate,
-  listIdlProtocols,
   sendIdlInstruction,
   simulateIdlInstruction,
 } from '@agentform/apppack-runtime/idlDeclarativeRuntime';
+import { prepareMetaOperation } from '@agentform/apppack-runtime/metaIdlRuntime';
 import {
-  explainMetaOperation,
-  prepareMetaOperation,
-} from '@agentform/apppack-runtime/metaIdlRuntime';
-import {
-  asPrettyJson,
   buildDerivedFromReadOutputSource,
   buildReadOnlyHighlightsFromSpec,
   parseBuilderInputValue,
   readBuilderPath,
-  renderMetaExplain,
 } from './app/builderHelpers';
 import { BuilderTab } from './app/components/BuilderTab';
-import { CommandTab, type CommandMessage } from './app/components/CommandTab';
+import { CommandTab } from './app/components/CommandTab';
 import { type BuilderPreparedStepResult, useBuilderController } from './app/useBuilderController';
+import { useCommandController } from './app/useCommandController';
 
 const DEFAULT_VIEW_API_BASE_URL = 'https://apppack-view-service.onrender.com';
 const VIEW_API_BASE_URL = String(import.meta.env.VITE_VIEW_API_BASE_URL ?? DEFAULT_VIEW_API_BASE_URL)
@@ -40,8 +28,6 @@ const VIEW_API_BASE_URL = String(import.meta.env.VITE_VIEW_API_BASE_URL ?? DEFAU
   .replace(/\/+$/, '');
 const QUICK_PREFILL_META_RUN_COMMAND =
   '/meta-run orca-whirlpool-mainnet swap_exact_in {"token_in_mint":"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v","token_out_mint":"So11111111111111111111111111111111111111112","amount_in":"10000","slippage_bps":50,"estimated_out":"100000","whirlpool":"Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE","unwrap_sol_output":true} --simulate';
-
-type Message = CommandMessage;
 
 type AppTab = 'command' | 'builder';
 
@@ -55,49 +41,12 @@ type RemoteViewRunResponse = {
   error?: string;
 };
 
-const HELP_TEXT = [
-  'Commands:',
-  '/meta-run <PROTOCOL_ID> <OPERATION_ID> <INPUT_JSON> [--simulate|--send]',
-  '/view-run <PROTOCOL_ID> <OPERATION_ID> <INPUT_JSON>',
-  '/write-raw <PROTOCOL_ID> <INSTRUCTION_NAME> | <ARGS_JSON> | <ACCOUNTS_JSON>',
-  '/read-raw <PROTOCOL_ID> <INSTRUCTION_NAME> | <ARGS_JSON> | <ACCOUNTS_JSON>',
-  '/idl-list',
-  '/idl-template <PROTOCOL_ID> <INSTRUCTION_NAME>',
-  '/meta-explain <PROTOCOL_ID> <OPERATION_ID>',
-  '/idl-view <PROTOCOL_ID> <ACCOUNT_TYPE> <ACCOUNT_PUBKEY>',
-  '/help',
-  '',
-  'Notes:',
-  'Use /meta-run for protocol-agnostic operation execution from MetaIDL.',
-  `Pool discovery runs through View API (${DEFAULT_VIEW_API_BASE_URL}) with no local fallback.`,
-  'Use --simulate first, then --send with same input for deterministic execution.',
-  '',
-  'Examples:',
-  '/meta-run orca-whirlpool-mainnet swap_exact_in {"token_in_mint":"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v","token_out_mint":"So11111111111111111111111111111111111111112","amount_in":"10000","slippage_bps":50,"estimated_out":"100000","whirlpool":"Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE","unwrap_sol_output":true} --simulate',
-  '/meta-run orca-whirlpool-mainnet swap_exact_in {"token_in_mint":"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v","token_out_mint":"So11111111111111111111111111111111111111112","amount_in":"10000","slippage_bps":50,"estimated_out":"100000","whirlpool":"Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE","unwrap_sol_output":true} --send',
-  '/meta-explain orca-whirlpool-mainnet swap_exact_in',
-  '/meta-explain orca-whirlpool-mainnet list_pools',
-  '/meta-explain pump-amm-mainnet buy',
-  '/meta-explain pump-core-mainnet buy_exact_sol_in',
-  '/meta-explain kamino-klend-mainnet deposit_reserve_liquidity',
-  '/meta-explain kamino-klend-mainnet redeem_reserve_collateral',
-  '/view-run orca-whirlpool-mainnet list_pools {"token_in_mint":"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v","token_out_mint":"So11111111111111111111111111111111111111112"}',
-].join('\n');
-
 function App() {
   const { connection } = useConnection();
   const wallet = useWallet();
 
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 1,
-      role: 'assistant',
-      text: 'AppPack ready. Use /help to see commands.',
-    },
-  ]);
   const [activeTab, setActiveTab] = useState<AppTab>('builder');
-  const [commandInput, setCommandInput] = useState('');
-  const [isWorking, setIsWorking] = useState(false);
+  const [isBuilderWorking, setIsBuilderWorking] = useState(false);
 
   const builder = useBuilderController();
   const {
@@ -154,9 +103,23 @@ function App() {
     [],
   );
 
-  function pushMessage(role: 'user' | 'assistant', text: string) {
-    setMessages((prev) => [...prev, { id: prev.length + 1, role, text }]);
-  }
+  const command = useCommandController({
+    connection,
+    wallet,
+    supportedTokens,
+    viewApiBaseUrl: VIEW_API_BASE_URL,
+    defaultViewApiBaseUrl: DEFAULT_VIEW_API_BASE_URL,
+  });
+  const {
+    messages,
+    commandInput,
+    setCommandInput,
+    isWorking: isCommandWorking,
+    handleCommandSubmit,
+    pushMessage,
+  } = command;
+
+  const isWorking = isBuilderWorking || isCommandWorking;
 
   async function runRemoteViewRun(options: {
     protocolId: string;
@@ -200,7 +163,10 @@ function App() {
 
     if (!response.ok) {
       const detail =
-        parsed && typeof parsed === 'object' && !Array.isArray(parsed) && typeof (parsed as { error?: unknown }).error === 'string'
+        parsed &&
+        typeof parsed === 'object' &&
+        !Array.isArray(parsed) &&
+        typeof (parsed as { error?: unknown }).error === 'string'
           ? (parsed as { error: string }).error
           : bodyText || response.statusText;
       throw new Error(`View API error ${response.status}: ${detail}`);
@@ -248,129 +214,6 @@ function App() {
     return [];
   }
 
-  async function executeMetaRun(options: {
-    value: MetaRunCommand;
-  }): Promise<void> {
-    if (!wallet.publicKey) {
-      throw new Error('Connect wallet first to execute MetaIDL operations.');
-    }
-
-    const prepared = await prepareMetaOperation({
-      protocolId: options.value.protocolId,
-      operationId: options.value.operationId,
-      input: options.value.input,
-      connection,
-      walletPublicKey: wallet.publicKey,
-    });
-
-    if (!prepared.instructionName) {
-      pushMessage(
-        'assistant',
-        [
-          `Meta run (${options.value.protocolId}/${options.value.operationId}):`,
-          'Read-only operation (no instruction to execute).',
-          '',
-          asPrettyJson({
-            input: options.value.input,
-            derived: prepared.derived,
-            args: prepared.args,
-            accounts: prepared.accounts,
-          }),
-        ].join('\n'),
-      );
-      return;
-    }
-
-    const preInstructions = buildBuilderPreInstructions();
-    const postInstructions = buildMetaPostInstructions(prepared.postInstructions);
-
-    if (options.value.simulate) {
-      const simulation = await simulateIdlInstruction({
-        protocolId: prepared.protocolId,
-        instructionName: prepared.instructionName,
-        args: prepared.args,
-        accounts: prepared.accounts,
-        remainingAccounts: prepared.remainingAccounts,
-        preInstructions,
-        postInstructions,
-        connection,
-        wallet,
-      });
-
-      pushMessage(
-        'assistant',
-        [
-          `Meta simulate (${options.value.protocolId}/${options.value.operationId}):`,
-          `instruction: ${prepared.instructionName}`,
-          `status: ${simulation.ok ? 'success' : 'failed'}`,
-          `units: ${simulation.unitsConsumed ?? 'n/a'}`,
-          `error: ${simulation.error ?? 'none'}`,
-          '',
-          asPrettyJson({
-            input: options.value.input,
-            derived: prepared.derived,
-            args: prepared.args,
-            accounts: prepared.accounts,
-            logs: simulation.logs,
-          }),
-        ].join('\n'),
-      );
-      return;
-    }
-
-    const sent = await sendIdlInstruction({
-      protocolId: prepared.protocolId,
-      instructionName: prepared.instructionName,
-      args: prepared.args,
-      accounts: prepared.accounts,
-      remainingAccounts: prepared.remainingAccounts,
-      preInstructions,
-      postInstructions,
-      connection,
-      wallet,
-    });
-
-    pushMessage(
-      'assistant',
-      [
-        `Meta tx sent (${options.value.protocolId}/${options.value.operationId}):`,
-        `instruction: ${prepared.instructionName}`,
-        sent.signature,
-        sent.explorerUrl,
-      ].join('\n'),
-    );
-  }
-
-  async function executeViewRun(options: {
-    value: ViewRunCommand;
-  }): Promise<void> {
-    const response = await runRemoteViewRun({
-      protocolId: options.value.protocolId,
-      operationId: options.value.operationId,
-      input: options.value.input,
-      limit: 20,
-    });
-
-    const items = Array.isArray(response.items) ? response.items : [];
-    const highlights = [
-      `items: ${items.length}`,
-      ...(response.meta ? [`source: ${asPrettyJson(response.meta)}`] : []),
-    ];
-    pushMessage(
-      'assistant',
-      [
-        `View run (${options.value.protocolId}/${options.value.operationId}):`,
-        ...(highlights.length > 0 ? highlights : ['No data returned.']),
-        '',
-        'Raw JSON:',
-        asPrettyJson({
-          input: options.value.input,
-          output: response,
-        }),
-      ].join('\n'),
-    );
-  }
-
   async function handleBuilderSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -388,7 +231,7 @@ function App() {
     }
     const walletPublicKey = wallet.publicKey;
 
-    setIsWorking(true);
+    setIsBuilderWorking(true);
     setBuilderStatusText(null);
     setBuilderRawDetails(null);
     setBuilderShowRawDetails(false);
@@ -407,7 +250,8 @@ function App() {
         const rawValue = builderInputValues[inputName] ?? '';
         if (!rawValue.trim()) {
           const hasDefault = spec.default !== undefined;
-          const hasDiscoverFrom = typeof spec.discover_from === 'string' && spec.discover_from.length > 0;
+          const hasDiscoverFrom =
+            typeof spec.discover_from === 'string' && spec.discover_from.length > 0;
           if (spec.required && !hasDefault && !hasDiscoverFrom) {
             throw new Error(`Missing required input ${inputName}.`);
           }
@@ -433,7 +277,10 @@ function App() {
         });
 
         const remoteItems = response.items ?? [];
-        const derived = buildDerivedFromReadOutputSource(selectedBuilderOperation.readOutput.source, remoteItems);
+        const derived = buildDerivedFromReadOutputSource(
+          selectedBuilderOperation.readOutput.source,
+          remoteItems,
+        );
         const preparedReadOnly: BuilderPreparedStepResult = {
           derived,
           args: {},
@@ -454,7 +301,10 @@ function App() {
           );
         }
 
-        const readOnlyHighlights = buildReadOnlyHighlightsFromSpec(selectedBuilderOperation.readOutput, readValue);
+        const readOnlyHighlights = buildReadOnlyHighlightsFromSpec(
+          selectedBuilderOperation.readOutput,
+          readValue,
+        );
         const resultLines = [
           `Builder result (${builderProtocolId}/${selectedBuilderOperation.operationId}):`,
           'Read-only operation (view API).',
@@ -510,7 +360,10 @@ function App() {
             `read_output.source ${selectedBuilderOperation.readOutput.source} did not resolve for ${builderProtocolId}/${selectedBuilderOperation.operationId}.`,
           );
         }
-        const readOnlyHighlights = buildReadOnlyHighlightsFromSpec(selectedBuilderOperation.readOutput, readValue);
+        const readOnlyHighlights = buildReadOnlyHighlightsFromSpec(
+          selectedBuilderOperation.readOutput,
+          readValue,
+        );
         const resultLines = [
           `Builder result (${builderProtocolId}/${selectedBuilderOperation.operationId}):`,
           'Read-only operation (no instruction to execute).',
@@ -551,14 +404,11 @@ function App() {
           wallet,
         });
 
-        const simulationHighlights: string[] = [];
-
         const resultLines = [
           `Builder simulate (${builderProtocolId}/${selectedBuilderOperation.operationId}):`,
           `instruction: ${prepared.instructionName}`,
           `status: ${simulation.ok ? 'success' : 'failed'}`,
           `units: ${simulation.unitsConsumed ?? 'n/a'}`,
-          ...(simulationHighlights.length > 0 ? simulationHighlights : []),
           ...(builderNotes.length > 0 ? builderNotes : []),
           `error: ${simulation.error ?? 'none'}`,
           ...(simulation.ok
@@ -621,127 +471,7 @@ function App() {
       setBuilderShowRawDetails(false);
       pushMessage('assistant', text);
     } finally {
-      setIsWorking(false);
-    }
-  }
-
-  async function handleCommandSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const raw = commandInput.trim();
-    if (!raw) {
-      return;
-    }
-
-    pushMessage('user', raw);
-    setCommandInput('');
-
-    setIsWorking(true);
-    try {
-      const parsed = parseCommand(raw);
-
-      if (parsed.kind === 'help') {
-        pushMessage('assistant', `${HELP_TEXT}\n\nSupported tokens: ${supportedTokens}`);
-        return;
-      }
-
-      if (parsed.kind === 'idl-list') {
-        const registryView = await listIdlProtocols();
-        const protocolLines = registryView.protocols.map(
-          (protocol) =>
-            `- ${protocol.id} (${protocol.name}) [${protocol.status}]\\n  native: ${protocol.supportedCommands.join(', ') || 'none'}`,
-        );
-        pushMessage(
-          'assistant',
-          [
-            'IDL Registry:',
-            `version: ${registryView.version ?? 'n/a'}`,
-            `global commands: ${registryView.globalCommands.join(', ') || 'none'}`,
-            '',
-            'Protocols:',
-            ...(protocolLines.length > 0 ? protocolLines : ['- none']),
-            '',
-            'Raw JSON:',
-            asPrettyJson(registryView),
-          ].join('\n'),
-        );
-        return;
-      }
-
-      if (parsed.kind === 'idl-template') {
-        const template = await getInstructionTemplate({
-          protocolId: parsed.value.protocolId,
-          instructionName: parsed.value.instructionName,
-        });
-        pushMessage('assistant', asPrettyJson(template));
-        return;
-      }
-
-      if (parsed.kind === 'meta-explain') {
-        const explanation = await explainMetaOperation({
-          protocolId: parsed.value.protocolId,
-          operationId: parsed.value.operationId,
-        });
-        pushMessage('assistant', renderMetaExplain(explanation));
-        return;
-      }
-
-      if (parsed.kind === 'meta-run') {
-        await executeMetaRun({
-          value: parsed.value,
-        });
-        return;
-      }
-
-      if (parsed.kind === 'view-run') {
-        await executeViewRun({
-          value: parsed.value,
-        });
-        return;
-      }
-
-      if (parsed.kind === 'idl-view') {
-        const decoded = await decodeIdlAccount({
-          protocolId: parsed.value.protocolId,
-          accountType: parsed.value.accountType,
-          address: parsed.value.address,
-          connection,
-        });
-        pushMessage('assistant', asPrettyJson(decoded));
-        return;
-      }
-
-      if (parsed.kind === 'read-raw') {
-        const sim = await simulateIdlInstruction({
-          protocolId: parsed.value.protocolId,
-          instructionName: parsed.value.instructionName,
-          args: parsed.value.args,
-          accounts: parsed.value.accounts,
-          connection,
-          wallet,
-        });
-        pushMessage('assistant', asPrettyJson(sim));
-        return;
-      }
-
-      if (parsed.kind === 'write-raw' || parsed.kind === 'idl-send') {
-        const result = await sendIdlInstruction({
-          protocolId: parsed.value.protocolId,
-          instructionName: parsed.value.instructionName,
-          args: parsed.value.args,
-          accounts: parsed.value.accounts,
-          connection,
-          wallet,
-        });
-        pushMessage('assistant', `Raw instruction sent.\n${result.signature}\n${result.explorerUrl}`);
-        return;
-      }
-
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error while handling command.';
-      pushMessage('assistant', `Error: ${message}`);
-    } finally {
-      setIsWorking(false);
+      setIsBuilderWorking(false);
     }
   }
 
