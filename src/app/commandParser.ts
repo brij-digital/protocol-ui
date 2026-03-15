@@ -1,68 +1,3 @@
-import { parseUiAmountToAtomic, resolveToken } from '../constants/tokens';
-import { PublicKey } from '@solana/web3.js';
-
-export type OrcaCommand = {
-  kind: 'orca';
-  whirlpool: string;
-  inputToken: string;
-  outputToken: string;
-  amountUi: string;
-  amountAtomic: string;
-  inputMint: string;
-  outputMint: string;
-  slippageBps: number;
-  simulate: boolean;
-};
-
-export type OrcaListPoolsCommand = {
-  kind: 'orca-list-pools';
-  inputToken: string;
-  outputToken: string;
-  inputMint: string;
-  outputMint: string;
-};
-
-export type PumpAmmCommand = {
-  kind: 'pump-amm';
-  tokenMint: string;
-  amountUiSol: string;
-  amountAtomic: string;
-  slippageBps: number;
-  simulate: boolean;
-  pool?: string;
-};
-
-export type PumpCurveCommand = {
-  kind: 'pump-curve';
-  tokenMint: string;
-  amountUiSol: string;
-  amountAtomic: string;
-  slippageBps: number;
-  simulate: boolean;
-};
-
-export type KaminoDepositCommand = {
-  kind: 'kamino-deposit';
-  reserveOrVault: string;
-  tokenMint: string;
-  amountUi: string;
-  simulate: boolean;
-};
-
-export type KaminoWithdrawCommand = {
-  kind: 'kamino-withdraw';
-  reserveOrVault: string;
-  tokenMint: string;
-  amountUi: string;
-  simulate: boolean;
-};
-
-export type KaminoViewPositionCommand = {
-  kind: 'kamino-view-position';
-  reserveOrVault: string;
-  tokenMint: string;
-};
-
 export type IdlSendCommand = {
   kind: 'idl-send';
   protocolId: string;
@@ -97,20 +32,22 @@ export type ViewRunCommand = {
   input: Record<string, unknown>;
 };
 
+export type MetaRunCommand = {
+  kind: 'meta-run';
+  protocolId: string;
+  operationId: string;
+  input: Record<string, unknown>;
+  simulate: boolean;
+};
+
 export type ParsedCommand =
-  | { kind: 'orca'; value: OrcaCommand }
-  | { kind: 'orca-list-pools'; value: OrcaListPoolsCommand }
-  | { kind: 'pump-amm'; value: PumpAmmCommand }
-  | { kind: 'pump-curve'; value: PumpCurveCommand }
-  | { kind: 'kamino-deposit'; value: KaminoDepositCommand }
-  | { kind: 'kamino-withdraw'; value: KaminoWithdrawCommand }
-  | { kind: 'kamino-view-position'; value: KaminoViewPositionCommand }
   | { kind: 'write-raw'; value: IdlSendCommand }
   | { kind: 'read-raw'; value: IdlSendCommand }
   | { kind: 'help' }
   | { kind: 'idl-list' }
   | { kind: 'idl-template'; value: IdlTemplateCommand }
   | { kind: 'meta-explain'; value: MetaExplainCommand }
+  | { kind: 'meta-run'; value: MetaRunCommand }
   | { kind: 'view-run'; value: ViewRunCommand }
   | { kind: 'idl-view'; value: IdlViewCommand }
   | { kind: 'idl-send'; value: IdlSendCommand };
@@ -218,6 +155,50 @@ function parseViewRunCommand(trimmed: string): ParsedCommand {
   };
 }
 
+function parseMetaRunCommand(trimmed: string): ParsedCommand {
+  let payload = trimmed.slice('/meta-run'.length).trim();
+  let simulate = true;
+
+  if (payload.endsWith('--send')) {
+    payload = payload.slice(0, -'--send'.length).trim();
+    simulate = false;
+  } else if (payload.endsWith('--simulate')) {
+    payload = payload.slice(0, -'--simulate'.length).trim();
+    simulate = true;
+  }
+
+  if (payload.length === 0) {
+    throw new Error('Usage: /meta-run <PROTOCOL_ID> <OPERATION_ID> <INPUT_JSON> [--simulate|--send]');
+  }
+
+  const firstSpace = payload.indexOf(' ');
+  if (firstSpace <= 0) {
+    throw new Error('Usage: /meta-run <PROTOCOL_ID> <OPERATION_ID> <INPUT_JSON> [--simulate|--send]');
+  }
+  const protocolId = payload.slice(0, firstSpace).trim();
+  const rest = payload.slice(firstSpace + 1).trim();
+  const secondSpace = rest.indexOf(' ');
+  if (secondSpace <= 0) {
+    throw new Error('Usage: /meta-run <PROTOCOL_ID> <OPERATION_ID> <INPUT_JSON> [--simulate|--send]');
+  }
+  const operationId = rest.slice(0, secondSpace).trim();
+  const inputRaw = rest.slice(secondSpace + 1).trim();
+  if (inputRaw.length === 0) {
+    throw new Error('Usage: /meta-run <PROTOCOL_ID> <OPERATION_ID> <INPUT_JSON> [--simulate|--send]');
+  }
+
+  return {
+    kind: 'meta-run',
+    value: {
+      kind: 'meta-run',
+      protocolId,
+      operationId,
+      input: parseJsonObject<Record<string, unknown>>(inputRaw, 'input'),
+      simulate,
+    },
+  };
+}
+
 function parseRawCommand(trimmed: string, commandName: '/write-raw' | '/read-raw'): ParsedCommand {
   const payload = trimmed.slice(commandName.length).trim();
   const parsed = parseIdlActionPayload(payload);
@@ -234,219 +215,6 @@ function parseRawCommand(trimmed: string, commandName: '/write-raw' | '/read-raw
   };
 }
 
-function parseOrcaArgs(args: string[]): OrcaCommand {
-  const { argsWithoutFlag, simulate } = splitSimulationFlag(args);
-  if (argsWithoutFlag.length !== 5) {
-    throw new Error('Usage: /orca <WHIRLPOOL> <INPUT_TOKEN> <OUTPUT_TOKEN> <AMOUNT> <SLIPPAGE_BPS> [--simulate]');
-  }
-
-  const [whirlpoolRaw, inputRaw, outputRaw, amountUi, slippageRaw] = argsWithoutFlag;
-  const whirlpool = new PublicKey(whirlpoolRaw).toBase58();
-  const inputToken = resolveToken(inputRaw);
-  const outputToken = resolveToken(outputRaw);
-
-  if (!inputToken) {
-    throw new Error(`Unsupported input token: ${inputRaw}`);
-  }
-
-  if (!outputToken) {
-    throw new Error(`Unsupported output token: ${outputRaw}`);
-  }
-
-  if (inputToken.mint === outputToken.mint) {
-    throw new Error('Input and output token must differ.');
-  }
-
-  const amountAtomic = parseUiAmountToAtomic(amountUi, inputToken.decimals);
-  if (amountAtomic <= 0n) {
-    throw new Error('Amount must be greater than zero.');
-  }
-
-  const slippageBps = Number(slippageRaw);
-  if (!Number.isInteger(slippageBps) || slippageBps < 1 || slippageBps > 5000) {
-    throw new Error('SLIPPAGE_BPS must be an integer between 1 and 5000.');
-  }
-
-  return {
-    kind: 'orca',
-    whirlpool,
-    inputToken: inputToken.symbol,
-    outputToken: outputToken.symbol,
-    amountUi,
-    amountAtomic: amountAtomic.toString(),
-    inputMint: inputToken.mint,
-    outputMint: outputToken.mint,
-    slippageBps,
-    simulate,
-  };
-}
-
-function parseOrcaListPoolsArgs(args: string[]): OrcaListPoolsCommand {
-  if (args.length !== 2) {
-    throw new Error('Usage: /orca-list-pools <INPUT_TOKEN> <OUTPUT_TOKEN>');
-  }
-
-  const [inputRaw, outputRaw] = args;
-  const inputToken = resolveToken(inputRaw);
-  const outputToken = resolveToken(outputRaw);
-
-  if (!inputToken) {
-    throw new Error(`Unsupported input token: ${inputRaw}`);
-  }
-
-  if (!outputToken) {
-    throw new Error(`Unsupported output token: ${outputRaw}`);
-  }
-
-  if (inputToken.mint === outputToken.mint) {
-    throw new Error('Input and output token must differ.');
-  }
-
-  return {
-    kind: 'orca-list-pools',
-    inputToken: inputToken.symbol,
-    outputToken: outputToken.symbol,
-    inputMint: inputToken.mint,
-    outputMint: outputToken.mint,
-  };
-}
-
-function splitSimulationFlag(args: string[]): { argsWithoutFlag: string[]; simulate: boolean } {
-  let simulate = false;
-  const argsWithoutFlag: string[] = [];
-  for (const arg of args) {
-    if (arg === '--simulate') {
-      simulate = true;
-      continue;
-    }
-    argsWithoutFlag.push(arg);
-  }
-  return { argsWithoutFlag, simulate };
-}
-
-function parsePumpAmmArgs(args: string[]): PumpAmmCommand {
-  const { argsWithoutFlag, simulate } = splitSimulationFlag(args);
-  if (argsWithoutFlag.length < 3 || argsWithoutFlag.length > 4) {
-    throw new Error('Usage: /pump-amm <TOKEN_MINT> <AMOUNT_SOL> <SLIPPAGE_BPS> [POOL_PUBKEY] [--simulate]');
-  }
-
-  const [tokenMintRaw, amountUiSol, slippageRaw, poolRaw] = argsWithoutFlag;
-  const tokenMint = new PublicKey(tokenMintRaw).toBase58();
-  const amountAtomic = parseUiAmountToAtomic(amountUiSol, 9);
-  if (amountAtomic <= 0n) {
-    throw new Error('AMOUNT_SOL must be greater than zero.');
-  }
-
-  const slippageBps = Number(slippageRaw);
-  if (!Number.isInteger(slippageBps) || slippageBps < 1 || slippageBps > 5000) {
-    throw new Error('SLIPPAGE_BPS must be an integer between 1 and 5000.');
-  }
-
-  const pool = poolRaw ? new PublicKey(poolRaw).toBase58() : undefined;
-
-  return {
-    kind: 'pump-amm',
-    tokenMint,
-    amountUiSol,
-    amountAtomic: amountAtomic.toString(),
-    slippageBps,
-    simulate,
-    ...(pool ? { pool } : {}),
-  };
-}
-
-function parsePumpCurveArgs(args: string[]): PumpCurveCommand {
-  const { argsWithoutFlag, simulate } = splitSimulationFlag(args);
-  if (argsWithoutFlag.length !== 3) {
-    throw new Error('Usage: /pump-curve <TOKEN_MINT> <AMOUNT_SOL> <SLIPPAGE_BPS> [--simulate]');
-  }
-
-  const [tokenMintRaw, amountUiSol, slippageRaw] = argsWithoutFlag;
-  const tokenMint = new PublicKey(tokenMintRaw).toBase58();
-  const amountAtomic = parseUiAmountToAtomic(amountUiSol, 9);
-  if (amountAtomic <= 0n) {
-    throw new Error('AMOUNT_SOL must be greater than zero.');
-  }
-
-  const slippageBps = Number(slippageRaw);
-  if (!Number.isInteger(slippageBps) || slippageBps < 1 || slippageBps > 5000) {
-    throw new Error('SLIPPAGE_BPS must be an integer between 1 and 5000.');
-  }
-
-  return {
-    kind: 'pump-curve',
-    tokenMint,
-    amountUiSol,
-    amountAtomic: amountAtomic.toString(),
-    slippageBps,
-    simulate,
-  };
-}
-
-function parseKaminoDepositArgs(args: string[]): KaminoDepositCommand {
-  const { argsWithoutFlag, simulate } = splitSimulationFlag(args);
-  if (argsWithoutFlag.length !== 3) {
-    throw new Error(
-      'Usage: /kamino-deposit <RESERVE_OR_VAULT> <TOKEN_MINT> <AMOUNT> [--simulate]',
-    );
-  }
-
-  const [reserveOrVaultRaw, tokenMintRaw, amountUi] = argsWithoutFlag;
-  const reserveOrVault = new PublicKey(reserveOrVaultRaw).toBase58();
-  const tokenMint = new PublicKey(tokenMintRaw).toBase58();
-  if (!/^\d+(\.\d+)?$/.test(amountUi)) {
-    throw new Error('AMOUNT must be a positive number.');
-  }
-
-  return {
-    kind: 'kamino-deposit',
-    reserveOrVault,
-    tokenMint,
-    amountUi,
-    simulate,
-  };
-}
-
-function parseKaminoWithdrawArgs(args: string[]): KaminoWithdrawCommand {
-  const { argsWithoutFlag, simulate } = splitSimulationFlag(args);
-  if (argsWithoutFlag.length !== 3) {
-    throw new Error(
-      'Usage: /kamino-withdraw <RESERVE_OR_VAULT> <TOKEN_MINT> <AMOUNT> [--simulate]',
-    );
-  }
-
-  const [reserveOrVaultRaw, tokenMintRaw, amountUi] = argsWithoutFlag;
-  const reserveOrVault = new PublicKey(reserveOrVaultRaw).toBase58();
-  const tokenMint = new PublicKey(tokenMintRaw).toBase58();
-  if (!/^\d+(\.\d+)?$/.test(amountUi)) {
-    throw new Error('AMOUNT must be a positive number.');
-  }
-
-  return {
-    kind: 'kamino-withdraw',
-    reserveOrVault,
-    tokenMint,
-    amountUi,
-    simulate,
-  };
-}
-
-function parseKaminoViewPositionArgs(args: string[]): KaminoViewPositionCommand {
-  if (args.length !== 2) {
-    throw new Error('Usage: /kamino-view-position <RESERVE_OR_VAULT> <TOKEN_MINT>');
-  }
-
-  const [reserveOrVaultRaw, tokenMintRaw] = args;
-  const reserveOrVault = new PublicKey(reserveOrVaultRaw).toBase58();
-  const tokenMint = new PublicKey(tokenMintRaw).toBase58();
-
-  return {
-    kind: 'kamino-view-position',
-    reserveOrVault,
-    tokenMint,
-  };
-}
-
 export function parseCommand(raw: string): ParsedCommand {
   const trimmed = raw.trim();
   if (trimmed.length === 0) {
@@ -459,6 +227,10 @@ export function parseCommand(raw: string): ParsedCommand {
 
   if (trimmed === '/view-run' || trimmed.startsWith('/view-run ')) {
     return parseViewRunCommand(trimmed);
+  }
+
+  if (trimmed === '/meta-run' || trimmed.startsWith('/meta-run ')) {
+    return parseMetaRunCommand(trimmed);
   }
 
   if (trimmed.startsWith('/write-raw ')) {
@@ -528,33 +300,5 @@ export function parseCommand(raw: string): ParsedCommand {
     };
   }
 
-  if (command === '/orca') {
-    return { kind: 'orca', value: parseOrcaArgs(args) };
-  }
-
-  if (command === '/orca-list-pools') {
-    return { kind: 'orca-list-pools', value: parseOrcaListPoolsArgs(args) };
-  }
-
-  if (command === '/pump-amm') {
-    return { kind: 'pump-amm', value: parsePumpAmmArgs(args) };
-  }
-
-  if (command === '/pump-curve') {
-    return { kind: 'pump-curve', value: parsePumpCurveArgs(args) };
-  }
-
-  if (command === '/kamino-deposit') {
-    return { kind: 'kamino-deposit', value: parseKaminoDepositArgs(args) };
-  }
-
-  if (command === '/kamino-withdraw') {
-    return { kind: 'kamino-withdraw', value: parseKaminoWithdrawArgs(args) };
-  }
-
-  if (command === '/kamino-view-position') {
-    return { kind: 'kamino-view-position', value: parseKaminoViewPositionArgs(args) };
-  }
-
-  throw new Error(`Unknown command: ${command}. Try /help.`);
+  throw new Error(`Unknown command: ${command}. This mode is protocol-agnostic; use /idl-list or /help.`);
 }

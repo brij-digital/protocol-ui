@@ -5,28 +5,19 @@ import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import {
   createAssociatedTokenAccountIdempotentInstruction,
   createCloseAccountInstruction,
-  createSyncNativeInstruction,
 } from '@solana/spl-token';
-import { PublicKey, SystemProgram, TransactionInstruction } from '@solana/web3.js';
-import Decimal from 'decimal.js';
+import { PublicKey, TransactionInstruction } from '@solana/web3.js';
 import './App.css';
-import { formatTokenAmount, listSupportedTokens, parseUiAmountToAtomic, resolveToken } from './constants/tokens';
+import { listSupportedTokens } from './constants/tokens';
 import {
   parseCommand,
-  type KaminoDepositCommand,
-  type KaminoViewPositionCommand,
-  type KaminoWithdrawCommand,
-  type OrcaCommand,
-  type OrcaListPoolsCommand,
-  type PumpAmmCommand,
-  type PumpCurveCommand,
+  type MetaRunCommand,
   type ViewRunCommand,
 } from './app/commandParser';
 import {
   decodeIdlAccount,
   getInstructionTemplate,
   listIdlProtocols,
-  previewIdlInstruction,
   sendIdlInstruction,
   simulateIdlInstruction,
 } from '@agentform/apppack-runtime/idlDeclarativeRuntime';
@@ -35,29 +26,21 @@ import {
   listMetaApps,
   listMetaOperations,
   prepareMetaOperation,
-  prepareMetaInstruction,
   type MetaAppSummary,
   type MetaOperationSummary,
 } from '@agentform/apppack-runtime/metaIdlRuntime';
 import {
-  asBoolean,
-  asIntegerLikeString,
   asPrettyJson,
   asRecord,
-  asString,
   buildBuilderAppScope,
   buildDerivedFromReadOutputSource,
   buildExampleInputsForOperation,
   buildReadOnlyHighlightsFromSpec,
-  compactPubkey,
   evaluateBuilderStepSuccess,
   formatBuilderSelectableItemLabel,
-  formatOrcaPoolChoiceLine,
   getBuilderInputTag,
   isBuilderInputEditable,
   isBuilderTruthy,
-  normalizeOrcaPoolCandidates,
-  normalizePumpPoolCandidates,
   parseBuilderInputValue,
   readBuilderPath,
   renderMetaExplain,
@@ -73,27 +56,17 @@ const ORCA_LIST_POOLS_OPERATION_ID = 'list_pools';
 const ORCA_OPERATION_ID = 'swap_exact_in';
 const PUMP_AMM_PROTOCOL_ID = 'pump-amm-mainnet';
 const PUMP_AMM_OPERATION_ID = 'buy';
-const PUMP_AMM_RESOLVE_POOL_OPERATION_ID = 'resolve_pool';
 const PUMP_CURVE_PROTOCOL_ID = 'pump-core-mainnet';
 const PUMP_CURVE_OPERATION_ID = 'buy_exact_sol_in';
 const KAMINO_KLEND_PROTOCOL_ID = 'kamino-klend-mainnet';
 const KAMINO_DEPOSIT_OPERATION_ID = 'deposit_reserve_liquidity';
 const KAMINO_WITHDRAW_OPERATION_ID = 'redeem_reserve_collateral';
-const KAMINO_VIEW_OPERATION_ID = 'view_position';
 const DEFAULT_VIEW_API_BASE_URL = 'https://apppack-view-service.onrender.com';
 const VIEW_API_BASE_URL = String(import.meta.env.VITE_VIEW_API_BASE_URL ?? DEFAULT_VIEW_API_BASE_URL)
   .trim()
   .replace(/\/+$/, '');
-const QUICK_PREFILL_SWAP_COMMAND =
-  '/orca Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v So11111111111111111111111111111111111111112 0.01 50 --simulate';
-const QUICK_PREFILL_ORCA_LIST_POOLS_COMMAND =
-  '/orca-list-pools EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v So11111111111111111111111111111111111111112';
-const QUICK_PREFILL_PUMP_QUOTE_COMMAND =
-  '/pump-amm C4yDhKwkikpVGCQWD9BT2SJyHAtRFFnKPDM9Nyshpump 0.01 100 --simulate';
-const QUICK_PREFILL_PUMP_CURVE_COMMAND =
-  '/pump-curve 2wHC2vrKwFn87nwXcCnBbx5KRBi61km156af9YS8pump 0.01 100 --simulate';
-const QUICK_PREFILL_KAMINO_DEPOSIT_COMMAND =
-  '/kamino-deposit 8J5NcJX4RScwC9hWfW2MtgQ8v4D6vQkYvA4K4GcCbn8J EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v 0.1 --simulate';
+const QUICK_PREFILL_META_RUN_COMMAND =
+  '/meta-run orca-whirlpool-mainnet swap_exact_in {"token_in_mint":"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v","token_out_mint":"So11111111111111111111111111111111111111112","amount_in":"10000","slippage_bps":50,"estimated_out":"100000","whirlpool":"Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE","unwrap_sol_output":true} --simulate';
 const BUILDER_EXAMPLE_INPUTS: Record<string, Record<string, string>> = {
   [`${ORCA_PROTOCOL_ID}/${ORCA_LIST_POOLS_OPERATION_ID}`]: {
     token_in_mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
@@ -166,39 +139,24 @@ type RemoteViewRunResponse = {
 
 const HELP_TEXT = [
   'Commands:',
-  '/orca-list-pools <INPUT_TOKEN> <OUTPUT_TOKEN>',
-  '/orca <WHIRLPOOL> <INPUT_TOKEN> <OUTPUT_TOKEN> <AMOUNT> <SLIPPAGE_BPS> [--simulate]',
-  '/pump-amm <TOKEN_MINT> <AMOUNT_SOL> <SLIPPAGE_BPS> [POOL_PUBKEY] [--simulate]',
-  '/pump-curve <TOKEN_MINT> <AMOUNT_SOL> <SLIPPAGE_BPS> [--simulate]',
-  '/kamino-deposit <RESERVE_OR_VAULT> <TOKEN_MINT> <AMOUNT> [--simulate]',
-  '/kamino-withdraw <RESERVE_OR_VAULT> <TOKEN_MINT> <AMOUNT> [--simulate]',
-  '/kamino-view-position <RESERVE_OR_VAULT> <TOKEN_MINT>',
+  '/meta-run <PROTOCOL_ID> <OPERATION_ID> <INPUT_JSON> [--simulate|--send]',
+  '/view-run <PROTOCOL_ID> <OPERATION_ID> <INPUT_JSON>',
   '/write-raw <PROTOCOL_ID> <INSTRUCTION_NAME> | <ARGS_JSON> | <ACCOUNTS_JSON>',
   '/read-raw <PROTOCOL_ID> <INSTRUCTION_NAME> | <ARGS_JSON> | <ACCOUNTS_JSON>',
   '/idl-list',
   '/idl-template <PROTOCOL_ID> <INSTRUCTION_NAME>',
   '/meta-explain <PROTOCOL_ID> <OPERATION_ID>',
-  '/view-run <PROTOCOL_ID> <OPERATION_ID> <INPUT_JSON>',
   '/idl-view <PROTOCOL_ID> <ACCOUNT_TYPE> <ACCOUNT_PUBKEY>',
   '/help',
   '',
   'Notes:',
-  'AMOUNT is UI amount (e.g. 0.1 for SOL).',
+  'Use /meta-run for protocol-agnostic operation execution from MetaIDL.',
   `Pool discovery runs through View API (${DEFAULT_VIEW_API_BASE_URL}) with no local fallback.`,
-  'Pump quote/buy spends wrapped SOL (WSOL) under the hood.',
-  'Kamino commands accept reserve pubkey or reserve vault pubkey as first argument.',
+  'Use --simulate first, then --send with same input for deterministic execution.',
   '',
   'Examples:',
-  '/orca-list-pools SOL USDC',
-  '/orca <WHIRLPOOL> SOL USDC 0.1 50 --simulate',
-  '/orca <WHIRLPOOL> SOL USDC 0.1 50',
-  '/pump-amm <TOKEN_MINT> 0.01 100 --simulate',
-  '/pump-amm <TOKEN_MINT> 0.01 100',
-  '/pump-curve <TOKEN_MINT> 0.01 100 --simulate',
-  '/pump-curve <TOKEN_MINT> 0.01 100',
-  '/kamino-deposit <RESERVE_OR_VAULT> EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v 10 --simulate',
-  '/kamino-withdraw <RESERVE_OR_VAULT> EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v 5 --simulate',
-  '/kamino-view-position <RESERVE_OR_VAULT> EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+  '/meta-run orca-whirlpool-mainnet swap_exact_in {"token_in_mint":"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v","token_out_mint":"So11111111111111111111111111111111111111112","amount_in":"10000","slippage_bps":50,"estimated_out":"100000","whirlpool":"Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE","unwrap_sol_output":true} --simulate',
+  '/meta-run orca-whirlpool-mainnet swap_exact_in {"token_in_mint":"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v","token_out_mint":"So11111111111111111111111111111111111111112","amount_in":"10000","slippage_bps":50,"estimated_out":"100000","whirlpool":"Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE","unwrap_sol_output":true} --send',
   '/meta-explain orca-whirlpool-mainnet swap_exact_in',
   '/meta-explain orca-whirlpool-mainnet list_pools',
   '/meta-explain pump-amm-mainnet buy',
@@ -791,74 +749,6 @@ function App() {
     return isBuilderAppStepUnlocked(selectedBuilderApp, targetStep, builderAppStepContexts, builderAppStepCompleted);
   }
 
-  function getMintDisplay(mint: string): { label: string; decimals: number | null } {
-    const token = resolveToken(mint);
-    if (token) {
-      return { label: token.symbol, decimals: token.decimals };
-    }
-    return { label: compactPubkey(mint), decimals: null };
-  }
-
-  function formatAmountWithMint(amountAtomic: string, mint: string): string {
-    const display = getMintDisplay(mint);
-    if (display.decimals !== null) {
-      return `${formatTokenAmount(amountAtomic, display.decimals)} ${display.label} (${amountAtomic})`;
-    }
-    return `${amountAtomic} atomic (${display.label})`;
-  }
-
-  function encodeIxDataBase64(data: Uint8Array): string {
-    let binary = '';
-    for (const byte of data) {
-      binary += String.fromCharCode(byte);
-    }
-    return btoa(binary);
-  }
-
-  function readU64Le(data: Uint8Array, offset: number): bigint {
-    if (data.length < offset + 8) {
-      return 0n;
-    }
-
-    let value = 0n;
-    for (let i = 0; i < 8; i += 1) {
-      value |= BigInt(data[offset + i]) << BigInt(i * 8);
-    }
-    return value;
-  }
-
-  function decodeBase64(base64: string): Uint8Array {
-    const binary = atob(base64);
-    const out = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i += 1) {
-      out[i] = binary.charCodeAt(i);
-    }
-    return out;
-  }
-
-  function readSplTokenAmountFromSimAccount(dataBase64: string | null): bigint {
-    if (!dataBase64) {
-      return 0n;
-    }
-
-    const bytes = decodeBase64(dataBase64);
-    return readU64Le(bytes, 64);
-  }
-
-  function buildOwnerAtaPreInstructions(options: {
-    owner: PublicKey;
-    pairs: Array<{ ata: string; mint: string }>;
-  }): TransactionInstruction[] {
-    return options.pairs.map((pair) =>
-      createAssociatedTokenAccountIdempotentInstruction(
-        options.owner,
-        new PublicKey(pair.ata),
-        options.owner,
-        new PublicKey(pair.mint),
-      ),
-    );
-  }
-
   function buildMetaPostInstructions(
     postSpecs: Array<{
       kind: 'spl_token_close_account';
@@ -883,676 +773,146 @@ function App() {
     });
   }
 
+  function maybePublicKey(value: unknown): PublicKey | null {
+    if (typeof value !== 'string' || value.length === 0) {
+      return null;
+    }
+    try {
+      return new PublicKey(value);
+    } catch {
+      return null;
+    }
+  }
+
   function buildBuilderPreInstructions(options: {
-    protocolId: string;
     derived: Record<string, unknown>;
     accounts: Record<string, string>;
     walletPublicKey: PublicKey;
   }): TransactionInstruction[] {
-    if (options.protocolId === ORCA_PROTOCOL_ID) {
-      const whirlpoolDataRaw = options.derived.whirlpool_data;
-      if (whirlpoolDataRaw && typeof whirlpoolDataRaw === 'object' && !Array.isArray(whirlpoolDataRaw)) {
-        const whirlpoolData = asRecord(whirlpoolDataRaw, 'derived.whirlpool_data');
-        const tokenOwnerA = options.accounts.token_owner_account_a;
-        const tokenOwnerB = options.accounts.token_owner_account_b;
-        const mintA = whirlpoolData.token_mint_a;
-        const mintB = whirlpoolData.token_mint_b;
-
-        if (
-          typeof tokenOwnerA === 'string' &&
-          typeof tokenOwnerB === 'string' &&
-          typeof mintA === 'string' &&
-          typeof mintB === 'string'
-        ) {
-          return buildOwnerAtaPreInstructions({
-            owner: options.walletPublicKey,
-            pairs: [
-              { ata: tokenOwnerA, mint: mintA },
-              { ata: tokenOwnerB, mint: mintB },
-            ],
-          });
-        }
+    const instructions: TransactionInstruction[] = [];
+    const seenAta = new Set<string>();
+    const addAtaIfValid = (ata: unknown, mint: unknown, tokenProgram?: unknown): void => {
+      const ataKey = maybePublicKey(ata);
+      const mintKey = maybePublicKey(mint);
+      if (!ataKey || !mintKey) {
+        return;
       }
-    }
-
-    return [];
-  }
-
-  function formatPercent(value: number): string {
-    if (!Number.isFinite(value)) {
-      return 'n/a';
-    }
-    return `${(value * 100).toFixed(2)}%`;
-  }
-
-  async function executeOrcaListPools(options: {
-    value: OrcaListPoolsCommand;
-  }): Promise<void> {
-    const response = await runRemoteViewRun({
-      protocolId: ORCA_PROTOCOL_ID,
-      operationId: ORCA_LIST_POOLS_OPERATION_ID,
-      input: {
-        token_in_mint: options.value.inputMint,
-        token_out_mint: options.value.outputMint,
-      },
-      limit: 20,
-    });
-
-    const poolCandidates = normalizeOrcaPoolCandidates(response.items ?? []);
-    if (poolCandidates.length === 0) {
-      pushMessage(
-        'assistant',
-        `No Orca Whirlpool pool found for ${options.value.inputToken}/${options.value.outputToken}.`,
-      );
-      return;
-    }
-
-    const lines = [
-      `Orca pools (${options.value.inputToken}/${options.value.outputToken}):`,
-      ...poolCandidates.map((pool, index) => formatOrcaPoolChoiceLine(pool, index)),
-      '',
-      'Use one whirlpool in swap command:',
-      `/orca <WHIRLPOOL> ${options.value.inputToken} ${options.value.outputToken} <AMOUNT> <SLIPPAGE_BPS> [--simulate]`,
-    ];
-    pushMessage('assistant', lines.join('\n'));
-  }
-
-  async function executeOrca(options: {
-    value: OrcaCommand;
-  }): Promise<void> {
-    if (!wallet.publicKey) {
-      throw new Error('Connect wallet first to derive owner token accounts.');
-    }
-    const walletPublicKey = wallet.publicKey;
-    const selectedWhirlpool = options.value.whirlpool;
-
-    const preparedInitial = await prepareMetaInstruction({
-      protocolId: ORCA_PROTOCOL_ID,
-      operationId: ORCA_OPERATION_ID,
-      input: {
-        token_in_mint: options.value.inputMint,
-        token_out_mint: options.value.outputMint,
-        amount_in: options.value.amountAtomic,
-        slippage_bps: options.value.slippageBps,
-        whirlpool: selectedWhirlpool,
-      },
-      connection,
-      walletPublicKey,
-    });
-
-    const whirlpoolDataInitial = preparedInitial.derived.whirlpool_data as Record<string, unknown> | undefined;
-    const inputTokenMeta = resolveToken(options.value.inputMint);
-    const outputTokenMeta = resolveToken(options.value.outputMint);
-
-    if (!whirlpoolDataInitial) {
-      throw new Error('Missing derived whirlpool data from meta runtime.');
-    }
-
-    const preInstructionsInitial = buildOwnerAtaPreInstructions({
-      owner: walletPublicKey,
-      pairs: [
-        {
-          ata: preparedInitial.accounts.token_owner_account_a,
-          mint: String(whirlpoolDataInitial.token_mint_a),
-        },
-        {
-          ata: preparedInitial.accounts.token_owner_account_b,
-          mint: String(whirlpoolDataInitial.token_mint_b),
-        },
-      ],
-    });
-    const postInstructionsInitial = buildMetaPostInstructions(preparedInitial.postInstructions);
-
-    const aToBInitial = asBoolean(preparedInitial.derived.a_to_b, 'a_to_b');
-    const inputAtaInitial = aToBInitial
-      ? preparedInitial.accounts.token_owner_account_a
-      : preparedInitial.accounts.token_owner_account_b;
-    const outputAtaInitial = aToBInitial
-      ? preparedInitial.accounts.token_owner_account_b
-      : preparedInitial.accounts.token_owner_account_a;
-    let inputBalanceAtomic = '0';
-    try {
-      const inputBalance = await connection.getTokenAccountBalance(new PublicKey(inputAtaInitial), 'confirmed');
-      inputBalanceAtomic = inputBalance.value.amount;
-    } catch {
-      inputBalanceAtomic = '0';
-    }
-    let outputBalanceAtomic = '0';
-    try {
-      const outputBalance = await connection.getTokenAccountBalance(new PublicKey(outputAtaInitial), 'confirmed');
-      outputBalanceAtomic = outputBalance.value.amount;
-    } catch {
-      outputBalanceAtomic = '0';
-    }
-
-    const requiredInputAtomic = BigInt(options.value.amountAtomic);
-    const availableInputAtomic = BigInt(inputBalanceAtomic);
-    if (availableInputAtomic < requiredInputAtomic) {
-      const availableUi = inputTokenMeta
-        ? formatTokenAmount(availableInputAtomic.toString(), inputTokenMeta.decimals)
-        : availableInputAtomic.toString();
-      const requiredUi = inputTokenMeta
-        ? formatTokenAmount(requiredInputAtomic.toString(), inputTokenMeta.decimals)
-        : requiredInputAtomic.toString();
-      throw new Error(
-        `Insufficient ${options.value.inputToken} balance in input token account. Required: ${requiredUi} (${requiredInputAtomic.toString()}), available: ${availableUi} (${availableInputAtomic.toString()}).`,
-      );
-    }
-
-    const rawPreviewByArgs = new Map<string, Record<string, unknown>>();
-    const getRawPreview = async (options: {
-      prepared: Awaited<ReturnType<typeof prepareMetaInstruction>>;
-      args: Record<string, unknown>;
-      preInstructions: TransactionInstruction[];
-      postInstructions: TransactionInstruction[];
-    }): Promise<Record<string, unknown>> => {
-      const cacheKey = JSON.stringify({
-        instructionName: options.prepared.instructionName,
-        args: options.args,
-        accounts: options.prepared.accounts,
-        remaining: options.prepared.remainingAccounts,
-      });
-      const cached = rawPreviewByArgs.get(cacheKey);
-      if (cached) {
-        return cached;
+      const ataText = ataKey.toBase58();
+      if (seenAta.has(ataText)) {
+        return;
       }
-
-      const preview = {
-        preInstructions: options.preInstructions.map((ix) => ({
-          programId: ix.programId.toBase58(),
-          keys: ix.keys.map((key) => ({
-            pubkey: key.pubkey.toBase58(),
-            isSigner: key.isSigner,
-            isWritable: key.isWritable,
-          })),
-          dataBase64: encodeIxDataBase64(ix.data),
-        })),
-        postInstructions: options.postInstructions.map((ix) => ({
-          programId: ix.programId.toBase58(),
-          keys: ix.keys.map((key) => ({
-            pubkey: key.pubkey.toBase58(),
-            isSigner: key.isSigner,
-            isWritable: key.isWritable,
-          })),
-          dataBase64: encodeIxDataBase64(ix.data),
-        })),
-        mainInstruction: await previewIdlInstruction({
-          protocolId: options.prepared.protocolId,
-          instructionName: options.prepared.instructionName,
-          args: options.args,
-          accounts: options.prepared.accounts,
-          remainingAccounts: options.prepared.remainingAccounts,
-          walletPublicKey,
-        }),
-      };
-
-      rawPreviewByArgs.set(cacheKey, preview);
-      return preview;
+      const tokenProgramKey = maybePublicKey(tokenProgram);
+      instructions.push(
+        createAssociatedTokenAccountIdempotentInstruction(
+          options.walletPublicKey,
+          ataKey,
+          options.walletPublicKey,
+          mintKey,
+          tokenProgramKey ?? undefined,
+        ),
+      );
+      seenAta.add(ataText);
     };
 
-    const provisionalArgs = preparedInitial.args as Record<string, unknown>;
-    let provisionalSimulation: Awaited<ReturnType<typeof simulateIdlInstruction>>;
-    try {
-      provisionalSimulation = await simulateIdlInstruction({
-        protocolId: preparedInitial.protocolId,
-        instructionName: preparedInitial.instructionName,
-        args: provisionalArgs,
-        accounts: preparedInitial.accounts,
-        remainingAccounts: preparedInitial.remainingAccounts,
-        preInstructions: preInstructionsInitial,
-        // Estimate output on token accounts before any optional close-account post steps.
-        postInstructions: [],
-        includeAccounts: [inputAtaInitial, outputAtaInitial],
-        connection,
-        wallet,
-      });
-    } catch (error) {
-      const base = error instanceof Error ? error.message : 'Unknown simulation error.';
-      const rawPreview = await getRawPreview({
-        prepared: preparedInitial,
-        args: provisionalArgs,
-        preInstructions: preInstructionsInitial,
-        postInstructions: postInstructionsInitial,
-      });
-      throw new Error(`${base}\n\nRaw instruction preview:\n${asPrettyJson(rawPreview)}`);
+    const whirlpoolDataRaw = options.derived.whirlpool_data;
+    if (whirlpoolDataRaw && typeof whirlpoolDataRaw === 'object' && !Array.isArray(whirlpoolDataRaw)) {
+      const whirlpoolData = asRecord(whirlpoolDataRaw, 'derived.whirlpool_data');
+      addAtaIfValid(
+        options.accounts.token_owner_account_a,
+        whirlpoolData.token_mint_a,
+        options.accounts.token_program_a,
+      );
+      addAtaIfValid(
+        options.accounts.token_owner_account_b,
+        whirlpoolData.token_mint_b,
+        options.accounts.token_program_b,
+      );
     }
 
-    if (!provisionalSimulation.ok) {
-      const rawPreview = await getRawPreview({
-        prepared: preparedInitial,
-        args: provisionalArgs,
-        preInstructions: preInstructionsInitial,
-        postInstructions: postInstructionsInitial,
-      });
-      const simError = provisionalSimulation.error ?? 'unknown';
-      const logs = provisionalSimulation.logs.join('\n');
-      throw new Error(`Simulation failed: ${simError}\n${logs}\n\nRaw instruction preview:\n${asPrettyJson(rawPreview)}`);
+    addAtaIfValid(
+      options.accounts.user_base_token_account,
+      options.accounts.base_mint,
+      options.accounts.base_token_program,
+    );
+    addAtaIfValid(
+      options.accounts.user_quote_token_account,
+      options.accounts.quote_mint,
+      options.accounts.quote_token_program,
+    );
+    addAtaIfValid(
+      options.accounts.associated_user,
+      options.accounts.mint,
+      options.accounts.token_program,
+    );
+    addAtaIfValid(
+      options.accounts.userSourceLiquidity,
+      options.accounts.reserveLiquidityMint,
+      options.accounts.liquidityTokenProgram,
+    );
+    addAtaIfValid(
+      options.accounts.userDestinationLiquidity,
+      options.accounts.reserveLiquidityMint,
+      options.accounts.liquidityTokenProgram,
+    );
+    addAtaIfValid(
+      options.accounts.userSourceCollateral,
+      options.accounts.reserveCollateralMint,
+      options.accounts.collateralTokenProgram,
+    );
+    addAtaIfValid(
+      options.accounts.userDestinationCollateral,
+      options.accounts.reserveCollateralMint,
+      options.accounts.collateralTokenProgram,
+    );
+
+    return instructions;
+  }
+
+  async function executeMetaRun(options: {
+    value: MetaRunCommand;
+  }): Promise<void> {
+    if (!wallet.publicKey) {
+      throw new Error('Connect wallet first to execute MetaIDL operations.');
     }
 
-    const simOutputAccount = provisionalSimulation.accounts.find((entry) => entry.address === outputAtaInitial);
-    const preInputAtomic = availableInputAtomic;
-    const preOutputAtomic = BigInt(outputBalanceAtomic);
-    const postOutputAtomic = readSplTokenAmountFromSimAccount(simOutputAccount?.dataBase64 ?? null);
-
-    const estimatedOutAtomicBigint = postOutputAtomic > preOutputAtomic ? postOutputAtomic - preOutputAtomic : 0n;
-    if (estimatedOutAtomicBigint <= 0n) {
-      throw new Error('Could not estimate output from simulation (estimated output is zero).');
-    }
-
-    const preparedFinal = await prepareMetaInstruction({
-      protocolId: ORCA_PROTOCOL_ID,
-      operationId: ORCA_OPERATION_ID,
-      input: {
-        token_in_mint: options.value.inputMint,
-        token_out_mint: options.value.outputMint,
-        amount_in: options.value.amountAtomic,
-        slippage_bps: options.value.slippageBps,
-        estimated_out: estimatedOutAtomicBigint.toString(),
-        whirlpool: selectedWhirlpool,
-      },
+    const prepared = await prepareMetaOperation({
+      protocolId: options.value.protocolId,
+      operationId: options.value.operationId,
+      input: options.value.input,
       connection,
-      walletPublicKey,
+      walletPublicKey: wallet.publicKey,
     });
 
-    const whirlpoolDataFinal = preparedFinal.derived.whirlpool_data as Record<string, unknown> | undefined;
-    if (!whirlpoolDataFinal) {
-      throw new Error('Missing derived whirlpool data from final Orca meta pass.');
-    }
-    const preInstructionsFinal = buildOwnerAtaPreInstructions({
-      owner: walletPublicKey,
-      pairs: [
-        {
-          ata: preparedFinal.accounts.token_owner_account_a,
-          mint: String(whirlpoolDataFinal.token_mint_a),
-        },
-        {
-          ata: preparedFinal.accounts.token_owner_account_b,
-          mint: String(whirlpoolDataFinal.token_mint_b),
-        },
-      ],
-    });
-    const postInstructionsFinal = buildMetaPostInstructions(preparedFinal.postInstructions);
-    const aToBFinal = asBoolean(preparedFinal.derived.a_to_b, 'a_to_b');
-    const inputAtaFinal = aToBFinal ? preparedFinal.accounts.token_owner_account_a : preparedFinal.accounts.token_owner_account_b;
-    const outputAtaFinal = aToBFinal ? preparedFinal.accounts.token_owner_account_b : preparedFinal.accounts.token_owner_account_a;
-    const finalArgs = preparedFinal.args as Record<string, unknown>;
-    const minOutAtomic = asIntegerLikeString(finalArgs.other_amount_threshold, 'args.other_amount_threshold');
-
-    let finalSimulation: Awaited<ReturnType<typeof simulateIdlInstruction>>;
-    try {
-      finalSimulation = await simulateIdlInstruction({
-        protocolId: preparedFinal.protocolId,
-        instructionName: preparedFinal.instructionName,
-        args: finalArgs,
-        accounts: preparedFinal.accounts,
-        remainingAccounts: preparedFinal.remainingAccounts,
-        preInstructions: preInstructionsFinal,
-        postInstructions: [],
-        includeAccounts: [inputAtaFinal, outputAtaFinal],
-        connection,
-        wallet,
-      });
-    } catch (error) {
-      const base = error instanceof Error ? error.message : 'Unknown simulation error.';
-      const rawPreview = await getRawPreview({
-        prepared: preparedFinal,
-        args: finalArgs,
-        preInstructions: preInstructionsFinal,
-        postInstructions: postInstructionsFinal,
-      });
-      throw new Error(`${base}\n\nRaw instruction preview:\n${asPrettyJson(rawPreview)}`);
-    }
-
-    if (!finalSimulation.ok) {
-      const rawPreview = await getRawPreview({
-        prepared: preparedFinal,
-        args: finalArgs,
-        preInstructions: preInstructionsFinal,
-        postInstructions: postInstructionsFinal,
-      });
-      const simError = finalSimulation.error ?? 'unknown';
-      const logs = finalSimulation.logs.join('\n');
-      throw new Error(`Simulation failed: ${simError}\n${logs}\n\nRaw instruction preview:\n${asPrettyJson(rawPreview)}`);
-    }
-
-    const finalSimInputAccount = finalSimulation.accounts.find((entry) => entry.address === inputAtaFinal);
-    const finalSimOutputAccount = finalSimulation.accounts.find((entry) => entry.address === outputAtaFinal);
-    const finalPostInputAtomic = readSplTokenAmountFromSimAccount(finalSimInputAccount?.dataBase64 ?? null);
-    const finalPostOutputAtomic = readSplTokenAmountFromSimAccount(finalSimOutputAccount?.dataBase64 ?? null);
-    const finalEstimatedInAtomicBigint = preInputAtomic > finalPostInputAtomic ? preInputAtomic - finalPostInputAtomic : 0n;
-    const finalEstimatedOutAtomicBigint = finalPostOutputAtomic > preOutputAtomic ? finalPostOutputAtomic - preOutputAtomic : 0n;
-    if (finalEstimatedOutAtomicBigint <= 0n) {
-      throw new Error('Could not estimate output from simulation (estimated output is zero).');
-    }
-
-    const estimatedInAtomic = finalEstimatedInAtomicBigint.toString();
-    const estimatedOutAtomic = finalEstimatedOutAtomicBigint.toString();
-    const estimatedInUi = inputTokenMeta ? formatTokenAmount(estimatedInAtomic, inputTokenMeta.decimals) : estimatedInAtomic;
-    const estimatedOutUi = outputTokenMeta ? formatTokenAmount(estimatedOutAtomic, outputTokenMeta.decimals) : estimatedOutAtomic;
-    const minOutUi = outputTokenMeta ? formatTokenAmount(minOutAtomic, outputTokenMeta.decimals) : minOutAtomic;
-    let impliedRateText = 'n/a';
-    if (inputTokenMeta && outputTokenMeta && estimatedInAtomic !== '0') {
-      const inUi = new Decimal(estimatedInAtomic).div(new Decimal(10).pow(inputTokenMeta.decimals));
-      const outUi = new Decimal(estimatedOutAtomic).div(new Decimal(10).pow(outputTokenMeta.decimals));
-      if (inUi.gt(0)) {
-        impliedRateText = outUi.div(inUi).toSignificantDigits(8).toString();
-      }
-    }
-
-    if (options.value.simulate) {
+    if (!prepared.instructionName) {
       pushMessage(
         'assistant',
         [
-          'Orca simulate (meta IDL + simulation):',
-          `pair: ${options.value.inputToken}/${options.value.outputToken}`,
-          `pool: ${selectedWhirlpool}`,
-          `input: ${estimatedInUi} ${options.value.inputToken}`,
-          `estimated output: ${estimatedOutUi} ${options.value.outputToken}`,
-          `min output @ ${options.value.slippageBps} bps: ${minOutUi} ${options.value.outputToken}`,
-          `implied rate: 1 ${options.value.inputToken} ≈ ${impliedRateText} ${options.value.outputToken}`,
-          `tick arrays: ${compactPubkey(preparedFinal.accounts.tick_array_0)}, ${compactPubkey(preparedFinal.accounts.tick_array_1)}, ${compactPubkey(preparedFinal.accounts.tick_array_2)}`,
-          `simulation: ok${finalSimulation.unitsConsumed ? ` (${finalSimulation.unitsConsumed} CU)` : ''}`,
-          'Run same command without --simulate to execute.',
+          `Meta run (${options.value.protocolId}/${options.value.operationId}):`,
+          'Read-only operation (no instruction to execute).',
+          '',
+          asPrettyJson({
+            input: options.value.input,
+            derived: prepared.derived,
+            args: prepared.args,
+            accounts: prepared.accounts,
+          }),
         ].join('\n'),
       );
       return;
     }
 
-    let result: Awaited<ReturnType<typeof sendIdlInstruction>>;
-    try {
-      result = await sendIdlInstruction({
-        protocolId: preparedFinal.protocolId,
-        instructionName: preparedFinal.instructionName,
-        args: finalArgs,
-        accounts: preparedFinal.accounts,
-        remainingAccounts: preparedFinal.remainingAccounts,
-        preInstructions: preInstructionsFinal,
-        postInstructions: postInstructionsFinal,
-        connection,
-        wallet,
-      });
-    } catch (error) {
-      const base = error instanceof Error ? error.message : 'Unknown send error.';
-      const rawPreview = await getRawPreview({
-        prepared: preparedFinal,
-        args: finalArgs,
-        preInstructions: preInstructionsFinal,
-        postInstructions: postInstructionsFinal,
-      });
-      throw new Error(`${base}\n\nRaw instruction preview:\n${asPrettyJson(rawPreview)}`);
-    }
-
-    pushMessage(
-      'assistant',
-      [
-        'Orca tx sent (meta IDL -> write-raw).',
-        `pair: ${options.value.inputToken}/${options.value.outputToken}`,
-        `pool: ${selectedWhirlpool}`,
-        `estimatedOut: ${estimatedOutUi} ${options.value.outputToken} (${estimatedOutAtomic})`,
-        result.signature,
-        result.explorerUrl,
-      ].join('\n'),
-    );
-  }
-
-  async function executePumpAmm(options: {
-    value: PumpAmmCommand;
-  }): Promise<void> {
-    if (!wallet.publicKey) {
-      throw new Error('Connect wallet first to execute Pump AMM operations.');
-    }
-    const walletPublicKey = wallet.publicKey;
-
-    let resolvedPool: Awaited<ReturnType<typeof prepareMetaOperation>>;
-    try {
-      resolvedPool = await prepareMetaOperation({
-        protocolId: PUMP_AMM_PROTOCOL_ID,
-        operationId: PUMP_AMM_RESOLVE_POOL_OPERATION_ID,
-        input: {
-          base_mint: options.value.tokenMint,
-          quote_mint: 'So11111111111111111111111111111111111111112',
-          ...(options.value.pool ? { pool: options.value.pool } : {}),
-        },
-        connection,
-        walletPublicKey,
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const noPoolFound =
-        message.includes('discover:selected_pool: no candidates found.') ||
-        message.includes('discover:pool_candidates: no candidates found.');
-      if (noPoolFound) {
-        throw new Error(
-          [
-            `No Pump AMM pool found for token ${options.value.tokenMint} against SOL.`,
-            options.value.pool
-              ? `The provided pool ${options.value.pool} does not match this token/SOL pair in Pump AMM.`
-              : 'This token may still be on bonding-curve or on another venue.',
-            'Use /pump-curve <TOKEN_MINT> <AMOUNT_SOL> <SLIPPAGE_BPS> --simulate to quote bonding-curve directly.',
-          ].join(' '),
-        );
-      }
-      throw error;
-    }
-
-    const candidates = normalizePumpPoolCandidates(resolvedPool.derived.pool_candidates);
-    if (candidates.length === 0) {
-      throw new Error(
-        'No Pump AMM pool found for this token mint against SOL. The token may exist on Pump bonding-curve but not be migrated/listed in Pump AMM yet.',
-      );
-    }
-
-    const selectedPool = asRecord(resolvedPool.derived.selected_pool, 'selected_pool');
-    const selectedPoolAddress = asString(selectedPool.pool, 'selected_pool.pool');
-
-    const prepared = await prepareMetaInstruction({
-      protocolId: PUMP_AMM_PROTOCOL_ID,
-      operationId: PUMP_AMM_OPERATION_ID,
-      input: {
-        base_mint: options.value.tokenMint,
-        quote_amount_in: options.value.amountAtomic,
-        track_volume: true,
-        slippage_bps: options.value.slippageBps,
-        pool: selectedPoolAddress,
-      },
-      connection,
-      walletPublicKey,
+    const preInstructions = buildBuilderPreInstructions({
+      derived: prepared.derived,
+      accounts: prepared.accounts,
+      walletPublicKey: wallet.publicKey,
     });
-
-    const poolData = asRecord(prepared.derived.pool_data, 'pool_data');
-
-    const userBaseAta = prepared.accounts.user_base_token_account;
-    const userQuoteAta = prepared.accounts.user_quote_token_account;
-    const poolBaseMint = asString(poolData.base_mint, 'pool_data.base_mint');
-    const poolQuoteMint = asString(poolData.quote_mint, 'pool_data.quote_mint');
-    const baseTokenProgram = new PublicKey(
-      asString(prepared.accounts.base_token_program, 'accounts.base_token_program'),
-    );
-    const quoteTokenProgram = new PublicKey(
-      asString(prepared.accounts.quote_token_program, 'accounts.quote_token_program'),
-    );
-    if (poolQuoteMint !== 'So11111111111111111111111111111111111111112') {
-      throw new Error(
-        `Unsupported Pump quote mint ${poolQuoteMint}. This command currently supports SOL-quoted pools only.`,
-      );
-    }
-    const finalArgs = prepared.args as Record<string, unknown>;
-    const computedBaseOutAtomic = asIntegerLikeString(
-      finalArgs.base_amount_out,
-      'args.base_amount_out',
-    );
-    const computedMaxQuoteInAtomic = BigInt(
-      asIntegerLikeString(finalArgs.max_quote_amount_in, 'args.max_quote_amount_in'),
-    );
-    const trackVolume =
-      finalArgs.track_volume === undefined ? true : asBoolean(finalArgs.track_volume, 'args.track_volume');
-    const lpFeeBpsRaw = prepared.derived.lp_fee_bps;
-    const protocolFeeBpsRaw = prepared.derived.protocol_fee_bps;
-    const creatorFeeBpsRaw = prepared.derived.creator_fee_bps;
-    const hasFeeBps = lpFeeBpsRaw !== undefined && protocolFeeBpsRaw !== undefined && creatorFeeBpsRaw !== undefined;
-    const lpFeeBps = hasFeeBps ? asIntegerLikeString(lpFeeBpsRaw, 'derived.lp_fee_bps') : null;
-    const protocolFeeBps = hasFeeBps
-      ? asIntegerLikeString(protocolFeeBpsRaw, 'derived.protocol_fee_bps')
-      : null;
-    const creatorFeeBps = hasFeeBps ? asIntegerLikeString(creatorFeeBpsRaw, 'derived.creator_fee_bps') : null;
-
-    const preInstructions: TransactionInstruction[] = [
-      createAssociatedTokenAccountIdempotentInstruction(
-        walletPublicKey,
-        new PublicKey(userBaseAta),
-        walletPublicKey,
-        new PublicKey(poolBaseMint),
-        baseTokenProgram,
-      ),
-      createAssociatedTokenAccountIdempotentInstruction(
-        walletPublicKey,
-        new PublicKey(userQuoteAta),
-        walletPublicKey,
-        new PublicKey(poolQuoteMint),
-        quoteTokenProgram,
-      ),
-      SystemProgram.transfer({
-        fromPubkey: walletPublicKey,
-        toPubkey: new PublicKey(userQuoteAta),
-        // For Pump AMM `buy`, quote debit can go up to max_quote_amount_in.
-        lamports: computedMaxQuoteInAtomic,
-      }),
-      createSyncNativeInstruction(new PublicKey(userQuoteAta)),
-    ];
-
     const postInstructions = buildMetaPostInstructions(prepared.postInstructions);
 
-    let preBaseAtomic = 0n;
-    try {
-      const balance = await connection.getTokenAccountBalance(new PublicKey(userBaseAta), 'confirmed');
-      preBaseAtomic = BigInt(balance.value.amount);
-    } catch {
-      preBaseAtomic = 0n;
-    }
-    let preQuoteAtomic = 0n;
-    try {
-      const balance = await connection.getTokenAccountBalance(new PublicKey(userQuoteAta), 'confirmed');
-      preQuoteAtomic = BigInt(balance.value.amount);
-    } catch {
-      preQuoteAtomic = 0n;
-    }
-    const rawPreviewByArgs = new Map<string, Record<string, unknown>>();
-    const getRawPreview = async (args: Record<string, unknown>): Promise<Record<string, unknown>> => {
-      const cacheKey = JSON.stringify(args);
-      const cached = rawPreviewByArgs.get(cacheKey);
-      if (cached) {
-        return cached;
-      }
-
-      const preview = {
-        preInstructions: preInstructions.map((ix) => ({
-          programId: ix.programId.toBase58(),
-          keys: ix.keys.map((key) => ({
-            pubkey: key.pubkey.toBase58(),
-            isSigner: key.isSigner,
-            isWritable: key.isWritable,
-          })),
-          dataBase64: encodeIxDataBase64(ix.data),
-        })),
-        postInstructions: postInstructions.map((ix) => ({
-          programId: ix.programId.toBase58(),
-          keys: ix.keys.map((key) => ({
-            pubkey: key.pubkey.toBase58(),
-            isSigner: key.isSigner,
-            isWritable: key.isWritable,
-          })),
-          dataBase64: encodeIxDataBase64(ix.data),
-        })),
-        mainInstruction: await previewIdlInstruction({
-          protocolId: prepared.protocolId,
-          instructionName: prepared.instructionName,
-          args,
-          accounts: prepared.accounts,
-          remainingAccounts: prepared.remainingAccounts,
-          walletPublicKey,
-        }),
-      };
-      rawPreviewByArgs.set(cacheKey, preview);
-      return preview;
-    };
-    let simulation: Awaited<ReturnType<typeof simulateIdlInstruction>>;
-    try {
-      simulation = await simulateIdlInstruction({
-        protocolId: prepared.protocolId,
-        instructionName: prepared.instructionName,
-        args: finalArgs,
-        accounts: prepared.accounts,
-        remainingAccounts: prepared.remainingAccounts,
-        preInstructions,
-        postInstructions: [],
-        includeAccounts: [userBaseAta, userQuoteAta],
-        connection,
-        wallet,
-      });
-    } catch (error) {
-      const base = error instanceof Error ? error.message : 'Unknown simulation error.';
-      const rawPreview = await getRawPreview(finalArgs);
-      throw new Error(`${base}\n\nRaw instruction preview:\n${asPrettyJson(rawPreview)}`);
-    }
-
-    if (!simulation.ok) {
-      const rawPreview = await getRawPreview(finalArgs);
-      const simError = simulation.error ?? 'unknown';
-      const logs = simulation.logs.join('\n');
-      const feeBpsLine =
-        lpFeeBps !== null && protocolFeeBps !== null && creatorFeeBps !== null
-          ? `Fee bps: lp=${lpFeeBps}, protocol=${protocolFeeBps}, creator=${creatorFeeBps}`
-        : 'Fee bps: n/a';
-      throw new Error(
-        [
-          `Simulation failed: ${simError}`,
-          logs,
-          '',
-          `Deterministic args: base_amount_out=${computedBaseOutAtomic}, max_quote_amount_in=${computedMaxQuoteInAtomic.toString()}, track_volume=${String(trackVolume)}`,
-          feeBpsLine,
-          '',
-          `Raw instruction preview:\n${asPrettyJson(rawPreview)}`,
-        ].join('\n'),
-      );
-    }
-
-    const simBase = simulation.accounts.find((entry) => entry.address === userBaseAta);
-    const simQuote = simulation.accounts.find((entry) => entry.address === userQuoteAta);
-    const postBaseAtomic = readSplTokenAmountFromSimAccount(simBase?.dataBase64 ?? null);
-    const postQuoteAtomic = readSplTokenAmountFromSimAccount(simQuote?.dataBase64 ?? null);
-    const estimatedOutAtomicBigint = postBaseAtomic > preBaseAtomic ? postBaseAtomic - preBaseAtomic : 0n;
-    const totalQuoteBeforeSwap = preQuoteAtomic + computedMaxQuoteInAtomic;
-    const estimatedQuoteSpentAtomicBigint =
-      totalQuoteBeforeSwap > postQuoteAtomic ? totalQuoteBeforeSwap - postQuoteAtomic : 0n;
-
     if (options.value.simulate) {
-      pushMessage(
-        'assistant',
-        [
-          'Pump AMM simulate (deterministic math + simulation):',
-          `token: ${options.value.tokenMint}`,
-          `pool: ${selectedPoolAddress}`,
-          `input: ${options.value.amountUiSol} SOL (${options.value.amountAtomic} lamports)`,
-          `computed base_amount_out: ${computedBaseOutAtomic} base atomic`,
-          `computed max_quote_amount_in: ${computedMaxQuoteInAtomic.toString()} lamports`,
-          lpFeeBps !== null && protocolFeeBps !== null && creatorFeeBps !== null
-            ? `fee bps (lp/protocol/creator): ${lpFeeBps}/${protocolFeeBps}/${creatorFeeBps}`
-            : 'fee bps (lp/protocol/creator): n/a',
-          `simulated output: ${estimatedOutAtomicBigint.toString()} base atomic`,
-          `simulated quote spent: ${estimatedQuoteSpentAtomicBigint.toString()} lamports`,
-          `simulation: ok${simulation.unitsConsumed ? ` (${simulation.unitsConsumed} CU)` : ''}`,
-          'Run same command without --simulate to execute.',
-        ].join('\n'),
-      );
-      return;
-    }
-
-    let result: Awaited<ReturnType<typeof sendIdlInstruction>>;
-    try {
-      result = await sendIdlInstruction({
+      const simulation = await simulateIdlInstruction({
         protocolId: prepared.protocolId,
         instructionName: prepared.instructionName,
-        args: finalArgs,
+        args: prepared.args,
         accounts: prepared.accounts,
         remainingAccounts: prepared.remainingAccounts,
         preInstructions,
@@ -1560,413 +920,36 @@ function App() {
         connection,
         wallet,
       });
-    } catch (error) {
-      const base = error instanceof Error ? error.message : 'Unknown send error.';
-      const rawPreview = await getRawPreview(finalArgs);
-      throw new Error(`${base}\n\nRaw instruction preview:\n${asPrettyJson(rawPreview)}`);
-    }
 
-    pushMessage(
-      'assistant',
-      [
-        'Pump AMM tx sent (meta IDL -> write-raw).',
-        `token: ${options.value.tokenMint}`,
-        `pool: ${selectedPoolAddress}`,
-        `baseAmountOut: ${computedBaseOutAtomic}`,
-        `maxQuoteAmountIn: ${computedMaxQuoteInAtomic.toString()}`,
-        result.signature,
-        result.explorerUrl,
-      ].join('\n'),
-    );
-  }
-
-  async function executePumpCurve(options: {
-    value: PumpCurveCommand;
-  }): Promise<void> {
-    if (!wallet.publicKey) {
-      throw new Error('Connect wallet first to run Pump curve simulation.');
-    }
-    const walletPublicKey = wallet.publicKey;
-
-    const prepared = await prepareMetaInstruction({
-      protocolId: PUMP_CURVE_PROTOCOL_ID,
-      operationId: PUMP_CURVE_OPERATION_ID,
-      input: {
-        base_mint: options.value.tokenMint,
-        spendable_sol_in: options.value.amountAtomic,
-        min_tokens_out: '1',
-        track_volume: false,
-        slippage_bps: options.value.slippageBps,
-      },
-      connection,
-      walletPublicKey,
-    });
-    const mint = new PublicKey(options.value.tokenMint);
-    const bondingCurve = asString(prepared.accounts.bonding_curve, 'bonding_curve');
-    const associatedUser = asString(prepared.accounts.associated_user, 'associated_user');
-    const tokenProgram = asString(prepared.accounts.token_program, 'token_program');
-    const curveData = asRecord(prepared.derived.bonding_curve_data, 'bonding_curve_data');
-    const complete = asBoolean(curveData.complete, 'bonding_curve_data.complete');
-    const realTokenReserves = asIntegerLikeString(curveData.real_token_reserves, 'bonding_curve_data.real_token_reserves');
-    const realSolReserves = asIntegerLikeString(curveData.real_sol_reserves, 'bonding_curve_data.real_sol_reserves');
-
-    if (complete) {
-      throw new Error(
-        [
-          `Bonding curve is complete for token ${options.value.tokenMint}.`,
-          'This token has graduated/migrated, so Pump core /pump-curve is no longer the executable route.',
-          `Try: /pump-amm ${options.value.tokenMint} ${options.value.amountUiSol} ${options.value.slippageBps} --simulate`,
-        ].join('\n'),
-      );
-    }
-
-    const preInstructions: TransactionInstruction[] = [
-      createAssociatedTokenAccountIdempotentInstruction(
-        walletPublicKey,
-        new PublicKey(associatedUser),
-        walletPublicKey,
-        mint,
-        new PublicKey(tokenProgram),
-      ),
-    ];
-
-    let preUserAtomic = '0';
-    try {
-      const balance = await connection.getTokenAccountBalance(new PublicKey(associatedUser), 'confirmed');
-      preUserAtomic = balance.value.amount;
-    } catch {
-      preUserAtomic = '0';
-    }
-
-    const rawPreviewByArgs = new Map<string, Record<string, unknown>>();
-    const getRawPreview = async (args: Record<string, unknown>): Promise<Record<string, unknown>> => {
-      const cacheKey = JSON.stringify(args);
-      const cached = rawPreviewByArgs.get(cacheKey);
-      if (cached) {
-        return cached;
-      }
-
-      const preview = {
-        preInstructions: preInstructions.map((ix) => ({
-          programId: ix.programId.toBase58(),
-          keys: ix.keys.map((key) => ({
-            pubkey: key.pubkey.toBase58(),
-            isSigner: key.isSigner,
-            isWritable: key.isWritable,
-          })),
-          dataBase64: encodeIxDataBase64(ix.data),
-        })),
-        mainInstruction: await previewIdlInstruction({
-          protocolId: prepared.protocolId,
-          instructionName: prepared.instructionName,
-          args,
-          accounts: prepared.accounts,
-          remainingAccounts: prepared.remainingAccounts,
-          walletPublicKey,
-        }),
-      };
-      rawPreviewByArgs.set(cacheKey, preview);
-      return preview;
-    };
-
-    const provisionalArgs = prepared.args as Record<string, unknown>;
-    let simulation: Awaited<ReturnType<typeof simulateIdlInstruction>>;
-    try {
-      simulation = await simulateIdlInstruction({
-        protocolId: prepared.protocolId,
-        instructionName: prepared.instructionName,
-        args: provisionalArgs,
-        accounts: prepared.accounts,
-        remainingAccounts: prepared.remainingAccounts,
-        preInstructions,
-        postInstructions: [],
-        includeAccounts: [associatedUser],
-        connection,
-        wallet,
-      });
-    } catch (error) {
-      const base = error instanceof Error ? error.message : 'Unknown simulation error.';
-      const rawPreview = await getRawPreview(provisionalArgs);
-      throw new Error(`${base}\n\nRaw instruction preview:\n${asPrettyJson(rawPreview)}`);
-    }
-
-    if (!simulation.ok) {
-      const rawPreview = await getRawPreview(provisionalArgs);
-      const simError = simulation.error ?? 'unknown';
-      const logs = simulation.logs.join('\n');
-      const isCurveComplete =
-        simError.includes('6005') ||
-        logs.includes('BondingCurveComplete') ||
-        logs.includes('Error Number: 6005');
-      if (isCurveComplete) {
-        throw new Error(
-          [
-            `Bonding curve is complete for token ${options.value.tokenMint}.`,
-            'This token has graduated/migrated, so Pump core /pump-curve is no longer the executable route.',
-            `Try: /pump-amm ${options.value.tokenMint} ${options.value.amountUiSol} ${options.value.slippageBps} --simulate`,
-          ].join('\n'),
-        );
-      }
-      throw new Error(`Simulation failed: ${simError}\n${logs}\n\nRaw instruction preview:\n${asPrettyJson(rawPreview)}`);
-    }
-
-    const simUser = simulation.accounts.find((entry) => entry.address === associatedUser);
-    const postUserAtomic = readSplTokenAmountFromSimAccount(simUser?.dataBase64 ?? null);
-    const estimatedOut = postUserAtomic > BigInt(preUserAtomic) ? postUserAtomic - BigInt(preUserAtomic) : 0n;
-    if (estimatedOut <= 0n) {
-      throw new Error('Could not estimate Pump curve output from simulation (estimated output is zero).');
-    }
-
-    const minOut = (estimatedOut * BigInt(10_000 - options.value.slippageBps)) / 10_000n;
-    const minOutAtomic = (minOut > 0n ? minOut : 1n).toString();
-
-    const finalArgs = {
-      ...provisionalArgs,
-      min_tokens_out: minOutAtomic,
-    };
-
-    let tokenDecimals = 6;
-    try {
-      const tokenSupply = await connection.getTokenSupply(mint, 'confirmed');
-      tokenDecimals = tokenSupply.value.decimals;
-    } catch {
-      tokenDecimals = 6;
-    }
-
-    const estimatedOutUi = formatTokenAmount(estimatedOut.toString(), tokenDecimals);
-    const minOutUi = formatTokenAmount(minOutAtomic, tokenDecimals);
-    if (options.value.simulate) {
       pushMessage(
         'assistant',
         [
-          'Pump bonding-curve simulate (meta IDL + simulation):',
-          `token: ${options.value.tokenMint}`,
-          `bondingCurve: ${bondingCurve}`,
-          `input: ${options.value.amountUiSol} SOL (${options.value.amountAtomic} lamports)`,
-          `estimated output: ${estimatedOutUi} tokens (${estimatedOut.toString()} atomic)`,
-          `min output @ ${options.value.slippageBps} bps: ${minOutUi} tokens (${minOutAtomic} atomic)`,
-          `curve status: complete=${complete}, real_token_reserves=${realTokenReserves}, real_sol_reserves=${realSolReserves}`,
-          `simulation: ok${simulation.unitsConsumed ? ` (${simulation.unitsConsumed} CU)` : ''}`,
-          'Run same command without --simulate to execute.',
+          `Meta simulate (${options.value.protocolId}/${options.value.operationId}):`,
+          `instruction: ${prepared.instructionName}`,
+          `status: ${simulation.ok ? 'success' : 'failed'}`,
+          `units: ${simulation.unitsConsumed ?? 'n/a'}`,
+          `error: ${simulation.error ?? 'none'}`,
+          '',
+          asPrettyJson({
+            input: options.value.input,
+            derived: prepared.derived,
+            args: prepared.args,
+            accounts: prepared.accounts,
+            logs: simulation.logs,
+          }),
         ].join('\n'),
       );
       return;
     }
 
-    let result: Awaited<ReturnType<typeof sendIdlInstruction>>;
-    try {
-      result = await sendIdlInstruction({
-        protocolId: prepared.protocolId,
-        instructionName: prepared.instructionName,
-        args: finalArgs,
-        accounts: prepared.accounts,
-        remainingAccounts: prepared.remainingAccounts,
-        preInstructions,
-        connection,
-        wallet,
-      });
-    } catch (error) {
-      const base = error instanceof Error ? error.message : 'Unknown send error.';
-      const rawPreview = await getRawPreview(finalArgs);
-      throw new Error(`${base}\n\nRaw instruction preview:\n${asPrettyJson(rawPreview)}`);
-    }
-
-    pushMessage(
-      'assistant',
-      [
-        'Pump curve tx sent (meta IDL -> write-raw).',
-        `token: ${options.value.tokenMint}`,
-        `bondingCurve: ${bondingCurve}`,
-        `minTokensOut: ${minOutUi} (${minOutAtomic})`,
-        result.signature,
-        result.explorerUrl,
-      ].join('\n'),
-    );
-  }
-
-  function buildKaminoAtaPreInstructions(options: {
-    owner: PublicKey;
-    userLiquidityAta: string;
-    liquidityMint: string;
-    liquidityTokenProgram: string;
-    userCollateralAta: string;
-    collateralMint: string;
-    collateralTokenProgram: string;
-  }): TransactionInstruction[] {
-    return [
-      createAssociatedTokenAccountIdempotentInstruction(
-        options.owner,
-        new PublicKey(options.userLiquidityAta),
-        options.owner,
-        new PublicKey(options.liquidityMint),
-        new PublicKey(options.liquidityTokenProgram),
-      ),
-      createAssociatedTokenAccountIdempotentInstruction(
-        options.owner,
-        new PublicKey(options.userCollateralAta),
-        options.owner,
-        new PublicKey(options.collateralMint),
-        new PublicKey(options.collateralTokenProgram),
-      ),
-    ];
-  }
-
-  async function prepareKaminoResolvedReserve(options: {
-    reserveOrVault: string;
-    tokenMint: string;
-    walletPublicKey: PublicKey;
-  }): Promise<{
-    reserveAddress: string;
-    resolvedBy: string;
-    reserveData: Record<string, unknown>;
-    mintDecimals: number;
-    liquidityMint: string;
-  }> {
-    const prepared = await prepareMetaOperation({
-      protocolId: KAMINO_KLEND_PROTOCOL_ID,
-      operationId: 'resolve_reserve',
-      input: {
-        reserve_or_vault: options.reserveOrVault,
-        token_mint: options.tokenMint,
-      },
-      connection,
-      walletPublicKey: options.walletPublicKey,
-    });
-
-    const reserveAddress = asString(prepared.derived.reserve, 'reserve');
-    const resolvedByRaw = prepared.derived.resolved_by ?? prepared.derived.resolvedBy;
-    const resolvedBy = resolvedByRaw === undefined ? 'unknown' : asString(resolvedByRaw, 'resolved_by');
-    const reserveData = asRecord(prepared.derived.reserve_data ?? prepared.derived.reserveData, 'reserve_data');
-    const reserveLiquidity = asRecord(reserveData.liquidity, 'reserve_data.liquidity');
-    const liquidityMint = asString(reserveLiquidity.mintPubkey, 'reserve_data.liquidity.mintPubkey');
-    const mintDecimals = Number(asIntegerLikeString(reserveLiquidity.mintDecimals, 'reserve_data.liquidity.mintDecimals'));
-    if (!Number.isFinite(mintDecimals) || mintDecimals < 0 || mintDecimals > 18) {
-      throw new Error(`Invalid Kamino mint decimals: ${String(reserveLiquidity.mintDecimals)}.`);
-    }
-
-    return {
-      reserveAddress,
-      resolvedBy,
-      reserveData,
-      mintDecimals,
-      liquidityMint,
-    };
-  }
-
-  function formatBpsAsPercent(bpsRaw: unknown): string {
-    const bps = Number(asIntegerLikeString(bpsRaw, 'bps'));
-    return `${(bps / 100).toFixed(2)}%`;
-  }
-
-  function estimateApyFromAprBps(aprBpsRaw: unknown): number {
-    const aprBps = Number(asIntegerLikeString(aprBpsRaw, 'apr_bps'));
-    const apr = aprBps / 10_000;
-    return Math.pow(1 + apr / 365, 365) - 1;
-  }
-
-  async function executeKaminoDeposit(options: {
-    value: KaminoDepositCommand;
-  }): Promise<void> {
-    if (!wallet.publicKey) {
-      throw new Error('Connect wallet first to run Kamino deposit.');
-    }
-    const walletPublicKey = wallet.publicKey;
-    const resolved = await prepareKaminoResolvedReserve({
-      reserveOrVault: options.value.reserveOrVault,
-      tokenMint: options.value.tokenMint,
-      walletPublicKey,
-    });
-    const liquidityAmountAtomic = parseUiAmountToAtomic(options.value.amountUi, resolved.mintDecimals);
-    if (liquidityAmountAtomic <= 0n) {
-      throw new Error('AMOUNT must be greater than zero.');
-    }
-
-    const prepared = await prepareMetaInstruction({
-      protocolId: KAMINO_KLEND_PROTOCOL_ID,
-      operationId: KAMINO_DEPOSIT_OPERATION_ID,
-      input: {
-        reserve_or_vault: options.value.reserveOrVault,
-        token_mint: options.value.tokenMint,
-        liquidity_amount: liquidityAmountAtomic.toString(),
-      },
-      connection,
-      walletPublicKey,
-    });
-
-    const preInstructions = buildKaminoAtaPreInstructions({
-      owner: walletPublicKey,
-      userLiquidityAta: prepared.accounts.userSourceLiquidity,
-      liquidityMint: prepared.accounts.reserveLiquidityMint,
-      liquidityTokenProgram: prepared.accounts.liquidityTokenProgram,
-      userCollateralAta: prepared.accounts.userDestinationCollateral,
-      collateralMint: prepared.accounts.reserveCollateralMint,
-      collateralTokenProgram: prepared.accounts.collateralTokenProgram,
-    });
-
-    let preSourceAtomic = 0n;
-    try {
-      const balance = await connection.getTokenAccountBalance(new PublicKey(prepared.accounts.userSourceLiquidity), 'confirmed');
-      preSourceAtomic = BigInt(balance.value.amount);
-    } catch {
-      preSourceAtomic = 0n;
-    }
-    let preCollateralAtomic = 0n;
-    try {
-      const balance = await connection.getTokenAccountBalance(
-        new PublicKey(prepared.accounts.userDestinationCollateral),
-        'confirmed',
-      );
-      preCollateralAtomic = BigInt(balance.value.amount);
-    } catch {
-      preCollateralAtomic = 0n;
-    }
-
-    const args = prepared.args as Record<string, unknown>;
-    const simulation = await simulateIdlInstruction({
+    const sent = await sendIdlInstruction({
       protocolId: prepared.protocolId,
       instructionName: prepared.instructionName,
-      args,
+      args: prepared.args,
       accounts: prepared.accounts,
+      remainingAccounts: prepared.remainingAccounts,
       preInstructions,
-      includeAccounts: [prepared.accounts.userSourceLiquidity, prepared.accounts.userDestinationCollateral],
-      connection,
-      wallet,
-    });
-    if (!simulation.ok) {
-      throw new Error(`Simulation failed: ${simulation.error ?? 'unknown'}\n${simulation.logs.join('\n')}`);
-    }
-
-    const simSource = simulation.accounts.find((entry) => entry.address === prepared.accounts.userSourceLiquidity);
-    const simCollateral = simulation.accounts.find((entry) => entry.address === prepared.accounts.userDestinationCollateral);
-    const postSourceAtomic = readSplTokenAmountFromSimAccount(simSource?.dataBase64 ?? null);
-    const postCollateralAtomic = readSplTokenAmountFromSimAccount(simCollateral?.dataBase64 ?? null);
-    const estimatedLiquiditySpent = preSourceAtomic > postSourceAtomic ? preSourceAtomic - postSourceAtomic : 0n;
-    const estimatedCollateralMinted =
-      postCollateralAtomic > preCollateralAtomic ? postCollateralAtomic - preCollateralAtomic : 0n;
-
-    if (options.value.simulate) {
-      pushMessage(
-        'assistant',
-        [
-          'Kamino deposit simulate:',
-          `resolved reserve: ${resolved.reserveAddress} (${resolved.resolvedBy})`,
-          `liquidity mint: ${resolved.liquidityMint}`,
-          `input amount: ${options.value.amountUi} (${liquidityAmountAtomic.toString()} atomic)`,
-          `estimated liquidity spent: ${estimatedLiquiditySpent.toString()} atomic`,
-          `estimated collateral minted: ${estimatedCollateralMinted.toString()} atomic`,
-          `simulation: ok${simulation.unitsConsumed ? ` (${simulation.unitsConsumed} CU)` : ''}`,
-          'Run same command without --simulate to execute.',
-        ].join('\n'),
-      );
-      return;
-    }
-
-    const result = await sendIdlInstruction({
-      protocolId: prepared.protocolId,
-      instructionName: prepared.instructionName,
-      args,
-      accounts: prepared.accounts,
-      preInstructions,
+      postInstructions,
       connection,
       wallet,
     });
@@ -1974,196 +957,10 @@ function App() {
     pushMessage(
       'assistant',
       [
-        'Kamino deposit tx sent.',
-        `reserve: ${resolved.reserveAddress}`,
-        `liquidity amount: ${options.value.amountUi} (${liquidityAmountAtomic.toString()} atomic)`,
-        result.signature,
-        result.explorerUrl,
-      ].join('\n'),
-    );
-  }
-
-  async function executeKaminoWithdraw(options: {
-    value: KaminoWithdrawCommand;
-  }): Promise<void> {
-    if (!wallet.publicKey) {
-      throw new Error('Connect wallet first to run Kamino withdraw.');
-    }
-    const walletPublicKey = wallet.publicKey;
-    const resolved = await prepareKaminoResolvedReserve({
-      reserveOrVault: options.value.reserveOrVault,
-      tokenMint: options.value.tokenMint,
-      walletPublicKey,
-    });
-    const liquidityAmountAtomic = parseUiAmountToAtomic(options.value.amountUi, resolved.mintDecimals);
-    if (liquidityAmountAtomic <= 0n) {
-      throw new Error('AMOUNT must be greater than zero.');
-    }
-
-    const prepared = await prepareMetaInstruction({
-      protocolId: KAMINO_KLEND_PROTOCOL_ID,
-      operationId: KAMINO_WITHDRAW_OPERATION_ID,
-      input: {
-        reserve_or_vault: options.value.reserveOrVault,
-        token_mint: options.value.tokenMint,
-        liquidity_amount: liquidityAmountAtomic.toString(),
-      },
-      connection,
-      walletPublicKey,
-    });
-    const args = prepared.args as Record<string, unknown>;
-    const collateralAmount = asIntegerLikeString(args.collateralAmount, 'args.collateralAmount');
-
-    const preInstructions = buildKaminoAtaPreInstructions({
-      owner: walletPublicKey,
-      userLiquidityAta: prepared.accounts.userDestinationLiquidity,
-      liquidityMint: prepared.accounts.reserveLiquidityMint,
-      liquidityTokenProgram: prepared.accounts.liquidityTokenProgram,
-      userCollateralAta: prepared.accounts.userSourceCollateral,
-      collateralMint: prepared.accounts.reserveCollateralMint,
-      collateralTokenProgram: prepared.accounts.collateralTokenProgram,
-    });
-
-    let preLiquidityAtomic = 0n;
-    try {
-      const balance = await connection.getTokenAccountBalance(
-        new PublicKey(prepared.accounts.userDestinationLiquidity),
-        'confirmed',
-      );
-      preLiquidityAtomic = BigInt(balance.value.amount);
-    } catch {
-      preLiquidityAtomic = 0n;
-    }
-    let preCollateralAtomic = 0n;
-    try {
-      const balance = await connection.getTokenAccountBalance(new PublicKey(prepared.accounts.userSourceCollateral), 'confirmed');
-      preCollateralAtomic = BigInt(balance.value.amount);
-    } catch {
-      preCollateralAtomic = 0n;
-    }
-
-    const simulation = await simulateIdlInstruction({
-      protocolId: prepared.protocolId,
-      instructionName: prepared.instructionName,
-      args,
-      accounts: prepared.accounts,
-      preInstructions,
-      includeAccounts: [prepared.accounts.userDestinationLiquidity, prepared.accounts.userSourceCollateral],
-      connection,
-      wallet,
-    });
-    if (!simulation.ok) {
-      throw new Error(`Simulation failed: ${simulation.error ?? 'unknown'}\n${simulation.logs.join('\n')}`);
-    }
-
-    const simLiquidity = simulation.accounts.find((entry) => entry.address === prepared.accounts.userDestinationLiquidity);
-    const simCollateral = simulation.accounts.find((entry) => entry.address === prepared.accounts.userSourceCollateral);
-    const postLiquidityAtomic = readSplTokenAmountFromSimAccount(simLiquidity?.dataBase64 ?? null);
-    const postCollateralAtomic = readSplTokenAmountFromSimAccount(simCollateral?.dataBase64 ?? null);
-    const estimatedLiquidityOut =
-      postLiquidityAtomic > preLiquidityAtomic ? postLiquidityAtomic - preLiquidityAtomic : 0n;
-    const estimatedCollateralSpent =
-      preCollateralAtomic > postCollateralAtomic ? preCollateralAtomic - postCollateralAtomic : 0n;
-
-    if (options.value.simulate) {
-      pushMessage(
-        'assistant',
-        [
-          'Kamino withdraw simulate:',
-          `resolved reserve: ${resolved.reserveAddress} (${resolved.resolvedBy})`,
-          `requested liquidity out: ${options.value.amountUi} (${liquidityAmountAtomic.toString()} atomic)`,
-          `computed collateralAmount arg: ${collateralAmount}`,
-          `estimated liquidity out: ${estimatedLiquidityOut.toString()} atomic`,
-          `estimated collateral spent: ${estimatedCollateralSpent.toString()} atomic`,
-          `simulation: ok${simulation.unitsConsumed ? ` (${simulation.unitsConsumed} CU)` : ''}`,
-          'Run same command without --simulate to execute.',
-        ].join('\n'),
-      );
-      return;
-    }
-
-    const result = await sendIdlInstruction({
-      protocolId: prepared.protocolId,
-      instructionName: prepared.instructionName,
-      args,
-      accounts: prepared.accounts,
-      preInstructions,
-      connection,
-      wallet,
-    });
-
-    pushMessage(
-      'assistant',
-      [
-        'Kamino withdraw tx sent.',
-        `reserve: ${resolved.reserveAddress}`,
-        `computed collateralAmount: ${collateralAmount}`,
-        result.signature,
-        result.explorerUrl,
-      ].join('\n'),
-    );
-  }
-
-  async function executeKaminoViewPosition(options: {
-    value: KaminoViewPositionCommand;
-  }): Promise<void> {
-    if (!wallet.publicKey) {
-      throw new Error('Connect wallet first to view Kamino position.');
-    }
-    const walletPublicKey = wallet.publicKey;
-    const prepared = await prepareMetaOperation({
-      protocolId: KAMINO_KLEND_PROTOCOL_ID,
-      operationId: KAMINO_VIEW_OPERATION_ID,
-      input: {
-        reserve_or_vault: options.value.reserveOrVault,
-        token_mint: options.value.tokenMint,
-      },
-      connection,
-      walletPublicKey,
-    });
-
-    const reserveAddress = asString(prepared.derived.reserve, 'reserve');
-    const resolvedByRaw = prepared.derived.resolved_by ?? prepared.derived.resolvedBy;
-    const resolvedBy = resolvedByRaw === undefined ? 'unknown' : asString(resolvedByRaw, 'resolved_by');
-    const reserveData = asRecord(prepared.derived.reserve_data ?? prepared.derived.reserveData, 'reserve_data');
-    const reserveLiquidity = asRecord(reserveData.liquidity, 'reserve_data.liquidity');
-    const liquidityMint = asString(reserveLiquidity.mintPubkey, 'reserve_data.liquidity.mintPubkey');
-    const mintDecimals = Number(asIntegerLikeString(reserveLiquidity.mintDecimals, 'reserve_data.liquidity.mintDecimals'));
-
-    const userLiquidityAta = asString(prepared.derived.user_liquidity_ata, 'user_liquidity_ata');
-    const userCollateralAta = asString(prepared.derived.user_collateral_ata, 'user_collateral_ata');
-    const userLiquidityBalanceAtomic = asIntegerLikeString(
-      prepared.derived.user_liquidity_balance,
-      'user_liquidity_balance',
-    );
-    const userCollateralBalanceAtomic = asIntegerLikeString(
-      prepared.derived.user_collateral_balance,
-      'user_collateral_balance',
-    );
-    const estimatedLiquidityClaimAtomic = asIntegerLikeString(
-      prepared.derived.estimated_redeemable_liquidity,
-      'estimated_redeemable_liquidity',
-    );
-    const reserveUtilizationBps = asIntegerLikeString(prepared.derived.reserve_utilization_bps, 'reserve_utilization_bps');
-    const supplyAprBps = asIntegerLikeString(prepared.derived.supply_apr_bps, 'supply_apr_bps');
-    const supplyApyApprox = estimateApyFromAprBps(supplyAprBps);
-    const liquidityUi = formatTokenAmount(userLiquidityBalanceAtomic, mintDecimals);
-    const claimUi = formatTokenAmount(estimatedLiquidityClaimAtomic, mintDecimals);
-
-    pushMessage(
-      'assistant',
-      [
-        'Kamino position:',
-        `resolved reserve: ${reserveAddress} (${resolvedBy})`,
-        `liquidity mint: ${liquidityMint}`,
-        `liquidity ATA: ${userLiquidityAta}`,
-        `collateral ATA: ${userCollateralAta}`,
-        `wallet liquidity balance: ${liquidityUi} (${userLiquidityBalanceAtomic} atomic)`,
-        `wallet collateral balance: ${userCollateralBalanceAtomic} cToken atomic`,
-        `estimated redeemable liquidity: ${claimUi} (${estimatedLiquidityClaimAtomic} atomic)`,
-        `reserve utilization: ${formatBpsAsPercent(reserveUtilizationBps)} (${reserveUtilizationBps} bps)`,
-        `estimated supply APR: ${formatBpsAsPercent(supplyAprBps)} (${supplyAprBps} bps)`,
-        `estimated supply APY (daily comp approximation): ${formatPercent(supplyApyApprox)}`,
+        `Meta tx sent (${options.value.protocolId}/${options.value.operationId}):`,
+        `instruction: ${prepared.instructionName}`,
+        sent.signature,
+        sent.explorerUrl,
       ].join('\n'),
     );
   }
@@ -2244,7 +1041,7 @@ function App() {
         inputPayload[inputName] = parseBuilderInputValue(rawValue, spec.type, `input ${inputName}`);
       }
 
-      let executionInput = { ...inputPayload };
+      const executionInput = { ...inputPayload };
       if (isReadOnlyOperation) {
         if (!selectedBuilderOperation.readOutput) {
           throw new Error(
@@ -2310,7 +1107,7 @@ function App() {
         return;
       }
 
-      let prepared = await prepareMetaOperation({
+      const prepared = await prepareMetaOperation({
         protocolId: builderProtocolId,
         operationId: selectedBuilderOperation.operationId,
         input: executionInput,
@@ -2318,85 +1115,6 @@ function App() {
         walletPublicKey: walletPublicKey as PublicKey,
       });
       const builderNotes: string[] = [];
-
-      if (
-        builderProtocolId === ORCA_PROTOCOL_ID &&
-        selectedBuilderOperation.operationId === ORCA_OPERATION_ID
-      ) {
-        const pass1Input = {
-          ...executionInput,
-          estimated_out: '0',
-        };
-
-        const pass1Prepared = await prepareMetaOperation({
-          protocolId: builderProtocolId,
-          operationId: selectedBuilderOperation.operationId,
-          input: pass1Input,
-          connection,
-          walletPublicKey: walletPublicKey as PublicKey,
-        });
-
-        if (!pass1Prepared.instructionName) {
-          throw new Error('Orca pass-1 operation did not produce an executable instruction.');
-        }
-
-        const pass1PreInstructions = buildBuilderPreInstructions({
-          protocolId: pass1Prepared.protocolId,
-          derived: pass1Prepared.derived,
-          accounts: pass1Prepared.accounts,
-          walletPublicKey: walletPublicKey as PublicKey,
-        });
-        const pass1AToB = asBoolean(pass1Prepared.derived.a_to_b, 'derived.a_to_b');
-        const pass1OutputAta = pass1AToB
-          ? pass1Prepared.accounts.token_owner_account_b
-          : pass1Prepared.accounts.token_owner_account_a;
-        let pass1PreOutputAtomic = 0n;
-        try {
-          const balance = await connection.getTokenAccountBalance(new PublicKey(pass1OutputAta), 'confirmed');
-          pass1PreOutputAtomic = BigInt(balance.value.amount);
-        } catch {
-          pass1PreOutputAtomic = 0n;
-        }
-
-        const pass1Simulation = await simulateIdlInstruction({
-          protocolId: pass1Prepared.protocolId,
-          instructionName: pass1Prepared.instructionName,
-          args: pass1Prepared.args,
-          accounts: pass1Prepared.accounts,
-          remainingAccounts: pass1Prepared.remainingAccounts,
-          preInstructions: pass1PreInstructions,
-          postInstructions: [],
-          includeAccounts: [pass1OutputAta],
-          connection,
-          wallet,
-        });
-        if (!pass1Simulation.ok) {
-          throw new Error(
-            `Orca pass-1 simulation failed: ${pass1Simulation.error ?? 'unknown'}\n${pass1Simulation.logs.join('\n')}`,
-          );
-        }
-
-        const pass1OutputAccount = pass1Simulation.accounts.find((entry) => entry.address === pass1OutputAta);
-        const pass1PostOutputAtomic = readSplTokenAmountFromSimAccount(pass1OutputAccount?.dataBase64 ?? null);
-        const computedEstimatedOut =
-          pass1PostOutputAtomic > pass1PreOutputAtomic ? pass1PostOutputAtomic - pass1PreOutputAtomic : 0n;
-        if (computedEstimatedOut <= 0n) {
-          throw new Error('Orca pass-1 simulation produced zero estimated output.');
-        }
-
-        executionInput = {
-          ...executionInput,
-          estimated_out: computedEstimatedOut.toString(),
-        };
-        prepared = await prepareMetaOperation({
-          protocolId: builderProtocolId,
-          operationId: selectedBuilderOperation.operationId,
-          input: executionInput,
-          connection,
-          walletPublicKey: walletPublicKey as PublicKey,
-        });
-        builderNotes.push(`computed estimated_out via simulation pass-1: ${computedEstimatedOut.toString()}`);
-      }
 
       if (!prepared.instructionName) {
         if (!selectedBuilderOperation.readOutput) {
@@ -2441,7 +1159,6 @@ function App() {
       }
 
       const preInstructions = buildBuilderPreInstructions({
-        protocolId: prepared.protocolId,
         derived: prepared.derived,
         accounts: prepared.accounts,
         walletPublicKey: walletPublicKey as PublicKey,
@@ -2463,39 +1180,6 @@ function App() {
         });
 
         const simulationHighlights: string[] = [];
-        if (
-          builderProtocolId === ORCA_PROTOCOL_ID &&
-          selectedBuilderOperation.operationId === ORCA_OPERATION_ID &&
-          typeof executionInput.token_in_mint === 'string' &&
-          typeof executionInput.token_out_mint === 'string'
-        ) {
-          const inMint = executionInput.token_in_mint;
-          const outMint = executionInput.token_out_mint;
-          const inLabel = getMintDisplay(inMint).label;
-          const outLabel = getMintDisplay(outMint).label;
-
-          const amountInAtomic = asIntegerLikeString(prepared.args.amount, 'args.amount');
-          const estimatedOutAtomic = asIntegerLikeString(
-            executionInput.estimated_out ?? '0',
-            'input.estimated_out',
-          );
-          const minOutAtomic = asIntegerLikeString(
-            prepared.args.other_amount_threshold,
-            'args.other_amount_threshold',
-          );
-          const slippageBps = asIntegerLikeString(
-            executionInput.slippage_bps ?? '0',
-            'input.slippage_bps',
-          );
-
-          simulationHighlights.push(`pair: ${inLabel}/${outLabel}`);
-          simulationHighlights.push(`amount in: ${formatAmountWithMint(amountInAtomic, inMint)}`);
-          simulationHighlights.push(`estimated out: ${formatAmountWithMint(estimatedOutAtomic, outMint)}`);
-          simulationHighlights.push(`min out (slippage ${slippageBps} bps): ${formatAmountWithMint(minOutAtomic, outMint)}`);
-          if (typeof prepared.accounts.whirlpool === 'string') {
-            simulationHighlights.push(`pool: ${prepared.accounts.whirlpool}`);
-          }
-        }
 
         const resultLines = [
           `Builder simulate (${builderProtocolId}/${selectedBuilderOperation.operationId}):`,
@@ -2630,6 +1314,13 @@ function App() {
         return;
       }
 
+      if (parsed.kind === 'meta-run') {
+        await executeMetaRun({
+          value: parsed.value,
+        });
+        return;
+      }
+
       if (parsed.kind === 'view-run') {
         await executeViewRun({
           value: parsed.value,
@@ -2645,55 +1336,6 @@ function App() {
           connection,
         });
         pushMessage('assistant', asPrettyJson(decoded));
-        return;
-      }
-
-      if (parsed.kind === 'orca') {
-        await executeOrca({
-          value: parsed.value,
-        });
-        return;
-      }
-
-      if (parsed.kind === 'orca-list-pools') {
-        await executeOrcaListPools({
-          value: parsed.value,
-        });
-        return;
-      }
-
-      if (parsed.kind === 'pump-amm') {
-        await executePumpAmm({
-          value: parsed.value,
-        });
-        return;
-      }
-
-      if (parsed.kind === 'pump-curve') {
-        await executePumpCurve({
-          value: parsed.value,
-        });
-        return;
-      }
-
-      if (parsed.kind === 'kamino-deposit') {
-        await executeKaminoDeposit({
-          value: parsed.value,
-        });
-        return;
-      }
-
-      if (parsed.kind === 'kamino-withdraw') {
-        await executeKaminoWithdraw({
-          value: parsed.value,
-        });
-        return;
-      }
-
-      if (parsed.kind === 'kamino-view-position') {
-        await executeKaminoViewPosition({
-          value: parsed.value,
-        });
         return;
       }
 
@@ -2801,7 +1443,7 @@ function App() {
                 type="text"
                 value={commandInput}
                 onChange={(event) => setCommandInput(event.target.value)}
-                placeholder="/orca-list-pools SOL USDC"
+                placeholder="/meta-run <PROTOCOL_ID> <OPERATION_ID> <INPUT_JSON> --simulate"
                 disabled={isWorking}
                 aria-label="Command input"
               />
@@ -2812,38 +1454,10 @@ function App() {
             <div className="quick-actions">
               <button
                 type="button"
-                onClick={() => setCommandInput(QUICK_PREFILL_ORCA_LIST_POOLS_COMMAND)}
+                onClick={() => setCommandInput(QUICK_PREFILL_META_RUN_COMMAND)}
                 disabled={isWorking}
               >
-                Prefill Orca Pools
-              </button>
-              <button
-                type="button"
-                onClick={() => setCommandInput(QUICK_PREFILL_SWAP_COMMAND)}
-                disabled={isWorking}
-              >
-                Prefill USDC-&gt;SOL 0.01
-              </button>
-              <button
-                type="button"
-                onClick={() => setCommandInput(QUICK_PREFILL_PUMP_QUOTE_COMMAND)}
-                disabled={isWorking}
-              >
-                Prefill Pump Quote
-              </button>
-              <button
-                type="button"
-                onClick={() => setCommandInput(QUICK_PREFILL_PUMP_CURVE_COMMAND)}
-                disabled={isWorking}
-              >
-                Prefill Pump Curve
-              </button>
-              <button
-                type="button"
-                onClick={() => setCommandInput(QUICK_PREFILL_KAMINO_DEPOSIT_COMMAND)}
-                disabled={isWorking}
-              >
-                Prefill Kamino Deposit
+                Prefill Meta Run
               </button>
             </div>
           </>

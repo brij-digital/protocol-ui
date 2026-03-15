@@ -1,13 +1,5 @@
 import type { MetaAppSummary, MetaOperationExplain, MetaOperationSummary } from '@agentform/apppack-runtime/metaIdlRuntime';
 
-export type OrcaPoolCandidate = {
-  whirlpool: string;
-  tokenMintA: string;
-  tokenMintB: string;
-  tickSpacing: string;
-  liquidity: string;
-};
-
 export type BuilderAppStepContext = {
   input: Record<string, unknown>;
   derived: Record<string, unknown>;
@@ -317,59 +309,12 @@ export function asBoolean(value: unknown, label: string): boolean {
   return value;
 }
 
-export function normalizeOrcaPoolCandidates(raw: unknown): OrcaPoolCandidate[] {
-  if (!Array.isArray(raw)) {
-    return [];
-  }
-
-  return raw.map((entry, index) => {
-    const candidate = asRecord(entry, `pool_candidates[${index}]`);
-    const tokenMintA = candidate.tokenMintA ?? candidate.token_mint_a;
-    const tokenMintB = candidate.tokenMintB ?? candidate.token_mint_b;
-    const tickSpacing = candidate.tickSpacing ?? candidate.tick_spacing;
-    return {
-      whirlpool: asString(candidate.whirlpool, `pool_candidates[${index}].whirlpool`),
-      tokenMintA: asString(tokenMintA, `pool_candidates[${index}].tokenMintA`),
-      tokenMintB: asString(tokenMintB, `pool_candidates[${index}].tokenMintB`),
-      tickSpacing: asIntegerLikeString(tickSpacing, `pool_candidates[${index}].tickSpacing`),
-      liquidity: asIntegerLikeString(candidate.liquidity, `pool_candidates[${index}].liquidity`),
-    };
-  });
-}
-
-export function normalizePumpPoolCandidates(raw: unknown): Array<Record<string, unknown>> {
-  if (!Array.isArray(raw)) {
-    return [];
-  }
-
-  return raw.map((entry, index) => {
-    const candidate = asRecord(entry, `pool_candidates[${index}]`);
-    return {
-      pool: asString(candidate.pool, `pool_candidates[${index}].pool`),
-      baseMint: asString(candidate.baseMint, `pool_candidates[${index}].baseMint`),
-      quoteMint: asString(candidate.quoteMint, `pool_candidates[${index}].quoteMint`),
-      lpSupply: asIntegerLikeString(candidate.lpSupply, `pool_candidates[${index}].lpSupply`),
-    };
-  });
-}
-
-export function compactInteger(value: string): string {
-  if (value.length <= 12) {
-    return value;
-  }
-  return `${value.slice(0, 6)}...${value.slice(-4)}`;
-}
-
 export function compactPubkey(value: unknown): string {
   const text = String(value ?? 'n/a');
   if (text.length <= 12) {
     return text;
   }
   return `${text.slice(0, 4)}...${text.slice(-4)}`;
-}
-
-export function formatOrcaPoolChoiceLine(pool: OrcaPoolCandidate, index: number): string {
-  return `${index + 1}. ${compactPubkey(pool.whirlpool)} | tickSpacing ${pool.tickSpacing} | liquidity ${compactInteger(pool.liquidity)}`;
 }
 
 export function stringifyReadOutputValue(value: unknown): string {
