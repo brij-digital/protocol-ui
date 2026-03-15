@@ -469,6 +469,21 @@ function App() {
       return;
     }
 
+    const resolveBuilderAppInputFrom = (
+      value: unknown,
+      contexts: Record<string, BuilderAppStepContext>,
+    ): unknown => {
+      if (typeof value === 'string' && value.startsWith('$')) {
+        return readBuilderPath(
+          {
+            steps: contexts,
+          },
+          value,
+        );
+      }
+      return value;
+    };
+
     const nextValues = Object.fromEntries(
       Object.entries(selectedBuilderOperation.inputs).map(([inputName, spec]) => [
         inputName,
@@ -608,21 +623,6 @@ function App() {
     }
     const nextIndex = findBuilderAppStepIndexById(app, nextTransition.to);
     return nextIndex >= 0 ? nextIndex : null;
-  }
-
-  function resolveBuilderAppInputFrom(
-    value: unknown,
-    contexts: Record<string, BuilderAppStepContext>,
-  ): unknown {
-    if (typeof value === 'string' && value.startsWith('$')) {
-      return readBuilderPath(
-        {
-          steps: contexts,
-        },
-        value,
-      );
-    }
-    return value;
   }
 
   function formatBuilderSelectableItemLabel(
@@ -944,7 +944,7 @@ function App() {
           ...(typeof options.limit === 'number' ? { limit: options.limit } : {}),
         }),
       });
-    } catch (error) {
+    } catch {
       throw new Error(
         `Failed to reach View API at ${VIEW_API_BASE_URL}. Check service uptime and CORS preflight configuration for /view-run.`,
       );
