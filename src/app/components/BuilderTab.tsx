@@ -421,7 +421,7 @@ export function BuilderTab(props: BuilderTabProps) {
                 <h3>Developer Tools</h3>
                 <p className="builder-note">Use sample inputs for quick protocol debugging.</p>
                 <button type="button" className="builder-prefill" onClick={onPrefillExample} disabled={isWorking}>
-                  Use Example Data
+                  Use Example Market
                 </button>
               </div>
             ) : null}
