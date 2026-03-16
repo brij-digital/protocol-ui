@@ -130,6 +130,50 @@ function extractBuilderStepActionsByStep(rawMeta: unknown): Record<string, Build
   return actionsByStep;
 }
 
+function extractBuilderInputExamplesByOperation(rawMeta: unknown): Record<string, Record<string, string>> {
+  const meta = asRecord(rawMeta);
+  if (!meta) {
+    return {};
+  }
+  const operations = asRecord(meta.operations);
+  if (!operations) {
+    return {};
+  }
+
+  const output: Record<string, Record<string, string>> = {};
+  for (const [operationId, rawOperation] of Object.entries(operations)) {
+    const operation = asRecord(rawOperation);
+    if (!operation) {
+      continue;
+    }
+    const inputs = asRecord(operation.inputs);
+    if (!inputs) {
+      continue;
+    }
+
+    const examples: Record<string, string> = {};
+    for (const [inputName, rawInputSpec] of Object.entries(inputs)) {
+      const inputSpec = asRecord(rawInputSpec);
+      if (!inputSpec) {
+        continue;
+      }
+      if (inputSpec.ui_example !== undefined) {
+        examples[inputName] = stringifyBuilderDefault(inputSpec.ui_example);
+        continue;
+      }
+      if (inputSpec.example !== undefined) {
+        examples[inputName] = stringifyBuilderDefault(inputSpec.example);
+      }
+    }
+
+    if (Object.keys(examples).length > 0) {
+      output[operationId] = examples;
+    }
+  }
+
+  return output;
+}
+
 function resolveBuilderMetaPath(metaPath: string): string {
   return metaPath.startsWith('/') || /^https?:\/\//.test(metaPath) ? metaPath : `/${metaPath}`;
 }
@@ -140,6 +184,9 @@ export function useBuilderController() {
   const [builderProtocolId, setBuilderProtocolId] = useState('');
   const [builderApps, setBuilderApps] = useState<MetaAppSummary[]>([]);
   const [builderStepActionsByStep, setBuilderStepActionsByStep] = useState<Record<string, BuilderStepAction[]>>({});
+  const [builderInputExamplesByOperation, setBuilderInputExamplesByOperation] = useState<
+    Record<string, Record<string, string>>
+  >({});
   const [builderAppId, setBuilderAppId] = useState('');
   const [builderAppStepIndex, setBuilderAppStepIndex] = useState(0);
   const [builderAppStepContexts, setBuilderAppStepContexts] = useState<Record<string, BuilderAppStepContext>>({});
@@ -360,6 +407,7 @@ export function useBuilderController() {
         setBuilderRawDetails(null);
         setBuilderApps([]);
         setBuilderStepActionsByStep({});
+        setBuilderInputExamplesByOperation({});
         setBuilderProtocolMetaPaths({});
         setBuilderAppId('');
         setBuilderAppStepIndex(0);
@@ -378,11 +426,13 @@ export function useBuilderController() {
   useEffect(() => {
     if (!builderProtocolId) {
       setBuilderStepActionsByStep({});
+      setBuilderInputExamplesByOperation({});
       return;
     }
     const metaPath = builderProtocolMetaPaths[builderProtocolId] ?? null;
     if (!metaPath || typeof fetch !== 'function') {
       setBuilderStepActionsByStep({});
+      setBuilderInputExamplesByOperation({});
       return;
     }
 
@@ -397,9 +447,11 @@ export function useBuilderController() {
         return;
       }
       setBuilderStepActionsByStep(extractBuilderStepActionsByStep(rawMeta));
+      setBuilderInputExamplesByOperation(extractBuilderInputExamplesByOperation(rawMeta));
     })().catch(() => {
       if (!cancelled) {
         setBuilderStepActionsByStep({});
+        setBuilderInputExamplesByOperation({});
       }
     });
 
@@ -511,7 +563,12 @@ export function useBuilderController() {
       return;
     }
 
-    setBuilderInputValues(buildExampleInputsForOperation(selectedBuilderOperation));
+    const built = buildExampleInputsForOperation(selectedBuilderOperation);
+    const declaredExamples = builderInputExamplesByOperation[selectedBuilderOperation.operationId] ?? {};
+    setBuilderInputValues({
+      ...built,
+      ...declaredExamples,
+    });
     setBuilderStatusText(`Prefilled example inputs for ${builderProtocolId}/${selectedBuilderOperation.operationId}.`);
     setBuilderRawDetails(null);
     setBuilderShowRawDetails(false);

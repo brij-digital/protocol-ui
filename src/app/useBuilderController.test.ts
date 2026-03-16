@@ -170,4 +170,48 @@ describe('useBuilderController', () => {
       ]);
     });
   });
+
+  it('prefill uses declared ui_example values from raw meta operations', async () => {
+    vi.mocked(listIdlProtocols).mockResolvedValue({
+      protocols: [{ id: 'orca-whirlpool-mainnet', name: 'Orca', status: 'active', metaPath: '/idl/orca.meta.json' }],
+    } as never);
+    globalThis.fetch = vi.fn(async () => {
+      return {
+        ok: true,
+        json: async () => ({
+          operations: {
+            list_pools: {
+              inputs: {
+                token_in_mint: { type: 'pubkey', required: true, ui_example: 'USDC_EXAMPLE' },
+                token_out_mint: { type: 'pubkey', required: true, ui_example: 'SOL_EXAMPLE' },
+              },
+            },
+          },
+          apps: {
+            discover_then_swap: {
+              steps: [
+                {
+                  id: 'discover',
+                  actions: [{ id: 'discover_run', kind: 'run', label: 'Find Pools', mode: 'view' }],
+                },
+              ],
+            },
+          },
+        }),
+      } as Response;
+    }) as typeof fetch;
+
+    const { result } = renderHook(() => useBuilderController());
+
+    await waitFor(() => {
+      expect(result.current.selectedBuilderOperation?.operationId).toBe('list_pools');
+    });
+
+    act(() => {
+      result.current.handleBuilderPrefillExample();
+    });
+
+    expect(result.current.builderInputValues.token_in_mint).toBe('USDC_EXAMPLE');
+    expect(result.current.builderInputValues.token_out_mint).toBe('SOL_EXAMPLE');
+  });
 });
