@@ -18,13 +18,16 @@ function createStepContext(derived: Record<string, unknown>): BuilderAppStepCont
 
 const app: MetaAppSummary = {
   appId: 'discover_then_swap',
+  label: 'Discover & Swap',
   title: 'Discover -> Swap',
   entryStepId: 'discover',
   steps: [
     {
       stepId: 'discover',
+      label: 'Discover',
       operationId: 'list_pools',
       title: 'Discover',
+      actions: [{ actionId: 'discover_run', kind: 'run', label: 'Find Pools', mode: 'view', variant: 'primary' }],
       inputFrom: {},
       transitions: [{ on: 'success', to: 'swap' }],
       blocking: {
@@ -37,8 +40,10 @@ const app: MetaAppSummary = {
     },
     {
       stepId: 'swap',
+      label: 'Swap',
       operationId: 'swap_exact_in',
       title: 'Swap',
+      actions: [{ actionId: 'swap_run', kind: 'run', label: 'Run Swap', mode: 'simulate', variant: 'primary' }],
       inputFrom: {},
       transitions: [],
       blocking: {

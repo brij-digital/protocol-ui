@@ -18,12 +18,7 @@ import {
   writeBuilderPath,
   type BuilderAppStepContext,
 } from './builderHelpers';
-import {
-  extractAppUiEnhancements,
-  extractOperationEnhancements,
-  type AppUiEnhancement,
-  type OperationEnhancement,
-} from './metaEnhancements';
+import type { OperationEnhancement } from './metaEnhancements';
 
 export type BuilderProtocol = {
   id: string;
@@ -74,144 +69,38 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
-function parseBuilderStepAction(rawAction: unknown): BuilderStepAction | null {
-  const action = asRecord(rawAction);
-  if (!action) {
-    return null;
-  }
-
-  const kind = action.kind;
-  if (kind !== 'run' && kind !== 'back' && kind !== 'reset') {
-    return null;
-  }
-
-  const rawLabel = action.label;
-  if (typeof rawLabel !== 'string' || rawLabel.trim().length === 0) {
-    return null;
-  }
-
-  const rawId = action.id;
-  if (typeof rawId !== 'string' || rawId.trim().length === 0) {
-    return null;
-  }
-  const actionId = rawId.trim();
-
-  const rawVariant = action.variant;
-  const variant: BuilderStepActionVariant =
-    rawVariant === 'primary' || rawVariant === 'secondary' || rawVariant === 'ghost'
-      ? rawVariant
-      : kind === 'run'
-        ? 'primary'
-        : 'ghost';
-
-  const rawMode = action.mode;
-  const mode: BuilderStepActionMode | undefined =
-    rawMode === 'view' || rawMode === 'simulate' || rawMode === 'send' ? rawMode : undefined;
-
-  return {
-    actionId,
-    kind,
-    label: rawLabel.trim(),
-    ...(kind === 'run' && mode ? { mode } : {}),
-    variant,
-  };
-}
-
-function extractBuilderStepActionsByStep(rawMeta: unknown): Record<string, BuilderStepAction[]> {
-  const meta = asRecord(rawMeta);
-  if (!meta) {
-    return {};
-  }
-
-  const apps = asRecord(meta.apps);
-  if (!apps) {
-    return {};
-  }
-
-  const actionsByStep: Record<string, BuilderStepAction[]> = {};
-  for (const [appId, rawApp] of Object.entries(apps)) {
-    const app = asRecord(rawApp);
-    if (!app || !Array.isArray(app.steps)) {
-      continue;
-    }
-
-    for (const rawStep of app.steps) {
-      const step = asRecord(rawStep);
-      const stepId = step && typeof step.id === 'string' && step.id.length > 0 ? step.id : null;
-      if (!step || !stepId || !Array.isArray(step.actions)) {
-        continue;
-      }
-
-      const normalized = step.actions
-        .map((rawAction) => parseBuilderStepAction(rawAction))
-        .filter((action): action is BuilderStepAction => action !== null);
-      if (normalized.length > 0) {
-        actionsByStep[`${appId}:${stepId}`] = normalized;
-      }
-    }
-  }
-
-  return actionsByStep;
-}
-
-function extractBuilderInputExamplesByOperation(rawMeta: unknown): Record<string, Record<string, string>> {
-  const meta = asRecord(rawMeta);
-  if (!meta) {
-    return {};
-  }
-  const operations = asRecord(meta.operations);
-  if (!operations) {
-    return {};
-  }
-
+function extractBuilderInputExamplesByOperation(
+  operations: MetaOperationSummary[],
+): Record<string, Record<string, string>> {
   const output: Record<string, Record<string, string>> = {};
-  for (const [operationId, rawOperation] of Object.entries(operations)) {
-    const operation = asRecord(rawOperation);
-    if (!operation) {
-      continue;
-    }
-    const inputs = asRecord(operation.inputs);
-    if (!inputs) {
-      continue;
-    }
-
+  for (const operation of operations) {
     const examples: Record<string, string> = {};
-    for (const [inputName, rawInputSpec] of Object.entries(inputs)) {
-      const inputSpec = asRecord(rawInputSpec);
-      if (!inputSpec) {
+    for (const [inputName, inputSpec] of Object.entries(operation.inputs)) {
+      const inputSpecRecord = inputSpec as unknown as Record<string, unknown>;
+      if (inputSpecRecord.ui_example !== undefined) {
+        examples[inputName] = stringifyBuilderDefault(inputSpecRecord.ui_example);
         continue;
       }
-      if (inputSpec.ui_example !== undefined) {
-        examples[inputName] = stringifyBuilderDefault(inputSpec.ui_example);
-        continue;
-      }
-      if (inputSpec.example !== undefined) {
-        examples[inputName] = stringifyBuilderDefault(inputSpec.example);
+      if (inputSpecRecord.example !== undefined) {
+        examples[inputName] = stringifyBuilderDefault(inputSpecRecord.example);
       }
     }
 
     if (Object.keys(examples).length > 0) {
-      output[operationId] = examples;
+      output[operation.operationId] = examples;
     }
   }
 
   return output;
 }
 
-function parseBuilderStepFlow(rawStep: unknown): BuilderStepFlow {
-  const step = asRecord(rawStep);
+function parseBuilderStepFlow(step: MetaAppSummary['steps'][number] | null): BuilderStepFlow {
   if (!step) {
     return { statusText: {} };
   }
-  const nextOnSuccess =
-    typeof step.next_on_success === 'string' && step.next_on_success.trim().length > 0
-      ? step.next_on_success.trim()
-      : undefined;
-  const nextOnError =
-    typeof step.next_on_error === 'string' && step.next_on_error.trim().length > 0
-      ? step.next_on_error.trim()
-      : undefined;
-  const rawStatus = asRecord(step.status_text);
+  const transitionSuccess = step.transitions.find((entry) => entry.on === 'success')?.to;
+  const transitionError = step.transitions.find((entry) => entry.on === 'error')?.to;
+  const rawStatus = asRecord(step.statusText ?? null);
   const statusText: BuilderStepStatusTextTemplates = {
     ...(rawStatus && typeof rawStatus.idle === 'string' && rawStatus.idle.trim().length > 0
       ? { idle: rawStatus.idle.trim() }
@@ -227,37 +116,23 @@ function parseBuilderStepFlow(rawStep: unknown): BuilderStepFlow {
       : {}),
   };
   return {
-    ...(nextOnSuccess ? { nextOnSuccess } : {}),
-    ...(nextOnError ? { nextOnError } : {}),
+    ...(step.nextOnSuccess ?? transitionSuccess ? { nextOnSuccess: step.nextOnSuccess ?? transitionSuccess } : {}),
+    ...(step.nextOnError ?? transitionError ? { nextOnError: step.nextOnError ?? transitionError } : {}),
     statusText,
   };
 }
 
-function extractBuilderStepFlowByStep(rawMeta: unknown): Record<string, BuilderStepFlow> {
-  const meta = asRecord(rawMeta);
-  if (!meta) {
-    return {};
+function normalizeBuilderStepActions(step: MetaAppSummary['steps'][number] | null): BuilderStepAction[] {
+  if (!step || !Array.isArray(step.actions)) {
+    return [];
   }
-  const apps = asRecord(meta.apps);
-  if (!apps) {
-    return {};
-  }
-  const output: Record<string, BuilderStepFlow> = {};
-  for (const [appId, rawApp] of Object.entries(apps)) {
-    const app = asRecord(rawApp);
-    if (!app || !Array.isArray(app.steps)) {
-      continue;
-    }
-    for (const rawStep of app.steps) {
-      const step = asRecord(rawStep);
-      const stepId = step && typeof step.id === 'string' && step.id.length > 0 ? step.id : null;
-      if (!stepId) {
-        continue;
-      }
-      output[`${appId}:${stepId}`] = parseBuilderStepFlow(rawStep);
-    }
-  }
-  return output;
+  return step.actions.map((action) => ({
+    actionId: action.actionId,
+    kind: action.kind,
+    label: action.label,
+    ...(action.mode ? { mode: action.mode } : {}),
+    variant: action.variant,
+  }));
 }
 
 function renderBuilderStepStatusTemplate(
@@ -267,34 +142,95 @@ function renderBuilderStepStatusTemplate(
   return template.replace(/\{([a-zA-Z0-9_]+)\}/g, (_, key: string) => values[key] ?? `{${key}}`);
 }
 
-function resolveBuilderMetaPath(metaPath: string): string {
-  return metaPath.startsWith('/') || /^https?:\/\//.test(metaPath) ? metaPath : `/${metaPath}`;
-}
+function buildOperationEnhancementsByOperation(
+  operations: MetaOperationSummary[],
+): Record<string, OperationEnhancement> {
+  const output: Record<string, OperationEnhancement> = {};
+  for (const operation of operations) {
+    const operationRecord = operation as unknown as Record<string, unknown>;
+    const operationLabel =
+      typeof operationRecord.label === 'string' && operationRecord.label.trim().length > 0
+        ? operationRecord.label.trim()
+        : operation.operationId;
+    const inputUi: OperationEnhancement['inputUi'] = {};
+    const inputValidation: OperationEnhancement['inputValidation'] = {};
 
-function deriveSplitMetaPaths(metaPath: string | null): { corePath: string | null; appPath: string | null } {
-  if (!metaPath || !metaPath.endsWith('.meta.json')) {
-    return { corePath: null, appPath: null };
+    for (const [inputName, inputSpec] of Object.entries(operation.inputs)) {
+      const inputSpecRecord = inputSpec as unknown as Record<string, unknown>;
+      const inputLabel =
+        typeof inputSpecRecord.label === 'string' && inputSpecRecord.label.trim().length > 0
+          ? inputSpecRecord.label.trim()
+          : inputName;
+      inputUi[inputName] = {
+        label: inputLabel,
+        ...(typeof inputSpecRecord.placeholder === 'string' && inputSpecRecord.placeholder.trim().length > 0
+          ? { placeholder: inputSpecRecord.placeholder.trim() }
+          : {}),
+        ...(typeof inputSpecRecord.help === 'string' && inputSpecRecord.help.trim().length > 0
+          ? { help: inputSpecRecord.help.trim() }
+          : {}),
+        ...(typeof inputSpecRecord.group === 'string' && inputSpecRecord.group.trim().length > 0
+          ? { group: inputSpecRecord.group.trim() }
+          : {}),
+        ...(typeof inputSpecRecord.display_order === 'number' && Number.isFinite(inputSpecRecord.display_order)
+          ? { displayOrder: inputSpecRecord.display_order }
+          : {}),
+      };
+      const validate =
+        inputSpecRecord.validate && typeof inputSpecRecord.validate === 'object' && !Array.isArray(inputSpecRecord.validate)
+          ? (inputSpecRecord.validate as Record<string, unknown>)
+          : null;
+      inputValidation[inputName] = {
+        ...(validate && typeof validate.required === 'boolean' ? { required: validate.required } : {}),
+        ...(validate && (typeof validate.min === 'string' || typeof validate.min === 'number')
+          ? { min: validate.min }
+          : {}),
+        ...(validate && (typeof validate.max === 'string' || typeof validate.max === 'number')
+          ? { max: validate.max }
+          : {}),
+        ...(validate && typeof validate.pattern === 'string' && validate.pattern.trim().length > 0
+          ? { pattern: validate.pattern.trim() }
+          : {}),
+        ...(validate && typeof validate.message === 'string' && validate.message.trim().length > 0
+          ? { message: validate.message.trim() }
+          : {}),
+      };
+    }
+
+    const crossValidationRaw = Array.isArray(operationRecord.crossValidation)
+      ? operationRecord.crossValidation
+      : [];
+    const crossValidation = crossValidationRaw
+      .map((rule) => (rule && typeof rule === 'object' && !Array.isArray(rule) ? (rule as Record<string, unknown>) : null))
+      .filter((rule): rule is Record<string, unknown> => rule !== null)
+      .filter((rule) => rule.kind === 'not_equal')
+      .map((rule) => ({
+        kind: 'not_equal' as const,
+        left: String(rule.left ?? ''),
+        right: String(rule.right ?? ''),
+        ...(typeof rule.message === 'string' && rule.message.trim().length > 0
+          ? { message: rule.message.trim() }
+          : {}),
+      }))
+      .filter((rule) => rule.left.length > 0 && rule.right.length > 0);
+
+    output[operation.operationId] = {
+      label: operationLabel,
+      inputUi,
+      inputValidation,
+      crossValidation,
+    };
   }
-  return {
-    corePath: metaPath.replace(/\.meta\.json$/, '.meta.core.json'),
-    appPath: metaPath.replace(/\.meta\.json$/, '.app.json'),
-  };
+  return output;
 }
 
 export function useBuilderController() {
   const [builderProtocols, setBuilderProtocols] = useState<BuilderProtocol[]>([]);
   const [builderProtocolLabelsById, setBuilderProtocolLabelsById] = useState<Record<string, string>>({});
-  const [builderProtocolMetaCorePaths, setBuilderProtocolMetaCorePaths] = useState<Record<string, string | null>>({});
-  const [builderProtocolAppPaths, setBuilderProtocolAppPaths] = useState<Record<string, string | null>>({});
   const [builderProtocolId, setBuilderProtocolId] = useState('');
   const [builderApps, setBuilderApps] = useState<MetaAppSummary[]>([]);
-  const [builderStepActionsByStep, setBuilderStepActionsByStep] = useState<Record<string, BuilderStepAction[]>>({});
-  const [builderStepFlowByStep, setBuilderStepFlowByStep] = useState<Record<string, BuilderStepFlow>>({});
   const [builderOperationEnhancementsByOperation, setBuilderOperationEnhancementsByOperation] = useState<
     Record<string, OperationEnhancement>
-  >({});
-  const [builderAppUiEnhancementsByApp, setBuilderAppUiEnhancementsByApp] = useState<
-    Record<string, AppUiEnhancement>
   >({});
   const [builderInputExamplesByOperation, setBuilderInputExamplesByOperation] = useState<
     Record<string, Record<string, string>>
@@ -371,19 +307,17 @@ export function useBuilderController() {
     return readBuilderPath(selectedItem, selectedBuilderAppSelectUi.valuePath);
   }, [selectedBuilderAppStepContext, selectedBuilderAppSelectUi]);
   const selectedBuilderStepActions = useMemo(() => {
-    if (!selectedBuilderApp || !selectedBuilderAppStep) {
+    if (!selectedBuilderAppStep) {
       return [] as BuilderStepAction[];
     }
-    const key = `${selectedBuilderApp.appId}:${selectedBuilderAppStep.stepId}`;
-    return builderStepActionsByStep[key] ?? [];
-  }, [selectedBuilderApp, selectedBuilderAppStep, builderStepActionsByStep]);
+    return normalizeBuilderStepActions(selectedBuilderAppStep);
+  }, [selectedBuilderAppStep]);
   const selectedBuilderStepFlow = useMemo(() => {
-    if (!selectedBuilderApp || !selectedBuilderAppStep) {
+    if (!selectedBuilderAppStep) {
       return null;
     }
-    const key = `${selectedBuilderApp.appId}:${selectedBuilderAppStep.stepId}`;
-    return builderStepFlowByStep[key] ?? null;
-  }, [selectedBuilderApp, selectedBuilderAppStep, builderStepFlowByStep]);
+    return parseBuilderStepFlow(selectedBuilderAppStep);
+  }, [selectedBuilderAppStep]);
   const builderOperationLabelsByOperationId = useMemo(
     () =>
       Object.fromEntries(
@@ -397,19 +331,21 @@ export function useBuilderController() {
   const builderAppLabelsByAppId = useMemo(
     () =>
       Object.fromEntries(
-        Object.entries(builderAppUiEnhancementsByApp).map(([appId, enhancement]) => [appId, enhancement.label]),
+        builderApps.map((app) => [app.appId, app.label]),
       ),
-    [builderAppUiEnhancementsByApp],
+    [builderApps],
   );
   const builderStepLabelsByAppStepKey = useMemo(() => {
     const output: Record<string, string> = {};
-    for (const [appId, enhancement] of Object.entries(builderAppUiEnhancementsByApp)) {
-      for (const [stepId, label] of Object.entries(enhancement.stepLabels)) {
-        output[`${appId}:${stepId}`] = label;
+    for (const app of builderApps) {
+      for (const step of app.steps) {
+        if (typeof step.label === 'string' && step.label.length > 0) {
+          output[`${app.appId}:${step.stepId}`] = step.label;
+        }
       }
     }
     return output;
-  }, [builderAppUiEnhancementsByApp]);
+  }, [builderApps]);
   const effectiveBuilderOperationId = useMemo(
     () =>
       builderViewMode === 'enduser'
@@ -489,21 +425,8 @@ export function useBuilderController() {
       }
 
       setBuilderProtocols(protocols);
-      setBuilderProtocolMetaCorePaths(
-        Object.fromEntries(
-          idlRegistryView.protocols.map((protocol) => {
-            const split = deriveSplitMetaPaths(protocol.metaPath ?? null);
-            return [protocol.id, split.corePath];
-          }),
-        ),
-      );
-      setBuilderProtocolAppPaths(
-        Object.fromEntries(
-          idlRegistryView.protocols.map((protocol) => {
-            const split = deriveSplitMetaPaths(protocol.metaPath ?? null);
-            return [protocol.id, split.appPath];
-          }),
-        ),
+      setBuilderProtocolLabelsById(
+        Object.fromEntries(idlRegistryView.protocols.map((protocol) => [protocol.id, protocol.name])),
       );
       setBuilderProtocolId((current) => current || protocols[0]?.id || '');
     })().catch((error) => {
@@ -527,6 +450,8 @@ export function useBuilderController() {
       setBuilderAppStepContexts({});
       setBuilderAppStepCompleted({});
       setBuilderOperations([]);
+      setBuilderOperationEnhancementsByOperation({});
+      setBuilderInputExamplesByOperation({});
       setBuilderOperationId('');
       return;
     }
@@ -562,6 +487,12 @@ export function useBuilderController() {
       setBuilderAppStepContexts({});
       setBuilderAppStepCompleted({});
       setBuilderOperations(operationsView.operations);
+      setBuilderOperationEnhancementsByOperation(
+        buildOperationEnhancementsByOperation(operationsView.operations),
+      );
+      setBuilderInputExamplesByOperation(
+        extractBuilderInputExamplesByOperation(operationsView.operations),
+      );
       setBuilderOperationId((current) => {
         const firstLoadedApp = appsView.apps[0];
         const entryStep = firstLoadedApp
@@ -585,10 +516,7 @@ export function useBuilderController() {
         setBuilderStatusText(`Error: ${message}`);
         setBuilderRawDetails(null);
         setBuilderApps([]);
-        setBuilderStepActionsByStep({});
-        setBuilderStepFlowByStep({});
         setBuilderOperationEnhancementsByOperation({});
-        setBuilderAppUiEnhancementsByApp({});
         setBuilderInputExamplesByOperation({});
         setBuilderAppId('');
         setBuilderAppStepIndex(0);
@@ -603,86 +531,6 @@ export function useBuilderController() {
       cancelled = true;
     };
   }, [builderProtocolId, builderViewMode]);
-
-  useEffect(() => {
-    if (!builderProtocolId) {
-      setBuilderStepActionsByStep({});
-      setBuilderStepFlowByStep({});
-      setBuilderOperationEnhancementsByOperation({});
-      setBuilderAppUiEnhancementsByApp({});
-      setBuilderInputExamplesByOperation({});
-      return;
-    }
-    const metaCorePath = builderProtocolMetaCorePaths[builderProtocolId] ?? null;
-    const appPath = builderProtocolAppPaths[builderProtocolId] ?? null;
-    if (!metaCorePath || !appPath || typeof fetch !== 'function') {
-      setBuilderStepActionsByStep({});
-      setBuilderStepFlowByStep({});
-      setBuilderOperationEnhancementsByOperation({});
-      setBuilderAppUiEnhancementsByApp({});
-      setBuilderInputExamplesByOperation({});
-      setBuilderStatusText(
-        `Error: split meta packs are required for ${builderProtocolId} (missing .meta.core.json or .app.json).`,
-      );
-      setBuilderRawDetails(null);
-      setBuilderShowRawDetails(false);
-      return;
-    }
-
-    let cancelled = false;
-    void (async () => {
-      const fetchJson = async (resourcePath: string): Promise<unknown> => {
-        const response = await fetch(resolveBuilderMetaPath(resourcePath));
-        if (!response.ok) {
-          throw new Error(`Failed to load raw meta IDL (${response.status}).`);
-        }
-        return (await response.json()) as unknown;
-      };
-
-      const rawCore = await fetchJson(metaCorePath);
-      const rawApp = await fetchJson(appPath);
-      const rawMeta =
-        rawApp && typeof rawApp === 'object' && !Array.isArray(rawApp)
-          ? {
-              ...(rawCore as Record<string, unknown>),
-              ...(rawApp as Record<string, unknown>),
-            }
-          : rawCore;
-      if (cancelled) {
-        return;
-      }
-      const rawMetaRecord = asRecord(rawMeta);
-      const rawProtocolLabel = rawMetaRecord ? rawMetaRecord.label : undefined;
-      if (typeof rawProtocolLabel === 'string' && rawProtocolLabel.trim().length > 0) {
-        setBuilderProtocolLabelsById((prev) => ({
-          ...prev,
-          [builderProtocolId]: rawProtocolLabel.trim(),
-        }));
-      }
-      setBuilderStepActionsByStep(extractBuilderStepActionsByStep(rawMeta));
-      setBuilderStepFlowByStep(extractBuilderStepFlowByStep(rawMeta));
-      setBuilderOperationEnhancementsByOperation(extractOperationEnhancements(rawMeta));
-      setBuilderAppUiEnhancementsByApp(extractAppUiEnhancements(rawMeta));
-      setBuilderInputExamplesByOperation(extractBuilderInputExamplesByOperation(rawMeta));
-    })().catch(() => {
-      if (!cancelled) {
-        setBuilderStepActionsByStep({});
-        setBuilderStepFlowByStep({});
-        setBuilderOperationEnhancementsByOperation({});
-        setBuilderAppUiEnhancementsByApp({});
-        setBuilderInputExamplesByOperation({});
-        setBuilderStatusText(
-          `Error: ${builderProtocolId} raw meta does not satisfy required app label rules (strict mode).`,
-        );
-        setBuilderRawDetails(null);
-        setBuilderShowRawDetails(false);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [builderProtocolId, builderProtocolMetaCorePaths, builderProtocolAppPaths]);
 
   useEffect(() => {
     if (builderViewMode !== 'enduser') {

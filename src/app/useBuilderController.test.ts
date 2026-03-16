@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useBuilderController } from './useBuilderController';
 import { listIdlProtocols } from '@agentform/apppack-runtime/idlDeclarativeRuntime';
+import { listMetaApps, listMetaOperations } from '@agentform/apppack-runtime/metaIdlRuntime';
 
 vi.mock('@agentform/apppack-runtime/idlDeclarativeRuntime', async () => {
   return {
@@ -18,17 +19,19 @@ vi.mock('@agentform/apppack-runtime/metaIdlRuntime', async () => {
       operations: [
         {
           operationId: 'list_pools',
+          label: 'List Pools',
           instruction: '',
           inputs: {
-            token_in_mint: { type: 'pubkey', required: true },
-            token_out_mint: { type: 'pubkey', required: true },
+            token_in_mint: { type: 'pubkey', required: true, label: 'Token In' },
+            token_out_mint: { type: 'pubkey', required: true, label: 'Token Out' },
           },
         },
         {
           operationId: 'swap_exact_in',
+          label: 'Swap Exact In',
           instruction: 'swap_v2',
           inputs: {
-            amount_in: { type: 'u64', required: true },
+            amount_in: { type: 'u64', required: true, label: 'Amount In' },
           },
         },
       ],
@@ -37,13 +40,16 @@ vi.mock('@agentform/apppack-runtime/metaIdlRuntime', async () => {
       apps: [
         {
           appId: 'discover_then_swap',
+          label: 'Discover & Swap',
           title: 'Discover -> Swap',
           entryStepId: 'discover',
           steps: [
             {
               stepId: 'discover',
+              label: 'Discover Pools',
               operationId: 'list_pools',
               title: 'Discover Pools',
+              actions: [{ actionId: 'discover_run', kind: 'run', label: 'Find Pools', mode: 'view', variant: 'primary' }],
               inputFrom: {},
               transitions: [{ on: 'success', to: 'swap' }],
               blocking: { dependsOn: [], requiresPaths: [] },
@@ -60,8 +66,10 @@ vi.mock('@agentform/apppack-runtime/metaIdlRuntime', async () => {
             },
             {
               stepId: 'swap',
+              label: 'Swap',
               operationId: 'swap_exact_in',
               title: 'Swap',
+              actions: [{ actionId: 'swap_run', kind: 'run', label: 'Run Swap', mode: 'simulate', variant: 'primary' }],
               inputFrom: {},
               transitions: [],
               blocking: {
@@ -80,10 +88,8 @@ vi.mock('@agentform/apppack-runtime/metaIdlRuntime', async () => {
 });
 
 describe('useBuilderController', () => {
-  const originalFetch = globalThis.fetch;
-
   afterEach(() => {
-    globalThis.fetch = originalFetch;
+    vi.clearAllMocks();
   });
 
   it('loads protocol/app and starts on entry step operation', async () => {
@@ -132,42 +138,7 @@ describe('useBuilderController', () => {
     });
   });
 
-  it('loads step actions from raw app meta', async () => {
-    vi.mocked(listIdlProtocols).mockResolvedValue({
-      protocols: [{ id: 'orca-whirlpool-mainnet', name: 'Orca', status: 'active', metaPath: '/idl/orca.meta.json' }],
-    } as never);
-    globalThis.fetch = vi.fn(async () => {
-      return {
-        ok: true,
-        json: async () => ({
-          label: 'Orca Whirlpool',
-          operations: {
-            list_pools: {
-              label: 'List Pools',
-              inputs: {
-                token_in_mint: { type: 'pubkey', label: 'Token In' },
-                token_out_mint: { type: 'pubkey', label: 'Token Out' },
-              },
-            },
-          },
-          apps: {
-            discover_then_swap: {
-              label: 'Discover & Swap',
-              steps: [
-                {
-                  id: 'discover',
-                  label: 'Discover Pools',
-                  actions: [
-                    { id: 'discover_run', kind: 'run', label: 'Find Pools', mode: 'view', variant: 'primary' },
-                  ],
-                },
-              ],
-            },
-          },
-        }),
-      } as Response;
-    }) as typeof fetch;
-
+  it('loads step actions from listMetaApps', async () => {
     const { result } = renderHook(() => useBuilderController());
 
     await waitFor(() => {
@@ -183,39 +154,20 @@ describe('useBuilderController', () => {
     });
   });
 
-  it('prefill uses declared ui_example values from raw meta operations', async () => {
-    vi.mocked(listIdlProtocols).mockResolvedValue({
-      protocols: [{ id: 'orca-whirlpool-mainnet', name: 'Orca', status: 'active', metaPath: '/idl/orca.meta.json' }],
+  it('prefill uses declared ui_example values from listMetaOperations', async () => {
+    vi.mocked(listMetaOperations).mockResolvedValue({
+      operations: [
+        {
+          operationId: 'list_pools',
+          label: 'List Pools',
+          instruction: '',
+          inputs: {
+            token_in_mint: { type: 'pubkey', required: true, label: 'Token In', ui_example: 'USDC_EXAMPLE' },
+            token_out_mint: { type: 'pubkey', required: true, label: 'Token Out', ui_example: 'SOL_EXAMPLE' },
+          },
+        },
+      ],
     } as never);
-    globalThis.fetch = vi.fn(async () => {
-      return {
-        ok: true,
-        json: async () => ({
-          label: 'Orca Whirlpool',
-          operations: {
-            list_pools: {
-              label: 'List Pools',
-              inputs: {
-                token_in_mint: { type: 'pubkey', label: 'Token In', required: true, ui_example: 'USDC_EXAMPLE' },
-                token_out_mint: { type: 'pubkey', label: 'Token Out', required: true, ui_example: 'SOL_EXAMPLE' },
-              },
-            },
-          },
-          apps: {
-            discover_then_swap: {
-              label: 'Discover & Swap',
-              steps: [
-                {
-                  id: 'discover',
-                  label: 'Discover Pools',
-                  actions: [{ id: 'discover_run', kind: 'run', label: 'Find Pools', mode: 'view' }],
-                },
-              ],
-            },
-          },
-        }),
-      } as Response;
-    }) as typeof fetch;
 
     const { result } = renderHook(() => useBuilderController());
 
@@ -231,33 +183,46 @@ describe('useBuilderController', () => {
     expect(result.current.builderInputValues.token_out_mint).toBe('SOL_EXAMPLE');
   });
 
-  it('prefers declarative labels from raw meta when provided', async () => {
+  it('prefers declarative labels from runtime summaries when provided', async () => {
     vi.mocked(listIdlProtocols).mockResolvedValue({
-      protocols: [{ id: 'orca-whirlpool-mainnet', name: 'Orca', status: 'active', metaPath: '/idl/orca.meta.json' }],
+      protocols: [{ id: 'orca-whirlpool-mainnet', name: 'Orca Whirlpool', status: 'active' }],
     } as never);
-    globalThis.fetch = vi.fn(async () => {
-      return {
-        ok: true,
-        json: async () => ({
-          label: 'Orca Whirlpool',
-          operations: {
-            list_pools: {
-              label: 'List Pools',
-              inputs: {
-                token_in_mint: { type: 'token_mint', label: 'Token In', display_order: 2 },
-                token_out_mint: { type: 'token_mint', label: 'Token Out', display_order: 1 },
-              },
-            },
+    vi.mocked(listMetaOperations).mockResolvedValue({
+      operations: [
+        {
+          operationId: 'list_pools',
+          label: 'List Pools',
+          instruction: '',
+          inputs: {
+            token_in_mint: { type: 'token_mint', required: true, label: 'Token In', display_order: 2 },
+            token_out_mint: { type: 'token_mint', required: true, label: 'Token Out', display_order: 1 },
           },
-          apps: {
-            discover_then_swap: {
-              label: 'Discover & Swap',
-              steps: [{ id: 'discover', label: 'Discover Pools' }],
+        },
+      ],
+    } as never);
+    vi.mocked(listMetaApps).mockResolvedValue({
+      apps: [
+        {
+          appId: 'discover_then_swap',
+          label: 'Discover & Swap',
+          title: 'Discover -> Swap',
+          entryStepId: 'discover',
+          steps: [
+            {
+              stepId: 'discover',
+              label: 'Discover Pools',
+              operationId: 'list_pools',
+              title: 'Discover Pools',
+              actions: [{ actionId: 'discover_run', kind: 'run', label: 'Find Pools', mode: 'view', variant: 'primary' }],
+              inputFrom: {},
+              transitions: [],
+              blocking: { dependsOn: [], requiresPaths: [] },
+              success: { kind: 'operation_ok' },
             },
-          },
-        }),
-      } as Response;
-    }) as typeof fetch;
+          ],
+        },
+      ],
+    } as never);
 
     const { result } = renderHook(() => useBuilderController());
 
