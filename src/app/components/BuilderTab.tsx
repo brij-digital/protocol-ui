@@ -411,41 +411,25 @@ export function BuilderTab(props: BuilderTabProps) {
                                 disabled={isWorking}
                                 onClick={() => {
                                   if (selectedBuilderOperation.instruction) {
-                                    onSetBuilderAppSubmitMode(action.mode === 'send' ? 'send' : 'simulate');
+                                    if (action.mode === 'send' || action.mode === 'simulate') {
+                                      onSetBuilderAppSubmitMode(action.mode);
+                                    }
                                   }
                                 }}
                               >
                                 {isWorking &&
                                 selectedBuilderOperation.instruction &&
-                                builderAppSubmitMode === (action.mode === 'send' ? 'send' : 'simulate')
+                                (action.mode === 'send' || action.mode === 'simulate') &&
+                                builderAppSubmitMode === action.mode
                                   ? 'Running...'
                                   : action.label}
                               </button>
                             );
                           })
-                        ) : selectedBuilderOperation.instruction ? (
-                          <>
-                            <button
-                              type="submit"
-                              className="builder-submit"
-                              disabled={isWorking}
-                              onClick={() => onSetBuilderAppSubmitMode('simulate')}
-                            >
-                              {isWorking && builderAppSubmitMode === 'simulate' ? 'Running...' : 'Run Simulation'}
-                            </button>
-                            <button
-                              type="submit"
-                              className="builder-submit builder-submit-secondary"
-                              disabled={isWorking}
-                              onClick={() => onSetBuilderAppSubmitMode('send')}
-                            >
-                              {isWorking && builderAppSubmitMode === 'send' ? 'Running...' : 'Send Transaction'}
-                            </button>
-                          </>
                         ) : (
-                          <button type="submit" className="builder-submit" disabled={isWorking}>
-                            {isWorking ? 'Running...' : 'Run'}
-                          </button>
+                          <p className="builder-empty">
+                            Invalid app spec: step actions are required for end-user mode.
+                          </p>
                         )}
                       </div>
                     ) : (

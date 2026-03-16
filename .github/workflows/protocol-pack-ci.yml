@@ -7,7 +7,10 @@ on:
       - "public/idl/**"
       - "protocol-packs/**"
       - "scripts/check-protocol-packs.mjs"
+      - "scripts/lint-protocol-packs.mjs"
+      - "scripts/report-pack-complexity.mjs"
       - "scripts/compile-aidl.mjs"
+      - "protocol-packs/complexity-budget.json"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/protocol-pack-ci.yml"
@@ -18,7 +21,10 @@ on:
       - "public/idl/**"
       - "protocol-packs/**"
       - "scripts/check-protocol-packs.mjs"
+      - "scripts/lint-protocol-packs.mjs"
+      - "scripts/report-pack-complexity.mjs"
       - "scripts/compile-aidl.mjs"
+      - "protocol-packs/complexity-budget.json"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/protocol-pack-ci.yml"
@@ -46,6 +52,12 @@ jobs:
 
       - name: Run Protocol Pack Checks
         run: npm run pack:check
+
+      - name: Run Protocol Pack Lint
+        run: npm run pack:lint
+
+      - name: Run Complexity Budget Report
+        run: npm run pack:complexity:enforce
 
       - name: Run RPC Simulation + Parity Checks
         if: ${{ env.SOLANA_RPC_URL != '' }}

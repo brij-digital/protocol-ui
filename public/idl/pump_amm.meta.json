@@ -1192,7 +1192,12 @@
             "success": "Buy step completed.",
             "error": "Buy failed: {error}"
           },
-          "transitions": [],
+          "transitions": [
+            {
+              "on": "error",
+              "to": "pool"
+            }
+          ],
           "input_from": {
             "base_mint": "$steps.discover.derived.selected_pool.baseMint",
             "quote_mint": "$steps.discover.derived.selected_pool.quoteMint",
@@ -1244,7 +1249,12 @@
             "success": "Sell step completed.",
             "error": "Sell failed: {error}"
           },
-          "transitions": [],
+          "transitions": [
+            {
+              "on": "error",
+              "to": "pool"
+            }
+          ],
           "input_from": {
             "base_mint": "$steps.discover.derived.selected_pool.baseMint",
             "quote_mint": "$steps.discover.derived.selected_pool.quoteMint",

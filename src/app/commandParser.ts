@@ -37,7 +37,7 @@ export type MetaRunCommand = {
   protocolId: string;
   operationId: string;
   input: Record<string, unknown>;
-  mode: 'auto' | 'simulate' | 'send';
+  mode: 'simulate' | 'send';
 };
 
 export type ParsedCommand =
@@ -157,12 +157,12 @@ function parseViewRunCommand(trimmed: string): ParsedCommand {
 
 function parseMetaRunCommand(trimmed: string): ParsedCommand {
   let payload = trimmed.slice('/meta-run'.length).trim();
-  let mode: 'auto' | 'simulate' | 'send' = 'auto';
+  let mode: 'simulate' | 'send' | null = null;
 
   const hasTrailingSend = payload.endsWith('--send');
   const hasTrailingSimulate = payload.endsWith('--simulate');
   if (hasTrailingSend && hasTrailingSimulate) {
-    throw new Error('Usage: /meta-run <PROTOCOL_ID> <OPERATION_ID> <INPUT_JSON> [--simulate|--send]');
+    throw new Error('Usage: /meta-run <PROTOCOL_ID> <OPERATION_ID> <INPUT_JSON> --simulate|--send');
   }
 
   if (hasTrailingSend) {
@@ -172,25 +172,28 @@ function parseMetaRunCommand(trimmed: string): ParsedCommand {
     payload = payload.slice(0, -'--simulate'.length).trim();
     mode = 'simulate';
   }
+  if (!mode) {
+    throw new Error('Usage: /meta-run <PROTOCOL_ID> <OPERATION_ID> <INPUT_JSON> --simulate|--send');
+  }
 
   if (payload.length === 0) {
-    throw new Error('Usage: /meta-run <PROTOCOL_ID> <OPERATION_ID> <INPUT_JSON> [--simulate|--send]');
+    throw new Error('Usage: /meta-run <PROTOCOL_ID> <OPERATION_ID> <INPUT_JSON> --simulate|--send');
   }
 
   const firstSpace = payload.indexOf(' ');
   if (firstSpace <= 0) {
-    throw new Error('Usage: /meta-run <PROTOCOL_ID> <OPERATION_ID> <INPUT_JSON> [--simulate|--send]');
+    throw new Error('Usage: /meta-run <PROTOCOL_ID> <OPERATION_ID> <INPUT_JSON> --simulate|--send');
   }
   const protocolId = payload.slice(0, firstSpace).trim();
   const rest = payload.slice(firstSpace + 1).trim();
   const secondSpace = rest.indexOf(' ');
   if (secondSpace <= 0) {
-    throw new Error('Usage: /meta-run <PROTOCOL_ID> <OPERATION_ID> <INPUT_JSON> [--simulate|--send]');
+    throw new Error('Usage: /meta-run <PROTOCOL_ID> <OPERATION_ID> <INPUT_JSON> --simulate|--send');
   }
   const operationId = rest.slice(0, secondSpace).trim();
   const inputRaw = rest.slice(secondSpace + 1).trim();
   if (inputRaw.length === 0) {
-    throw new Error('Usage: /meta-run <PROTOCOL_ID> <OPERATION_ID> <INPUT_JSON> [--simulate|--send]');
+    throw new Error('Usage: /meta-run <PROTOCOL_ID> <OPERATION_ID> <INPUT_JSON> --simulate|--send');
   }
 
   return {

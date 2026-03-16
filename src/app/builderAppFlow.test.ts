@@ -28,6 +28,11 @@ const app: MetaAppSummary = {
       operationId: 'list_pools',
       title: 'Discover',
       actions: [{ actionId: 'discover_run', kind: 'run', label: 'Find Pools', mode: 'view', variant: 'primary' }],
+      statusText: {
+        running: 'Discovering...',
+        success: 'Discover success',
+        error: 'Discover failed',
+      },
       inputFrom: {},
       transitions: [{ on: 'success', to: 'swap' }],
       blocking: {
@@ -44,6 +49,11 @@ const app: MetaAppSummary = {
       operationId: 'swap_exact_in',
       title: 'Swap',
       actions: [{ actionId: 'swap_run', kind: 'run', label: 'Run Swap', mode: 'simulate', variant: 'primary' }],
+      statusText: {
+        running: 'Swapping...',
+        success: 'Swap success',
+        error: 'Swap failed',
+      },
       inputFrom: {},
       transitions: [],
       blocking: {

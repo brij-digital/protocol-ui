@@ -13,13 +13,16 @@
     "pack:init": "node scripts/pack-init.mjs",
     "pack:doctor": "node scripts/pack-doctor.mjs",
     "pack:check": "node scripts/check-protocol-packs.mjs",
+    "pack:lint": "node scripts/lint-protocol-packs.mjs",
+    "pack:complexity": "node scripts/report-pack-complexity.mjs",
+    "pack:complexity:enforce": "node scripts/report-pack-complexity.mjs --enforce",
     "pack:rpc-check": "node scripts/check-protocol-rpc.mjs",
-    "ci:protocol-packs": "npm run aidl:check && npm run pack:check",
+    "ci:protocol-packs": "npm run aidl:check && npm run pack:check && npm run pack:lint && npm run pack:complexity:enforce",
     "ci:protocol-packs:rpc": "npm run ci:protocol-packs && npm run pack:rpc-check",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@agentform/apppack-runtime": "github:brij-digital/apppack-runtime#f588fd1",
+    "@agentform/apppack-runtime": "github:brij-digital/apppack-runtime#216b58e",
     "@coral-xyz/anchor": "^0.32.1",
     "@solana/spl-token": "^0.4.14",
     "@solana/wallet-adapter-base": "^0.9.27",

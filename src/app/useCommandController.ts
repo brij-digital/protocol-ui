@@ -175,7 +175,7 @@ export function useCommandController(options: UseCommandControllerOptions) {
     () =>
       [
         'Commands:',
-        '/meta-run <PROTOCOL_ID> <OPERATION_ID> <INPUT_JSON> [--simulate|--send]',
+        '/meta-run <PROTOCOL_ID> <OPERATION_ID> <INPUT_JSON> --simulate|--send',
         '/view-run <PROTOCOL_ID> <OPERATION_ID> <INPUT_JSON>',
         '/write-raw <PROTOCOL_ID> <INSTRUCTION_NAME> | <ARGS_JSON> | <ACCOUNTS_JSON>',
         '/read-raw <PROTOCOL_ID> <INSTRUCTION_NAME> | <ARGS_JSON> | <ACCOUNTS_JSON>',
@@ -188,7 +188,7 @@ export function useCommandController(options: UseCommandControllerOptions) {
         'Notes:',
         'Use /meta-run for protocol-agnostic operation execution from MetaIDL.',
         `Pool discovery runs through View API (${defaultViewApiBaseUrl}) with no local fallback.`,
-        'For write operations, /meta-run requires explicit mode: --simulate or --send.',
+        '/meta-run requires explicit mode: --simulate or --send.',
         'Use --simulate first, then --send with same input for deterministic execution.',
         '',
         'Examples:',
@@ -317,11 +317,6 @@ export function useCommandController(options: UseCommandControllerOptions) {
 
     const instructionName = prepared.instructionName;
     const isReadOnlyOperation = !instructionName;
-    if (!isReadOnlyOperation && value.mode === 'auto') {
-      throw new Error(
-        `Operation ${value.protocolId}/${value.operationId} is executable. Specify --simulate or --send explicitly.`,
-      );
-    }
     if (isReadOnlyOperation && value.mode === 'send') {
       throw new Error(`Operation ${value.protocolId}/${value.operationId} is read-only and cannot be sent.`);
     }

@@ -107,7 +107,12 @@
             "success": "Swap step completed.",
             "error": "Swap failed: {error}"
           },
-          "transitions": [],
+          "transitions": [
+            {
+              "on": "error",
+              "to": "discover"
+            }
+          ],
           "input_from": {
             "token_in_mint": "$steps.discover.input.token_in_mint",
             "token_out_mint": "$steps.discover.input.token_out_mint",

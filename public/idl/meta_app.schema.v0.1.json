@@ -125,7 +125,8 @@
       "required": [
         "id",
         "kind",
-        "label"
+        "label",
+        "variant"
       ],
       "properties": {
         "id": {
@@ -156,10 +157,38 @@
           ]
         }
       },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "run"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "mode"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "mode"
+              ]
+            }
+          }
+        }
+      ],
       "additionalProperties": false
     },
     "userAppStatusTextSpec": {
       "type": "object",
+      "required": [
+        "running",
+        "success",
+        "error"
+      ],
       "properties": {
         "idle": {
           "type": "string"
@@ -229,7 +258,9 @@
         "label",
         "transitions",
         "blocking",
-        "success"
+        "success",
+        "status_text",
+        "actions"
       ],
       "properties": {
         "id": {
@@ -274,6 +305,7 @@
         },
         "actions": {
           "type": "array",
+          "minItems": 1,
           "items": {
             "$ref": "#/$defs/userAppActionSpec"
           }
