@@ -7,7 +7,7 @@
     "orca.swap_exact_in.v2": {
       "params": {
         "token_in_mint": {
-          "type": "pubkey"
+          "type": "token_mint"
         },
         "amount_in": {
           "type": "u64"
@@ -236,10 +236,10 @@
     "orca.list_pools.v1": {
       "params": {
         "token_in_mint": {
-          "type": "pubkey"
+          "type": "token_mint"
         },
         "token_out_mint": {
-          "type": "pubkey"
+          "type": "token_mint"
         }
       },
       "expand": {
@@ -309,11 +309,11 @@
     "swap_exact_in": {
       "inputs": {
         "token_in_mint": {
-          "type": "pubkey",
+          "type": "token_mint",
           "required": true
         },
         "token_out_mint": {
-          "type": "pubkey",
+          "type": "token_mint",
           "required": true
         },
         "amount_in": {
@@ -354,12 +354,12 @@
     "list_pools": {
       "inputs": {
         "token_in_mint": {
-          "type": "pubkey",
+          "type": "token_mint",
           "required": true,
           "ui_example": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
         },
         "token_out_mint": {
-          "type": "pubkey",
+          "type": "token_mint",
           "required": true,
           "ui_example": "So11111111111111111111111111111111111111112"
         }

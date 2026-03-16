@@ -1,4 +1,5 @@
 import type { MetaAppSummary, MetaOperationExplain, MetaOperationSummary } from '@agentform/apppack-runtime/metaIdlRuntime';
+import { resolveToken } from '../constants/tokens';
 
 export type BuilderAppStepContext = {
   input: Record<string, unknown>;
@@ -245,6 +246,11 @@ export function parseBuilderInputValue(raw: string, type: string, label: string)
       throw new Error(`${label} must be a finite number.`);
     }
     return value;
+  }
+
+  if (normalizedType === 'token_mint') {
+    const token = resolveToken(trimmed);
+    return token?.mint ?? trimmed;
   }
 
   if (trimmed.startsWith('{') || trimmed.startsWith('[')) {

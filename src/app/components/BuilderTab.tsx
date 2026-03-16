@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react';
 import type { MetaAppSummary, MetaOperationSummary } from '@agentform/apppack-runtime/metaIdlRuntime';
+import { listSupportedTokens, resolveToken } from '../../constants/tokens';
 import {
   formatBuilderSelectableItemLabel,
   getBuilderInputTag,
@@ -113,6 +114,7 @@ export function BuilderTab(props: BuilderTabProps) {
     onToggleRawDetails,
   } = props;
   const visibleStepActions = isBuilderAppMode ? selectedBuilderStepActions : [];
+  const supportedTokens = listSupportedTokens();
 
   const actionClassName = (action: BuilderStepAction): string => {
     if (action.variant === 'secondary') {
@@ -122,6 +124,10 @@ export function BuilderTab(props: BuilderTabProps) {
       return 'builder-back';
     }
     return 'builder-submit';
+  };
+
+  const isTokenMintInput = (_inputName: string, spec: MetaOperationSummary['inputs'][string]): boolean => {
+    return spec.type.toLowerCase() === 'token_mint';
   };
 
   return (
@@ -289,6 +295,9 @@ export function BuilderTab(props: BuilderTabProps) {
                       {visibleBuilderInputs.map(([inputName, spec]) => {
                         const editable = isBuilderInputEditable(spec);
                         const fieldTag = getBuilderInputTag(spec);
+                        const value = builderInputValues[inputName] ?? '';
+                        const showTokenPicker = isTokenMintInput(inputName, spec);
+                        const resolvedToken = showTokenPicker ? resolveToken(value) : null;
                         return (
                           <label key={inputName}>
                             <span>
@@ -297,7 +306,7 @@ export function BuilderTab(props: BuilderTabProps) {
                             </span>
                             <input
                               type="text"
-                              value={builderInputValues[inputName] ?? ''}
+                              value={value}
                               onChange={(event) => onInputChange(inputName, event.target.value)}
                               placeholder={
                                 spec.default !== undefined
@@ -308,6 +317,31 @@ export function BuilderTab(props: BuilderTabProps) {
                               }
                               disabled={isWorking || !editable}
                             />
+                            {showTokenPicker ? (
+                              <div className="builder-token-picker">
+                                {supportedTokens.map((token) => {
+                                  const active = value === token.mint || value.toUpperCase() === token.symbol;
+                                  return (
+                                    <button
+                                      key={`${inputName}:${token.symbol}`}
+                                      type="button"
+                                      className={active ? 'active' : ''}
+                                      disabled={isWorking || !editable}
+                                      onClick={() => onInputChange(inputName, token.mint)}
+                                    >
+                                      {token.symbol}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            ) : null}
+                            {showTokenPicker ? (
+                              <small className="builder-token-meta">
+                                {resolvedToken
+                                  ? `ticker: ${resolvedToken.symbol} | decimals: ${resolvedToken.decimals} | mint: ${resolvedToken.mint}`
+                                  : 'Known market tokens: SOL, USDC'}
+                              </small>
+                            ) : null}
                           </label>
                         );
                       })}
