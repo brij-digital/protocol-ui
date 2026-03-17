@@ -68,7 +68,7 @@ Current compute steps used by Orca operation:
 - `compare.equals`
 - `logic.if`
 
-Meta IDL v0.5 runtime (available primitives):
+Meta IDL v0.6 runtime (available primitives):
 - `token_account_balance`, `token_supply` resolvers
 - `math.sum`, `list.filter`, `list.first`, `list.min_by`, `list.max_by`, `coalesce`
 - `compare.not_equals`, `compare.gt`, `compare.gte`, `compare.lt`, `compare.lte`

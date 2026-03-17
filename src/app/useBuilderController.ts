@@ -500,14 +500,6 @@ export function useBuilderController() {
       if (spec.required && !autoResolved) {
         return true;
       }
-
-      if (spec.ui_tier === 'enduser') {
-        return true;
-      }
-      if (spec.ui_tier === 'geek') {
-        return false;
-      }
-
       return spec.required && !autoResolved;
     });
 

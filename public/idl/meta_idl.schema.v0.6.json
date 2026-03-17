@@ -129,12 +129,6 @@
         "validate": {
           "$ref": "#/$defs/inputValidationSpec"
         },
-        "ui_tier": {
-          "enum": [
-            "enduser",
-            "geek"
-          ]
-        },
         "ui_editable": {
           "type": "boolean"
         }

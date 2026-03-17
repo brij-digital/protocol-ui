@@ -730,7 +730,6 @@
           "type": "bool",
           "required": false,
           "default": true,
-          "ui_tier": "geek",
           "label": "Track Volume"
         },
         "pool": {
@@ -789,7 +788,6 @@
           "type": "u64",
           "required": false,
           "default": "1",
-          "ui_tier": "geek",
           "label": "Min Quote Amount Out"
         }
       },
