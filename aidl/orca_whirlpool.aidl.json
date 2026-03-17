@@ -61,7 +61,9 @@
           }
         ],
         "compute_refs": [
-          "orca.swap_exact_in.v2.main"
+          "orca.swap_tick_arrays.v1",
+          "orca.quote_amount_out.v1",
+          "orca.swap_threshold.v1"
         ],
         "args": {
           "amount": "$param.amount_in",
@@ -372,6 +374,8 @@
           "type": "u64",
           "required": false,
           "default": "0",
+          "discover_from": "$derived.estimated_out_auto",
+          "preview_from": "$derived.estimated_out_auto",
           "label": "Estimated Out (atomic)",
           "placeholder": "0",
           "help": "Auto-quoted preview output (read-only).",

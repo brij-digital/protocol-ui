@@ -1,7 +1,7 @@
 {
   "kind": "aidl.compute.v0.1",
   "libraries": {
-    "orca.swap_exact_in.v2.main": [
+    "orca.swap_tick_arrays.v1": [
       {
         "name": "a_to_b",
         "eq": [
@@ -71,14 +71,9 @@
             }
           ]
         }
-      },
-      {
-        "name": "slippage_keep_bps",
-        "sub": [
-          "10000",
-          "$param.slippage_bps"
-        ]
-      },
+      }
+    ],
+    "orca.quote_amount_out.v1": [
       {
         "name": "spot_price_numerator",
         "mul": [
@@ -127,6 +122,15 @@
         "compute": "coalesce",
         "values": [
           "$estimated_out_spot"
+        ]
+      }
+    ],
+    "orca.swap_threshold.v1": [
+      {
+        "name": "slippage_keep_bps",
+        "sub": [
+          "10000",
+          "$param.slippage_bps"
         ]
       },
       {

@@ -310,14 +310,6 @@
             ]
           },
           {
-            "name": "slippage_keep_bps",
-            "compute": "math.sub",
-            "values": [
-              "10000",
-              "$param.slippage_bps"
-            ]
-          },
-          {
             "name": "spot_price_numerator",
             "compute": "math.mul",
             "values": [
@@ -365,6 +357,14 @@
             "compute": "coalesce",
             "values": [
               "$estimated_out_spot"
+            ]
+          },
+          {
+            "name": "slippage_keep_bps",
+            "compute": "math.sub",
+            "values": [
+              "10000",
+              "$param.slippage_bps"
             ]
           },
           {
@@ -521,6 +521,8 @@
           "type": "u64",
           "required": false,
           "default": "0",
+          "discover_from": "$derived.estimated_out_auto",
+          "preview_from": "$derived.estimated_out_auto",
           "label": "Estimated Out (atomic)",
           "placeholder": "0",
           "help": "Auto-quoted preview output (read-only).",

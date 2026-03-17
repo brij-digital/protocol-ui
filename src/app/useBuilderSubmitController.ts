@@ -18,6 +18,7 @@ import {
   buildReadOnlyHighlightsFromSpec,
   parseBuilderInputValue,
   readBuilderPath,
+  stringifyBuilderDefault,
 } from './builderHelpers';
 import { validateOperationInput, type OperationEnhancement } from './metaEnhancements';
 import type { BuilderPreparedStepResult, BuilderViewMode } from './useBuilderController';
@@ -67,42 +68,6 @@ type UseBuilderSubmitControllerOptions = {
   builderAppSubmitMode: 'simulate' | 'send';
   builderSimulate: boolean;
 };
-
-const WSOL_MINT = 'So11111111111111111111111111111111111111112';
-
-function decodeBase64ToBytes(value: string): Uint8Array {
-  const binary = globalThis.atob(value);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return bytes;
-}
-
-function readSplTokenAmountFromSimAccount(dataBase64: string | null): bigint {
-  if (!dataBase64) {
-    return 0n;
-  }
-  try {
-    const bytes = decodeBase64ToBytes(dataBase64);
-    if (bytes.length < 72) {
-      return 0n;
-    }
-    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    return view.getBigUint64(64, true);
-  } catch {
-    return 0n;
-  }
-}
-
-async function fetchTokenAccountAmountAtomic(connection: Connection, address: string): Promise<bigint> {
-  try {
-    const balance = await connection.getTokenAccountBalance(new PublicKey(address), 'confirmed');
-    return BigInt(balance.value.amount);
-  } catch {
-    return 0n;
-  }
-}
 
 function buildMetaPostInstructions(
   postSpecs: Array<{
@@ -244,11 +209,9 @@ async function runRemoteViewRun(options: {
 }
 
 export function useBuilderSubmitController(options: UseBuilderSubmitControllerOptions) {
-  const quoteSeqRef = useRef(0);
+  const previewSeqRef = useRef(0);
   const {
     selectedBuilderOperation,
-    isBuilderAppMode,
-    builderViewMode,
     wallet,
     builderInputValues,
     builderProtocolId,
@@ -258,29 +221,49 @@ export function useBuilderSubmitController(options: UseBuilderSubmitControllerOp
 
   useEffect(() => {
     const operation = selectedBuilderOperation;
-    const isSwapStep =
-      isBuilderAppMode &&
-      builderViewMode === 'enduser' &&
-      operation?.operationId === 'swap_exact_in' &&
-      Boolean(operation.instruction);
-    if (!isSwapStep) {
+    if (!operation) {
       return;
     }
     if (!wallet.publicKey) {
       return;
     }
 
-    const requiredInputNames = ['token_in_mint', 'token_out_mint', 'amount_in', 'slippage_bps', 'whirlpool'] as const;
-    const missingRequired = requiredInputNames.some((name) => {
-      const value = builderInputValues[name];
-      return typeof value !== 'string' || value.trim().length === 0;
+    const previewBindings = Object.entries(operation.inputs)
+      .map(([inputName, spec]) => {
+        const previewFrom = (spec as unknown as Record<string, unknown>).preview_from;
+        if (typeof previewFrom !== 'string' || previewFrom.trim().length === 0) {
+          return null;
+        }
+        return {
+          inputName,
+          source: previewFrom.trim(),
+        };
+      })
+      .filter((entry): entry is { inputName: string; source: string } => entry !== null);
+
+    if (previewBindings.length === 0) {
+      return;
+    }
+
+    const missingRequired = Object.entries(operation.inputs).some(([inputName, spec]) => {
+      const previewFrom = (spec as unknown as Record<string, unknown>).preview_from;
+      if (typeof previewFrom === 'string' && previewFrom.trim().length > 0) {
+        return false;
+      }
+      const rawValue = builderInputValues[inputName] ?? '';
+      if (rawValue.trim().length > 0) {
+        return false;
+      }
+      const hasDefault = spec.default !== undefined;
+      const hasDiscoverFrom = typeof spec.discover_from === 'string' && spec.discover_from.length > 0;
+      return spec.required && !hasDefault && !hasDiscoverFrom;
     });
     if (missingRequired) {
       return;
     }
 
     const debounce = window.setTimeout(() => {
-      const currentSeq = ++quoteSeqRef.current;
+      const currentSeq = ++previewSeqRef.current;
       void (async () => {
         try {
           const inputPayload: Record<string, unknown> = {};
@@ -289,12 +272,16 @@ export function useBuilderSubmitController(options: UseBuilderSubmitControllerOp
             if (!rawValue.trim()) {
               continue;
             }
+            const previewFrom = (spec as unknown as Record<string, unknown>).preview_from;
+            if (
+              typeof previewFrom === 'string' &&
+              previewFrom.trim().length > 0 &&
+              spec.ui_editable === false
+            ) {
+              // Read-only preview fields are derived from prepareMetaOperation.
+              continue;
+            }
             inputPayload[inputName] = parseBuilderInputValue(rawValue, spec.type, `input ${inputName}`);
-          }
-          // Quote preview is independent from final run slippage guard arg wiring.
-          inputPayload.estimated_out = '0';
-          if (typeof inputPayload.unwrap_sol_output === 'boolean' || inputPayload.token_out_mint === WSOL_MINT) {
-            inputPayload.unwrap_sol_output = false;
           }
 
           const prepared = await prepareMetaOperation({
@@ -305,48 +292,28 @@ export function useBuilderSubmitController(options: UseBuilderSubmitControllerOp
             walletPublicKey: wallet.publicKey as PublicKey,
           });
 
-          if (!prepared.instructionName) {
+          if (currentSeq !== previewSeqRef.current) {
             return;
           }
 
-          const aToB = prepared.args.a_to_b === true;
-          const outputAccount = aToB
-            ? prepared.accounts.token_owner_account_b
-            : prepared.accounts.token_owner_account_a;
-          if (!outputAccount) {
-            return;
-          }
-
-          const preOutputAtomic = await fetchTokenAccountAmountAtomic(connection, outputAccount);
-          const preInstructions = buildMetaPreInstructions(prepared.preInstructions);
-          const postInstructions = buildMetaPostInstructions(prepared.postInstructions);
-          const simulation = await simulateIdlInstruction({
-            protocolId: prepared.protocolId,
-            instructionName: prepared.instructionName,
+          const scope = {
+            input: inputPayload,
             args: prepared.args,
             accounts: prepared.accounts,
-            remainingAccounts: prepared.remainingAccounts,
-            preInstructions,
-            postInstructions,
-            includeAccounts: [outputAccount],
-            connection,
-            wallet,
-          });
-
-          if (currentSeq !== quoteSeqRef.current || !simulation.ok) {
-            return;
-          }
-
-          const simOutput = simulation.accounts.find((entry) => entry.address === outputAccount);
-          const postOutputAtomic = readSplTokenAmountFromSimAccount(simOutput?.dataBase64 ?? null);
-          const estimatedOutAtomic =
-            postOutputAtomic > preOutputAtomic ? postOutputAtomic - preOutputAtomic : 0n;
-          const estimatedOutText = estimatedOutAtomic.toString();
-          if ((builderInputValues.estimated_out ?? '') !== estimatedOutText) {
-            onSetBuilderInputValue('estimated_out', estimatedOutText);
+            derived: prepared.derived,
+          };
+          for (const binding of previewBindings) {
+            const previewValue = readBuilderPath(scope, binding.source);
+            if (previewValue === undefined || previewValue === null) {
+              continue;
+            }
+            const nextText = stringifyBuilderDefault(previewValue);
+            if ((builderInputValues[binding.inputName] ?? '') !== nextText) {
+              onSetBuilderInputValue(binding.inputName, nextText);
+            }
           }
         } catch {
-          // Silent by design: quote preview must never block main flow.
+          // Silent by design: preview updates must never block main flow.
         }
       })();
     }, 350);
@@ -357,9 +324,7 @@ export function useBuilderSubmitController(options: UseBuilderSubmitControllerOp
   }, [
     builderInputValues,
     builderProtocolId,
-    builderViewMode,
     connection,
-    isBuilderAppMode,
     onSetBuilderInputValue,
     selectedBuilderOperation,
     wallet,
