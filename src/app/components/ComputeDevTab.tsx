@@ -120,6 +120,7 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
   const [protocols, setProtocols] = useState<ProtocolSummary[]>([]);
   const [protocolId, setProtocolId] = useState('');
   const [operations, setOperations] = useState<MetaOperationSummary[]>([]);
+  const [operationComputeCounts, setOperationComputeCounts] = useState<Record<string, number>>({});
   const [operationId, setOperationId] = useState('');
   const [explain, setExplain] = useState<MetaOperationExplain | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -156,6 +157,7 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
   useEffect(() => {
     if (!protocolId) {
       setOperations([]);
+      setOperationComputeCounts({});
       setOperationId('');
       return;
     }
@@ -169,12 +171,28 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
           return;
         }
         setOperations(listed.operations);
-        setOperationId(listed.operations[0]?.operationId ?? '');
+        const countEntries = await Promise.all(
+          listed.operations.map(async (operation) => {
+            const details = await explainMetaOperation({ protocolId, operationId: operation.operationId });
+            return [operation.operationId, Array.isArray(details.compute) ? details.compute.length : 0] as const;
+          }),
+        );
+        if (cancelled) {
+          return;
+        }
+        const counts = Object.fromEntries(countEntries);
+        setOperationComputeCounts(counts);
+        const preferred =
+          listed.operations.find((operation) => (counts[operation.operationId] ?? 0) > 0)?.operationId ??
+          listed.operations[0]?.operationId ??
+          '';
+        setOperationId(preferred);
       } catch (caught) {
         if (!cancelled) {
           const message = caught instanceof Error ? caught.message : String(caught);
           setError(message);
           setOperations([]);
+          setOperationComputeCounts({});
           setOperationId('');
         }
       } finally {
@@ -244,7 +262,7 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
           <select value={operationId} onChange={(event) => setOperationId(event.target.value)} disabled={isWorking || loading || operations.length === 0}>
             {operations.map((operation) => (
               <option key={operation.operationId} value={operation.operationId}>
-                {operation.operationId}
+                {operation.operationId} ({operationComputeCounts[operation.operationId] ?? 0} compute)
               </option>
             ))}
           </select>

@@ -80,9 +80,74 @@
         ]
       },
       {
+        "name": "spot_price_numerator",
+        "mul": [
+          "$whirlpool_data.sqrt_price",
+          "$whirlpool_data.sqrt_price"
+        ]
+      },
+      {
+        "name": "estimated_out_a_to_b_numerator",
+        "mul": [
+          "$param.amount_in",
+          "$spot_price_numerator"
+        ]
+      },
+      {
+        "name": "estimated_out_a_to_b",
+        "floor_div": [
+          "$estimated_out_a_to_b_numerator",
+          "340282366920938463463374607431768211456"
+        ]
+      },
+      {
+        "name": "estimated_out_b_to_a_numerator",
+        "mul": [
+          "$param.amount_in",
+          "340282366920938463463374607431768211456"
+        ]
+      },
+      {
+        "name": "estimated_out_b_to_a",
+        "floor_div": [
+          "$estimated_out_b_to_a_numerator",
+          "$spot_price_numerator"
+        ]
+      },
+      {
+        "name": "estimated_out_spot",
+        "if": {
+          "condition": "$a_to_b",
+          "then": "$estimated_out_a_to_b",
+          "else": "$estimated_out_b_to_a"
+        }
+      },
+      {
+        "name": "estimated_out_auto",
+        "compute": "coalesce",
+        "values": [
+          "$estimated_out_spot"
+        ]
+      },
+      {
+        "name": "estimated_out_override_provided",
+        "gt": [
+          "$param.estimated_out",
+          "0"
+        ]
+      },
+      {
+        "name": "estimated_out_effective",
+        "if": {
+          "condition": "$estimated_out_override_provided",
+          "then": "$param.estimated_out",
+          "else": "$estimated_out_auto"
+        }
+      },
+      {
         "name": "other_amount_threshold_numerator",
         "mul": [
-          "$param.estimated_out",
+          "$estimated_out_effective",
           "$slippage_keep_bps"
         ]
       },

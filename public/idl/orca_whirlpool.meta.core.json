@@ -318,10 +318,73 @@
             ]
           },
           {
+            "name": "spot_price_numerator",
+            "compute": "math.mul",
+            "values": [
+              "$whirlpool_data.sqrt_price",
+              "$whirlpool_data.sqrt_price"
+            ]
+          },
+          {
+            "name": "estimated_out_a_to_b_numerator",
+            "compute": "math.mul",
+            "values": [
+              "$param.amount_in",
+              "$spot_price_numerator"
+            ]
+          },
+          {
+            "name": "estimated_out_a_to_b",
+            "compute": "math.floor_div",
+            "dividend": "$estimated_out_a_to_b_numerator",
+            "divisor": "340282366920938463463374607431768211456"
+          },
+          {
+            "name": "estimated_out_b_to_a_numerator",
+            "compute": "math.mul",
+            "values": [
+              "$param.amount_in",
+              "340282366920938463463374607431768211456"
+            ]
+          },
+          {
+            "name": "estimated_out_b_to_a",
+            "compute": "math.floor_div",
+            "dividend": "$estimated_out_b_to_a_numerator",
+            "divisor": "$spot_price_numerator"
+          },
+          {
+            "name": "estimated_out_spot",
+            "compute": "logic.if",
+            "condition": "$a_to_b",
+            "then": "$estimated_out_a_to_b",
+            "else": "$estimated_out_b_to_a"
+          },
+          {
+            "name": "estimated_out_auto",
+            "compute": "coalesce",
+            "values": [
+              "$estimated_out_spot"
+            ]
+          },
+          {
+            "name": "estimated_out_override_provided",
+            "compute": "compare.gt",
+            "left": "$param.estimated_out",
+            "right": "0"
+          },
+          {
+            "name": "estimated_out_effective",
+            "compute": "logic.if",
+            "condition": "$estimated_out_override_provided",
+            "then": "$param.estimated_out",
+            "else": "$estimated_out_auto"
+          },
+          {
             "name": "other_amount_threshold_numerator",
             "compute": "math.mul",
             "values": [
-              "$param.estimated_out",
+              "$estimated_out_effective",
               "$slippage_keep_bps"
             ]
           },
