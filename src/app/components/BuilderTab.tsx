@@ -355,8 +355,8 @@ export function BuilderTab(props: BuilderTabProps) {
                                     ? `default: ${stringifyBuilderDefault(spec.default)}`
                                     : spec.discover_from
                                       ? `discover_from: ${spec.discover_from}`
-                                      : typeof (spec as unknown as Record<string, unknown>).preview_from === 'string'
-                                        ? `preview_from: ${(spec as unknown as Record<string, unknown>).preview_from as string}`
+                                      : typeof spec.read_from === 'string'
+                                        ? `read_from: ${spec.read_from}`
                                       : '')
                                 }
                                 disabled={isWorking || !editable}

@@ -663,6 +663,7 @@
         "base_mint": {
           "type": "pubkey",
           "required": true,
+          "read_from": "$input.base_mint",
           "ui_editable": false,
           "label": "Base Mint"
         },
@@ -670,6 +671,7 @@
           "type": "pubkey",
           "required": false,
           "default": "So11111111111111111111111111111111111111112",
+          "read_from": "$input.quote_mint",
           "ui_editable": false,
           "label": "Quote Mint"
         }
@@ -711,6 +713,7 @@
         "base_mint": {
           "type": "pubkey",
           "required": true,
+          "read_from": "$input.base_mint",
           "ui_editable": false,
           "label": "Base Mint"
         },
@@ -718,6 +721,7 @@
           "type": "pubkey",
           "required": false,
           "default": "So11111111111111111111111111111111111111112",
+          "read_from": "$input.quote_mint",
           "ui_editable": false,
           "label": "Quote Mint"
         },
@@ -735,6 +739,7 @@
         "pool": {
           "type": "pubkey",
           "required": false,
+          "read_from": "$input.pool",
           "ui_editable": false,
           "label": "Pool"
         },
@@ -763,6 +768,7 @@
         "base_mint": {
           "type": "pubkey",
           "required": true,
+          "read_from": "$input.base_mint",
           "ui_editable": false,
           "label": "Base Mint"
         },
@@ -770,12 +776,14 @@
           "type": "pubkey",
           "required": false,
           "default": "So11111111111111111111111111111111111111112",
+          "read_from": "$input.quote_mint",
           "ui_editable": false,
           "label": "Quote Mint"
         },
         "pool": {
           "type": "pubkey",
           "required": false,
+          "read_from": "$input.pool",
           "ui_editable": false,
           "label": "Pool"
         },

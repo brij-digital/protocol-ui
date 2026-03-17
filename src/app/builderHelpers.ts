@@ -164,11 +164,11 @@ export function formatBuilderSelectableItemLabel(
 }
 
 export function isAutoResolvedBuilderInput(spec: MetaOperationSummary['inputs'][string]): boolean {
-  const previewFrom = (spec as Record<string, unknown>).preview_from;
+  const readFrom = spec.read_from;
   return (
     spec.default !== undefined ||
     (typeof spec.discover_from === 'string' && spec.discover_from.length > 0) ||
-    (typeof previewFrom === 'string' && previewFrom.length > 0)
+    (typeof readFrom === 'string' && readFrom.length > 0)
   );
 }
 
@@ -180,9 +180,8 @@ export function isBuilderInputEditable(spec: MetaOperationSummary['inputs'][stri
 }
 
 export function getBuilderInputTag(spec: MetaOperationSummary['inputs'][string]): string {
-  const previewFrom = (spec as Record<string, unknown>).preview_from;
-  if (typeof previewFrom === 'string' && previewFrom.length > 0) {
-    return 'preview';
+  if (typeof spec.read_from === 'string' && spec.read_from.length > 0) {
+    return 'readonly';
   }
   if (spec.discover_from) {
     if (spec.discover_stage === 'compute') {

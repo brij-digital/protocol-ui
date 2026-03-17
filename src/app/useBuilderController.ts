@@ -69,8 +69,6 @@ type BuilderStepFlow = {
   statusText: BuilderStepStatusTextTemplates;
 };
 
-type OperationPreviewBindings = Record<string, Record<string, string>>;
-
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return null;
@@ -83,72 +81,6 @@ function asNonEmptyString(value: unknown, fieldPath: string): string {
     throw new Error(`${fieldPath} must be a non-empty string.`);
   }
   return value.trim();
-}
-
-function extractPreviewBindingsFromMeta(metaRaw: unknown): OperationPreviewBindings {
-  if (!metaRaw || typeof metaRaw !== 'object' || Array.isArray(metaRaw)) {
-    return {};
-  }
-  const operationsRaw = (metaRaw as Record<string, unknown>).operations;
-  if (!operationsRaw || typeof operationsRaw !== 'object' || Array.isArray(operationsRaw)) {
-    return {};
-  }
-
-  const bindings: OperationPreviewBindings = {};
-  for (const [operationId, operationRaw] of Object.entries(operationsRaw as Record<string, unknown>)) {
-    if (!operationRaw || typeof operationRaw !== 'object' || Array.isArray(operationRaw)) {
-      continue;
-    }
-    const inputsRaw = (operationRaw as Record<string, unknown>).inputs;
-    if (!inputsRaw || typeof inputsRaw !== 'object' || Array.isArray(inputsRaw)) {
-      continue;
-    }
-    const inputBindings: Record<string, string> = {};
-    for (const [inputName, inputRaw] of Object.entries(inputsRaw as Record<string, unknown>)) {
-      if (!inputRaw || typeof inputRaw !== 'object' || Array.isArray(inputRaw)) {
-        continue;
-      }
-      const previewFrom = (inputRaw as Record<string, unknown>).preview_from;
-      if (typeof previewFrom === 'string' && previewFrom.trim().length > 0) {
-        inputBindings[inputName] = previewFrom.trim();
-      }
-    }
-    if (Object.keys(inputBindings).length > 0) {
-      bindings[operationId] = inputBindings;
-    }
-  }
-  return bindings;
-}
-
-function mergeOperationPreviewBindings(
-  operations: MetaOperationSummary[],
-  bindings: OperationPreviewBindings,
-): MetaOperationSummary[] {
-  return operations.map((operation) => {
-    const operationBindings = bindings[operation.operationId];
-    if (!operationBindings || Object.keys(operationBindings).length === 0) {
-      return operation;
-    }
-    const nextInputs = Object.fromEntries(
-      Object.entries(operation.inputs).map(([inputName, inputSpec]) => {
-        const previewFrom = operationBindings[inputName];
-        if (!previewFrom) {
-          return [inputName, inputSpec];
-        }
-        return [
-          inputName,
-          {
-            ...inputSpec,
-            preview_from: previewFrom,
-          },
-        ];
-      }),
-    ) as MetaOperationSummary['inputs'];
-    return {
-      ...operation,
-      inputs: nextInputs,
-    };
-  });
 }
 
 function extractBuilderInputExamplesByOperation(
@@ -342,7 +274,6 @@ function buildOperationEnhancementsByOperation(
 export function useBuilderController() {
   const [builderProtocols, setBuilderProtocols] = useState<BuilderProtocol[]>([]);
   const [builderProtocolLabelsById, setBuilderProtocolLabelsById] = useState<Record<string, string>>({});
-  const [builderProtocolMetaPathById, setBuilderProtocolMetaPathById] = useState<Record<string, string>>({});
   const [builderProtocolId, setBuilderProtocolId] = useState('');
   const [builderApps, setBuilderApps] = useState<MetaAppSummary[]>([]);
   const [builderOperationEnhancementsByOperation, setBuilderOperationEnhancementsByOperation] = useState<
@@ -490,8 +421,7 @@ export function useBuilderController() {
         return true;
       }
 
-      const previewFrom = (spec as unknown as Record<string, unknown>).preview_from;
-      if (typeof previewFrom === 'string' && previewFrom.length > 0) {
+      if (typeof spec.read_from === 'string' && spec.read_from.length > 0) {
         return true;
       }
 
@@ -541,13 +471,6 @@ export function useBuilderController() {
       setBuilderProtocolLabelsById(
         Object.fromEntries(idlRegistryView.protocols.map((protocol) => [protocol.id, protocol.name])),
       );
-      setBuilderProtocolMetaPathById(
-        Object.fromEntries(
-          idlRegistryView.protocols
-            .filter((protocol) => typeof protocol.metaPath === 'string' && protocol.metaPath.length > 0)
-            .map((protocol) => [protocol.id, protocol.metaPath as string]),
-        ),
-      );
       setBuilderProtocolId((current) => current || protocols[0]?.id || '');
     })().catch((error) => {
       if (!cancelled) {
@@ -586,29 +509,10 @@ export function useBuilderController() {
           protocolId: builderProtocolId,
         }),
       ]);
-      const previewBindings = await (async () => {
-        const metaPath = builderProtocolMetaPathById[builderProtocolId];
-        if (!metaPath) {
-          return {} as OperationPreviewBindings;
-        }
-        try {
-          const response = await fetch(metaPath);
-          if (!response.ok) {
-            return {} as OperationPreviewBindings;
-          }
-          const parsed = (await response.json()) as unknown;
-          return extractPreviewBindingsFromMeta(parsed);
-        } catch {
-          return {} as OperationPreviewBindings;
-        }
-      })();
       if (cancelled) {
         return;
       }
-      const operationsWithPreview = mergeOperationPreviewBindings(
-        operationsView.operations,
-        previewBindings,
-      );
+      const operationsWithReadFrom = operationsView.operations;
 
       validateBuilderAppsStrict(appsView.apps);
       setBuilderApps(appsView.apps);
@@ -627,12 +531,12 @@ export function useBuilderController() {
       }
       setBuilderAppStepContexts({});
       setBuilderAppStepCompleted({});
-      setBuilderOperations(operationsWithPreview);
+      setBuilderOperations(operationsWithReadFrom);
       setBuilderOperationEnhancementsByOperation(
-        buildOperationEnhancementsByOperation(operationsWithPreview),
+        buildOperationEnhancementsByOperation(operationsWithReadFrom),
       );
       setBuilderInputExamplesByOperation(
-        extractBuilderInputExamplesByOperation(operationsWithPreview),
+        extractBuilderInputExamplesByOperation(operationsWithReadFrom),
       );
       setBuilderOperationId((current) => {
         const firstLoadedApp = appsView.apps[0];
@@ -646,10 +550,10 @@ export function useBuilderController() {
         if (builderViewMode === 'enduser') {
           return '';
         }
-        if (current && operationsWithPreview.some((entry) => entry.operationId === current)) {
+        if (current && operationsWithReadFrom.some((entry) => entry.operationId === current)) {
           return current;
         }
-        return operationsWithPreview[0]?.operationId ?? '';
+        return operationsWithReadFrom[0]?.operationId ?? '';
       });
     })().catch((error) => {
       if (!cancelled) {
@@ -671,7 +575,7 @@ export function useBuilderController() {
     return () => {
       cancelled = true;
     };
-  }, [builderProtocolId, builderViewMode, builderProtocolMetaPathById]);
+  }, [builderProtocolId, builderViewMode]);
 
   useEffect(() => {
     if (builderViewMode !== 'enduser') {

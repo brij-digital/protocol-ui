@@ -126,6 +126,9 @@
         "discover_from": {
           "type": "string"
         },
+        "read_from": {
+          "type": "string"
+        },
         "validate": {
           "$ref": "#/$defs/inputValidationSpec"
         },
@@ -133,7 +136,26 @@
           "type": "boolean"
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "ui_editable": {
+                "const": false
+              }
+            },
+            "required": [
+              "ui_editable"
+            ]
+          },
+          "then": {
+            "required": [
+              "read_from"
+            ]
+          }
+        }
+      ]
     },
     "inputValidationSpec": {
       "type": "object",

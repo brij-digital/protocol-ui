@@ -230,13 +230,13 @@ export function useBuilderSubmitController(options: UseBuilderSubmitControllerOp
 
     const previewBindings = Object.entries(operation.inputs)
       .map(([inputName, spec]) => {
-        const previewFrom = (spec as unknown as Record<string, unknown>).preview_from;
-        if (typeof previewFrom !== 'string' || previewFrom.trim().length === 0) {
+        const readFrom = spec.read_from;
+        if (typeof readFrom !== 'string' || readFrom.trim().length === 0) {
           return null;
         }
         return {
           inputName,
-          source: previewFrom.trim(),
+          source: readFrom.trim(),
         };
       })
       .filter((entry): entry is { inputName: string; source: string } => entry !== null);
@@ -246,8 +246,8 @@ export function useBuilderSubmitController(options: UseBuilderSubmitControllerOp
     }
 
     const missingRequired = Object.entries(operation.inputs).some(([inputName, spec]) => {
-      const previewFrom = (spec as unknown as Record<string, unknown>).preview_from;
-      if (typeof previewFrom === 'string' && previewFrom.trim().length > 0) {
+      const readFrom = spec.read_from;
+      if (typeof readFrom === 'string' && readFrom.trim().length > 0) {
         return false;
       }
       const rawValue = builderInputValues[inputName] ?? '';
@@ -272,10 +272,9 @@ export function useBuilderSubmitController(options: UseBuilderSubmitControllerOp
             if (!rawValue.trim()) {
               continue;
             }
-            const previewFrom = (spec as unknown as Record<string, unknown>).preview_from;
             if (
-              typeof previewFrom === 'string' &&
-              previewFrom.trim().length > 0 &&
+              typeof spec.read_from === 'string' &&
+              spec.read_from.trim().length > 0 &&
               spec.ui_editable === false
             ) {
               // Read-only preview fields are derived from prepareMetaOperation.
@@ -374,7 +373,9 @@ export function useBuilderSubmitController(options: UseBuilderSubmitControllerOp
             const hasDefault = spec.default !== undefined;
             const hasDiscoverFrom =
               typeof spec.discover_from === 'string' && spec.discover_from.length > 0;
-            if (spec.required && !hasDefault && !hasDiscoverFrom) {
+            const hasReadFrom =
+              typeof spec.read_from === 'string' && spec.read_from.length > 0;
+            if (spec.required && !hasDefault && !hasDiscoverFrom && !hasReadFrom) {
               throw new Error(`Missing required input ${inputName}.`);
             }
             continue;
