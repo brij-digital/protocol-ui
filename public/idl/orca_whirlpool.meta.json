@@ -535,7 +535,8 @@
           "label": "Whirlpool Account",
           "placeholder": "Whirlpool pubkey",
           "group": "market",
-          "display_order": 6
+          "display_order": 6,
+          "ui_editable": false
         },
         "unwrap_sol_output": {
           "type": "bool",
