@@ -205,7 +205,6 @@ function App() {
             onSelectOperation={handleBuilderOperationSelect}
             selectedBuilderOperation={selectedBuilderOperation}
             selectedBuilderApp={selectedBuilderApp}
-            selectedBuilderAppStep={selectedBuilderAppStep}
             selectedBuilderStepActions={selectedBuilderStepActions}
             selectedBuilderOperationEnhancement={selectedBuilderOperationEnhancement}
             builderOperationLabelsByOperationId={builderOperationLabelsByOperationId}

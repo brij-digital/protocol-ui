@@ -44,7 +44,6 @@ type BuilderTabProps = {
   builderOperationLabelsByOperationId: Record<string, string>;
   selectedBuilderApp: MetaAppSummary | null;
   builderAppLabelsByAppId: Record<string, string>;
-  selectedBuilderAppStep: BuilderStep | null;
   builderStepLabelsByAppStepKey: Record<string, string>;
   selectedBuilderStepActions: BuilderStepAction[];
   builderAppStepIndex: number;
@@ -95,7 +94,6 @@ export function BuilderTab(props: BuilderTabProps) {
     builderOperationLabelsByOperationId,
     selectedBuilderApp,
     builderAppLabelsByAppId,
-    selectedBuilderAppStep,
     builderStepLabelsByAppStepKey,
     selectedBuilderStepActions,
     builderAppStepIndex,
@@ -343,23 +341,14 @@ export function BuilderTab(props: BuilderTabProps) {
                         {showBuilderSelectableItems ? 'Back to search form' : 'Back to previous step'}
                       </button>
                     ) : null}
-                    {selectedBuilderAppStep?.description ? (
-                      <p className="builder-note">{selectedBuilderAppStep.description}</p>
-                    ) : null}
                   </>
                 ) : null}
-                <p>
-                  instruction: <code>{selectedBuilderOperation.instruction || 'read-only'}</code>
-                </p>
 
                 {showBuilderSelectableItems ? (
                   <div className="builder-pool-selection">
                     <p className="builder-note">
                       {selectedBuilderAppSelectUi?.title ?? 'Choose one item to unlock the next step.'}
                     </p>
-                    {selectedBuilderAppSelectUi?.description ? (
-                      <p className="builder-note">{selectedBuilderAppSelectUi.description}</p>
-                    ) : null}
                     <div className="builder-pool-list">
                       {selectedBuilderAppSelectableItems.map((item, index) => {
                         const itemValue = selectedBuilderAppSelectUi
