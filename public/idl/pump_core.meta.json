@@ -279,6 +279,15 @@
         "min_tokens_out": "$min_tokens_out_effective",
         "track_volume": "$input.track_volume"
       },
+      "pre": [
+        {
+          "kind": "spl_ata_create_idempotent",
+          "payer": "$wallet",
+          "ata": "$associated_user",
+          "owner": "$wallet",
+          "mint": "$input.base_mint"
+        }
+      ],
       "accounts": {
         "global": "$global",
         "fee_recipient": "$global_data.fee_recipient",
