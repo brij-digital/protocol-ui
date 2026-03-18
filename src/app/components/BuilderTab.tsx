@@ -142,6 +142,85 @@ export function BuilderTab(props: BuilderTabProps) {
     return spec.type.toLowerCase() === 'token_mint';
   };
 
+  const formatAtomicAmountForDisplay = (atomicRaw: string, decimals: number): string => {
+    if (atomicRaw.trim().length === 0) {
+      return '';
+    }
+    if (!/^\d+$/.test(atomicRaw.trim())) {
+      return atomicRaw;
+    }
+    const atomic = BigInt(atomicRaw.trim());
+    const scale = 10n ** BigInt(decimals);
+    const whole = atomic / scale;
+    const fraction = atomic % scale;
+    if (fraction === 0n) {
+      return whole.toString();
+    }
+    const padded = fraction.toString().padStart(decimals, '0').replace(/0+$/, '');
+    return `${whole.toString()}.${padded}`;
+  };
+
+  const parseDisplayAmountToAtomic = (displayRaw: string, decimals: number): string => {
+    const raw = displayRaw.trim();
+    if (raw.length === 0) {
+      return '';
+    }
+    if (!/^\d*\.?\d*$/.test(raw)) {
+      return displayRaw;
+    }
+    const [wholeRaw, fractionRaw = ''] = raw.split('.');
+    const whole = wholeRaw.length > 0 ? wholeRaw : '0';
+    const clippedFraction = fractionRaw.slice(0, decimals);
+    const paddedFraction = clippedFraction.padEnd(decimals, '0');
+    const scale = 10n ** BigInt(decimals);
+    const wholeAtomic = BigInt(whole) * scale;
+    const fractionAtomic = paddedFraction.length > 0 ? BigInt(paddedFraction) : 0n;
+    return (wholeAtomic + fractionAtomic).toString();
+  };
+
+  const formatBpsToPercent = (bpsRaw: string): string => {
+    const raw = bpsRaw.trim();
+    if (raw.length === 0) {
+      return '';
+    }
+    if (!/^\d+$/.test(raw)) {
+      return bpsRaw;
+    }
+    const bps = Number(raw);
+    if (!Number.isFinite(bps)) {
+      return bpsRaw;
+    }
+    return (bps / 100).toString();
+  };
+
+  const parsePercentToBps = (percentRaw: string): string => {
+    const raw = percentRaw.trim();
+    if (raw.length === 0) {
+      return '';
+    }
+    if (!/^\d*\.?\d*$/.test(raw)) {
+      return percentRaw;
+    }
+    const [wholeRaw, fractionRaw = ''] = raw.split('.');
+    const whole = wholeRaw.length > 0 ? wholeRaw : '0';
+    const clippedFraction = fractionRaw.slice(0, 2);
+    const paddedFraction = clippedFraction.padEnd(2, '0');
+    return (BigInt(whole) * 100n + BigInt(paddedFraction)).toString();
+  };
+
+  const resolveAmountToken = (inputName: string): ReturnType<typeof resolveToken> => {
+    const normalized = inputName.toLowerCase();
+    const outMint = builderInputValues.token_out_mint ?? '';
+    const inMint = builderInputValues.token_in_mint ?? '';
+    if (normalized.includes('out') && outMint.trim().length > 0) {
+      return resolveToken(outMint);
+    }
+    if (inMint.trim().length > 0) {
+      return resolveToken(inMint);
+    }
+    return null;
+  };
+
   return (
     <>
       <div className="builder-mode-switch builder-mode-switch-global" role="tablist" aria-label="Builder audience mode">
@@ -314,6 +393,19 @@ export function BuilderTab(props: BuilderTabProps) {
                         const showTokenPicker = isTokenMintInput(inputName, spec);
                         const resolvedToken = showTokenPicker ? resolveToken(value) : null;
                         const selectedMint = resolvedToken?.mint ?? '';
+                        const normalizedName = inputName.toLowerCase();
+                        const isAmountField = !showTokenPicker && spec.type.toLowerCase() === 'u64' && normalizedName.includes('amount');
+                        const amountToken = isAmountField ? resolveAmountToken(inputName) : null;
+                        const isSlippageField = !showTokenPicker && normalizedName === 'slippage_bps';
+                        const displayValue = (() => {
+                          if (isAmountField && amountToken) {
+                            return formatAtomicAmountForDisplay(value, amountToken.decimals);
+                          }
+                          if (isSlippageField) {
+                            return formatBpsToPercent(value);
+                          }
+                          return value;
+                        })();
                         return (
                           <label key={inputName}>
                             <span>
@@ -347,8 +439,19 @@ export function BuilderTab(props: BuilderTabProps) {
                             ) : (
                               <input
                                 type="text"
-                                value={value}
-                                onChange={(event) => onInputChange(inputName, event.target.value)}
+                                value={displayValue}
+                                onChange={(event) => {
+                                  const nextRaw = event.target.value;
+                                  if (isAmountField && amountToken) {
+                                    onInputChange(inputName, parseDisplayAmountToAtomic(nextRaw, amountToken.decimals));
+                                    return;
+                                  }
+                                  if (isSlippageField) {
+                                    onInputChange(inputName, parsePercentToBps(nextRaw));
+                                    return;
+                                  }
+                                  onInputChange(inputName, nextRaw);
+                                }}
                                 placeholder={
                                   selectedBuilderOperationEnhancement?.inputUi[inputName]?.placeholder ??
                                   (spec.default !== undefined
@@ -366,6 +469,12 @@ export function BuilderTab(props: BuilderTabProps) {
                                   ? `ticker: ${resolvedToken.symbol} | decimals: ${resolvedToken.decimals} | mint: ${resolvedToken.mint}`
                                   : 'Select one token from the list.'}
                               </small>
+                            ) : isAmountField && amountToken ? (
+                              <small className="builder-token-meta">
+                                Unit: {amountToken.symbol} ({amountToken.decimals} decimals).
+                              </small>
+                            ) : isSlippageField ? (
+                              <small className="builder-token-meta">Unit: percent (%).</small>
                             ) : null}
                             {selectedBuilderOperationEnhancement?.inputUi[inputName]?.help ? (
                               <small className="builder-input-help">
