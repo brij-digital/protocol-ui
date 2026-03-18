@@ -242,6 +242,16 @@
           "max_quote_amount_in": "$max_quote_amount_in",
           "track_volume": "$param.track_volume"
         },
+        "pre": [
+          {
+            "kind": "spl_ata_create_idempotent",
+            "payer": "$wallet",
+            "ata": "$user_base_token_account",
+            "owner": "$wallet",
+            "mint": "$pool_data.base_mint",
+            "token_program": "$base_token_program"
+          }
+        ],
         "accounts": {
           "pool": "$selected_pool.pool",
           "user": "$wallet",
