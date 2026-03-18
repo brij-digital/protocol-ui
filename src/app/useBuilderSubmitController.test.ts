@@ -423,4 +423,131 @@ describe('useBuilderSubmitController', () => {
       expect(result.current.builder.builderStatusText).toContain('$input.missing');
     });
   });
+
+  it('updates pump-core readonly preview input from derived compute', async () => {
+      vi.mocked(listIdlProtocols).mockResolvedValue({
+        protocols: [{ id: 'pump-core-mainnet', name: 'Pump Core', status: 'active', metaPath: '/idl/pump_core.meta.json' }],
+      } as never);
+
+      vi.mocked(listMetaOperations).mockResolvedValue({
+        operations: [
+          {
+            operationId: 'buy_exact_sol_in',
+            label: 'Buy',
+            instruction: 'buy_exact_sol_in',
+            inputs: {
+              base_mint: { type: 'pubkey', required: true, label: 'Token' },
+              spendable_sol_in: { type: 'u64', required: true, label: 'Amount in SOL' },
+              slippage_bps: { type: 'u16', required: true, label: 'Slippage' },
+              min_tokens_out: {
+                type: 'u64',
+                required: false,
+                label: 'Minimum tokens received',
+                read_from: '$derived.min_tokens_out_auto',
+                ui_mode: 'readonly',
+              },
+              track_volume: { type: 'bool', required: false, default: false, ui_mode: 'hidden', label: 'Track Volume' },
+            },
+          },
+        ],
+      } as never);
+
+      vi.mocked(listMetaApps).mockResolvedValue({
+        apps: [
+          {
+            appId: 'buy_curve_token',
+            label: 'Buy Token',
+            title: 'Buy',
+            entryStepId: 'buy',
+            steps: [
+              {
+                stepId: 'buy',
+                label: 'Buy',
+                operationId: 'buy_exact_sol_in',
+                title: 'Buy',
+                actions: [{ label: 'Buy', do: { fn: 'run', mode: 'send' } }],
+                statusText: {
+                  running: 'Running...',
+                  success: 'Done.',
+                  error: 'Failed: {error}',
+                },
+                inputFrom: {},
+                requiresPaths: [],
+              },
+            ],
+          },
+        ],
+      } as never);
+
+      vi.mocked(prepareMetaOperation).mockResolvedValue({
+        protocolId: 'pump-core-mainnet',
+        operationId: 'buy_exact_sol_in',
+        instructionName: 'buy_exact_sol_in',
+        args: {
+          spendable_sol_in: '10000000',
+          min_tokens_out: '941955',
+          track_volume: false,
+        },
+        accounts: {},
+        derived: {
+          min_tokens_out_auto: '941955',
+        },
+        postInstructions: [],
+        remainingAccounts: undefined,
+        preInstructions: [],
+      } as never);
+
+      const pushMessage = vi.fn();
+      const setIsBuilderWorking = vi.fn();
+      const wallet = {
+        publicKey: new PublicKey('11111111111111111111111111111111'),
+      } as never;
+      const connection = {} as never;
+
+      const { result } = renderHook(() => {
+        const builder = useBuilderController();
+        const submit = useBuilderSubmitController({
+          connection,
+          wallet,
+          viewApiBaseUrl: 'https://example.com',
+          pushMessage,
+          setIsBuilderWorking,
+          builderProtocolId: builder.builderProtocolId,
+          selectedBuilderOperation: builder.selectedBuilderOperation,
+          selectedBuilderOperationEnhancement: builder.selectedBuilderOperationEnhancement,
+          builderInputValues: builder.builderInputValues,
+          onSetBuilderInputValue: builder.handleBuilderInputChange,
+          builderViewMode: builder.builderViewMode,
+          selectedBuilderAppStep: builder.selectedBuilderAppStep,
+          selectedBuilderApp: builder.selectedBuilderApp,
+          builderAppStepIndex: builder.builderAppStepIndex,
+          setBuilderAppStepCompleted: builder.setBuilderAppStepCompleted,
+          clearBuilderAppProgressFrom: builder.clearBuilderAppProgressFrom,
+          setBuilderStatusText: builder.setBuilderStatusText,
+          setBuilderRawDetails: builder.setBuilderRawDetails,
+          setBuilderShowRawDetails: builder.setBuilderShowRawDetails,
+          applyBuilderAppStepResult: builder.applyBuilderAppStepResult,
+          getBuilderStepStatusText: builder.getBuilderStepStatusText,
+          setBuilderResult: builder.setBuilderResult,
+          isBuilderAppMode: builder.isBuilderAppMode,
+          builderAppSubmitMode: builder.builderAppSubmitMode,
+          builderSimulate: builder.builderSimulate,
+        });
+        return { builder, submit };
+      });
+
+      await waitFor(() => {
+        expect(result.current.builder.builderProtocolId).toBe('pump-core-mainnet');
+        expect(result.current.builder.selectedBuilderOperation?.operationId).toBe('buy_exact_sol_in');
+      });
+      act(() => {
+        result.current.builder.handleBuilderInputChange('base_mint', 'C8KGwny4tfPwcLvXC9bgcaFMbqyDvroZgxW7AoBbpump');
+        result.current.builder.handleBuilderInputChange('spendable_sol_in', '10000000');
+        result.current.builder.handleBuilderInputChange('slippage_bps', '100');
+      });
+
+      await waitFor(() => {
+        expect(result.current.builder.builderInputValues.min_tokens_out).toBe('941955');
+      });
+  });
 });
