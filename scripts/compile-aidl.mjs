@@ -543,6 +543,12 @@ function compileAidl(source, sourceFile, computeLibraries) {
         inputSpec.label,
         `${sourceFile}.operations.${operationName}.inputs.${inputName}.label`,
       );
+      if (inputSpec.read_from !== undefined) {
+        asString(
+          inputSpec.read_from,
+          `${sourceFile}.operations.${operationName}.inputs.${inputName}.read_from`,
+        );
+      }
     }
     operations[operationName] = compiled;
   }

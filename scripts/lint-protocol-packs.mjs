@@ -121,6 +121,25 @@ async function main() {
       `${protocolId}.metaCore`,
     );
     const operations = asObject(metaCore.operations, `${protocolId}.metaCore.operations`);
+    for (const [operationId, operationRaw] of Object.entries(operations)) {
+      const operation = asObject(operationRaw, `${protocolId}.metaCore.operations.${operationId}`);
+      const inputs = asObject(
+        operation.inputs ?? {},
+        `${protocolId}.metaCore.operations.${operationId}.inputs`,
+      );
+      for (const [inputName, inputRaw] of Object.entries(inputs)) {
+        const input = asObject(
+          inputRaw,
+          `${protocolId}.metaCore.operations.${operationId}.inputs.${inputName}`,
+        );
+        if (input.read_from !== undefined) {
+          asNonEmptyString(
+            input.read_from,
+            `${protocolId}.metaCore.operations.${operationId}.inputs.${inputName}.read_from`,
+          );
+        }
+      }
+    }
 
     const appPack = asObject(
       await readJson(toLocalPublicPath(appPath, `${protocolId}.appPath`), `${protocolId} app spec`),
