@@ -1,122 +1,84 @@
-# Protocol Pack CI
+# Protocol Pack CI (Current)
 
-This repo now includes a protocol-pack CI harness focused on data-driven safety for `IDL + Meta IDL` packs.
+This repo enforces protocol-pack quality with deterministic checks.
 
-## Commands
+## CI Command Set
 
 ```bash
+npm run aidl:check
 npm run pack:check
+npm run pack:lint
+npm run pack:complexity:enforce
 npm run ci:protocol-packs
+```
+
+Optional RPC suite:
+
+```bash
 npm run pack:rpc-check
 npm run ci:protocol-packs:rpc
-npm run pack:doctor -- --protocol <protocol-id>
 ```
 
 `ci:protocol-packs` runs:
-1. `aidl:check` (generated Meta IDL up to date)
-2. `pack:check` (pack validation)
+1. `aidl:check`
+2. `pack:check`
+3. `pack:lint`
+4. `pack:complexity:enforce`
 
-`pack:rpc-check` runs optional RPC-backed checks:
-- replay simulation fixtures (`protocol-packs/rpc/simulations`)
-- known transaction parity fixtures (`protocol-packs/rpc/parity`)
+## What Each Gate Covers
 
-RPC env var resolution order:
+### `aidl:check`
+- verifies compiled AIDL outputs are up to date
+- verifies split outputs (`*.meta.core.json`, `*.app.json`) are up to date
+
+### `pack:check`
+- registry integrity (`public/idl/registry.json`)
+- IDL/meta file existence and basic consistency
+- deterministic operation materialization
+- operation-level integrity (instruction existence, step name uniqueness)
+- fixture checks in `protocol-packs/fixtures`
+- RPC fixture coverage gate for active protocols
+
+### `pack:lint`
+- strict app-spec linting (`meta-app.v0.1`)
+- action shape validation (`do.fn` / `do.mode`)
+- status text presence (`running`, `success`, `error`)
+- transition policy (`next_on_success` only)
+- rejects deprecated fields (`transitions`, `blocking`)
+
+### `pack:complexity:enforce`
+- computes protocol complexity budget report
+- fails when protocol exceeds configured limits
+
+### `pack:rpc-check` (optional)
+- simulation replay fixtures (`protocol-packs/rpc/simulations`)
+- known tx parity fixtures (`protocol-packs/rpc/parity`)
+
+## RPC Env Resolution
+
+RPC URL resolution order:
 1. `PACK_RPC_URL`
 2. `SOLANA_RPC_URL`
 3. `HELIUS_RPC_URL`
 
-## What `pack:check` validates
+If no RPC URL is set, RPC checks are skipped.
 
-1. Registry integrity (`public/idl/registry.json`)
-- required manifest fields
-- unique protocol IDs
-- valid public keys
-- referenced `idlPath/metaPath` files exist
+## Fixture Locations
 
-2. IDL / Meta consistency
-- supported `meta.schema`
-- `meta.protocolId` matches manifest ID
-- declared `$schema` file exists
-- if IDL has `address`, it matches registry `programId`
+- deterministic fixture checks: `protocol-packs/fixtures/*.json`
+- RPC simulation fixtures: `protocol-packs/rpc/simulations/*.json`
+- RPC parity fixtures: `protocol-packs/rpc/parity/*.json`
 
-3. Deterministic operation materialization
-- each operation is expanded (`templates + use + direct fields`)
-- expansion run twice must produce identical output
+## Typical Local CI Flow
 
-4. Operation-level integrity
-- materialized instruction exists in IDL (when instruction is present)
-- discover / derive / compute step names are unique per phase
-
-5. Fixture parity checks
-- fixtures in `protocol-packs/fixtures/*.json`
-- assert expected instruction and required args/accounts/steps
-
-6. RPC fixture coverage gate
-- enforced inside `pack:check`
-- every active protocol must have all 4 fixture classes:
-  - positive parity
-  - negative parity
-  - positive simulation
-  - negative simulation
-- fixture class is inferred from filename suffix (`.negative.`) and/or `expect` (`ok:false`, `errorIncludes`)
-
-7. RPC simulation/parity checks (optional execution)
-- replay and simulate historical transactions via RPC `simulateTransaction`
-- verify known historical tx parity via RPC `getTransaction`
-- these checks are skipped when no RPC URL env is set
-
-## Fixture format
-
-```json
-{
-  "name": "Human readable check name",
-  "protocolId": "orca-whirlpool-mainnet",
-  "operationId": "swap_exact_in",
-  "expect": {
-    "instruction": "swap_v2",
-    "requiredArgs": ["amount"],
-    "requiredAccounts": ["whirlpool"],
-    "requiredDiscoverSteps": ["pool_candidates"],
-    "requiredDeriveSteps": ["wallet"],
-    "requiredComputeSteps": ["other_amount_threshold"]
-  }
-}
+```bash
+npm run aidl:compile
+npm run ci:protocol-packs
+npm run pack:rpc-check
 ```
 
-All fields under `expect` are optional; only declared checks are enforced.
+## Practical Policy
 
-## RPC fixture formats
-
-Simulation fixture (`protocol-packs/rpc/simulations/*.json`):
-
-```json
-{
-  "name": "Replay Orca tx",
-  "protocolId": "orca-whirlpool-mainnet",
-  "source": "replay_tx",
-  "signature": "<TX_SIGNATURE>",
-  "expect": {
-    "allowError": true,
-    "ok": true,
-    "logsInclude": ["whirL..."],
-    "errorIncludes": ["Custom"]
-  }
-}
-```
-
-Note: replay simulations are state-sensitive over time. For negative fixtures, prefer asserting `ok: false` (and `allowError: true`) instead of pinning an exact custom error code/log string.
-
-Parity fixture (`protocol-packs/rpc/parity/*.json`):
-
-```json
-{
-  "name": "Orca tx parity",
-  "protocolId": "orca-whirlpool-mainnet",
-  "signature": "<TX_SIGNATURE>",
-  "expect": {
-    "programIdsContains": ["whirL..."],
-    "logsInclude": ["Instruction: Swap"],
-    "errorIncludes": ["6023"]
-  }
-}
-```
+- Keep protocol logic in packs, not UI.
+- Keep runtime behavior explicit (no hidden fallbacks in pack definitions).
+- Commit source and generated artifacts in the same PR.

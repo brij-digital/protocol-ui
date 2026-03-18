@@ -1,191 +1,106 @@
-# Meta IDL Tutorial (Espresso Cash MVP)
+# MetaIDL Tutorial (Current Runtime)
 
-This document reflects the current implementation in this repo.
+This tutorial reflects the current architecture in this repo.
 
-## 1) Mental Model
+## Mental Model
 
-- **Base IDL** (`orca_whirlpool.json`) defines instruction/account encoding.
-- **Meta IDL** (`orca_whirlpool.meta.json`) defines how to turn a high-level operation into concrete args/accounts.
-- **AIDL source** (`aidl/*.aidl.json`) is the human-authoring format that compiles to Meta IDL JSON.
-- **Runtime** executes Meta phases and then calls the base IDL builder/simulator/sender.
+A protocol pack has three layers:
 
-Current protocol/operation:
-- Protocol: Orca Whirlpools mainnet
-- User commands: `/quote`, `/swap`
-- Operation: `swap_exact_in` -> instruction `swap_v2`
+1. `IDL`:
+- binary instruction/account schema from protocol program
 
-## 2) Key Files
+2. `MetaIDL`:
+- declarative execution plan for operations
+- phases: `discover -> derive -> compute -> args/accounts`
 
-- Meta runtime: `src/lib/metaIdlRuntime.ts`
-- Discover runtime (generic): `src/lib/metaDiscoverRegistry.ts`
-- Compute runtime: `src/lib/metaComputeRegistry.ts`
-- App command flow: `src/App.tsx`
-- AIDL compiler: `scripts/compile-aidl.mjs`
-- Meta spec: `public/idl/orca_whirlpool.meta.json`
-- Meta schema: `public/idl/meta_idl.schema.v0.6.json`
+3. `AppSpec`:
+- end-user flow over operations (steps/actions/transitions)
 
-## 2.1) View Contract In Meta IDL
+## Where Runtime Lives
 
-Read operations can now include a declarative `view` block with protocol logic only:
+Execution runtime is externalized in package:
+- `@agentform/apppack-runtime`
 
-- `bootstrap`:
-  - initial query steps (usually `discover.query` step names).
-- `stream`:
-  - event source + filter for incremental updates.
-- `mapping`:
-  - how raw discovered/derived data maps to output entities.
-- `entity_keys`:
-  - deterministic identity fields for upsert/dedup.
+This web app consumes runtime APIs and renders UI.
 
-This keeps runtime policy concerns (freshness SLA, reconcile cadence, finality policy) outside protocol packs.
+## Operation Anatomy
 
-## 3) Runtime Vocabulary
+A MetaIDL operation typically contains:
+- `inputs`: typed inputs, labels, defaults, optional `read_from`, optional `ui_mode`
+- `discover`: protocol-aware query/pick steps
+- `derive`: wallet/PDA/ATA/account decode steps
+- `compute`: deterministic math/list/logic transforms
+- `args`: final instruction args mapping
+- `accounts`: final instruction account mapping
+- optional `pre`/`post` instructions
 
-Operation pipeline phases:
-1. `discover[]`
-2. `derive[]`
-3. `compute[]`
-4. Build IDL instruction
-5. Simulate (`/quote`) or send (`/swap`)
+## Read-Only Preview Pattern
 
-Current discover steps used by Orca operation:
-- `discover.query`
-- `discover.pick_list_item_by_value`
+You can show computed values directly in form inputs:
+- define input as `ui_mode: "readonly"`
+- bind `read_from: "$derived.some_value"`
+- compute `some_value` in operation `compute`
 
-Current derive steps used by Orca operation:
-- `wallet_pubkey`
-- `decode_account`
-- `ata`
-- `pda`
+This is how live previews are displayed without custom UI protocol code.
 
-Current compute steps used by Orca operation:
-- `math.mul`
-- `math.sub`
-- `math.floor_div`
-- `list.range_map`
-- `pda(seed_spec)`
-- `compare.equals`
-- `logic.if`
+## Example Pattern
 
-Meta IDL v0.6 runtime (available primitives):
-- `token_account_balance`, `token_supply` resolvers
-- `math.sum`, `list.filter`, `list.first`, `list.min_by`, `list.max_by`, `coalesce`
-- `compare.not_equals`, `compare.gt`, `compare.gte`, `compare.lt`, `compare.lte`
+- Orca swap uses computed quote preview (`estimated_out`) from declarative compute
+- Pump Core buy now computes `min_tokens_out_auto` declaratively and binds it to readonly input
 
-## 4) What `discover[]` Does Now
+## AppSpec Flow (meta-app.v0.1)
 
-In `templates.orca.swap_exact_in.v2.expand.discover`:
+App steps are strict and explicit:
+- `actions` use `{ label, do: { fn, mode? } }`
+- `fn=run` requires `mode`
+- step transitions use `next_on_success`
+- step gating uses `requires_paths`
+- selectable derived lists are declared under `step.ui` (`select_from_derived`)
 
-1. `pool_candidates` (`discover.query`)
-- Runs on-chain discovery via RPC `getProgramAccounts` against Orca program.
-- If `input.whirlpool` is present, it fetches that pool account directly instead of scanning.
-- Uses declarative OR memcmp filters for `(mintA,mintB)` and `(mintB,mintA)`.
-- Auto-adds account discriminator filter from IDL `account_type`.
-- Decodes Whirlpool accounts, applies declarative `where/sort/limit/select`.
-- Produces candidates with:
-  - `whirlpool`, `tokenMintA`, `tokenMintB`, `tickSpacing`, `liquidity`.
+No implicit transitions/fallbacks are intended in pack authoring.
 
-2. `selected_pool` (`discover.pick_list_item_by_value`)
-- If `input.whirlpool` is provided, picks matching candidate by `whirlpool`.
-- If no match is found, runtime raises an explicit error (no silent fallback).
+## Command Path
 
-## 5) App-Level Pool Selection UX
+In Command tab, execution is strict and explicit:
+- `/meta-run <protocol> <operation> <input-json> --simulate|--send`
+- `/view-run <protocol> <operation> <input-json>`
 
-`src/App.tsx` adds a two-pass flow:
+`/meta-run` requires explicit mode.
 
-1. First run `/quote` or `/swap`.
-2. Runtime returns `pool_candidates` and a default `selected_pool` (`index 0`).
-3. If candidates count > 1, app pauses and prompts user to choose:
-- Click button in the optional list UI, or
-- Type `1`, `2`, `3`, ...
-4. App reruns the same operation with chosen `whirlpool`.
-5. Flow continues to derive/compute/simulate/send.
+## Compile + Split Pipeline
 
-If only one pool exists, no prompt is shown and execution continues immediately.
+Authoring pipeline:
+- `aidl/*.aidl.json` + `aidl/*.compute.json`
+- `npm run aidl:compile`
 
-## 6) Derive + Compute + Build
+Outputs:
+- `public/idl/*.meta.json`
+- `public/idl/*.meta.core.json`
+- `public/idl/*.app.json`
+- `public/compute/*.compute.json`
 
-After `selected_pool` is fixed:
+## Validation + CI
 
-Derive:
-- `wallet`
-- `whirlpool_data` from `selected_pool.whirlpool`
-- `token_owner_account_a/b` (ATAs)
-- `oracle` PDA
-
-Compute tick arrays:
-- `a_to_b = compare.equals(selected_pool.tokenMintA, input.token_in_mint)`
-- `tick_array_direction = logic.if(a_to_b, -1, 1)`
-- `ticks_per_array = tick_spacing * 88`
-- `direction_step = ticks_per_array * tick_array_direction`
-- `current_array_index = floor_div(tick_current_index, ticks_per_array)`
-- `current_start_index = current_array_index * ticks_per_array`
-- `tick_array_starts = range_map(current_start_index, direction_step, 3)`
-- `tick_arrays = pda(seed_spec)` over `tick_array_starts`
-
-Build args/accounts:
-- `amount = input.amount_in`
-- `other_amount_threshold = floor(estimated_out * (10000 - slippage_bps) / 10000)`
-- `sqrt_price_limit = "0"`
-- `a_to_b = a_to_b`
-- accounts wired from derive/compute outputs
-
-## 7) Quote vs Swap
-
-Both paths share the same declarative operation and account wiring.
-
-`/quote`:
-- Pass 1: simulates with `estimated_out=0` to obtain output estimate from account deltas.
-- Pass 2: reruns Meta IDL with `estimated_out` input so `other_amount_threshold` is computed in Meta.
-- Simulates final executable args and displays summary.
-
-`/swap`:
-- Uses the same two-pass flow as `/quote`.
-- Sends transaction with final pass executable args (no app-side arg override).
-
-## 8) Why It Feels Slow
-
-Pool discovery runs on-chain via `getProgramAccounts`. It is trust-minimized and cacheless, but slower than using an index.
-
-## 9) Debug Checklist
-
-If `/quote` or `/swap` fails:
-
-1. Check wallet connected.
-2. Verify pair mints are correct.
-3. Check `pool_candidates` not empty.
-4. If prompted, ensure selected index is in range.
-5. Verify `whirlpool_data` decode succeeds.
-6. Check computed `tick_array_starts` / `tick_arrays`.
-7. Inspect simulation logs and raw instruction preview.
-
-## 10) Next Architecture Step
-
-Current split is:
-- Generic runtime in `metaDiscoverRegistry`
-- Protocol specifics in Meta IDL data (`discover.query` + derive/compute config)
-
-To scale, keep adding generic discover/compute primitives and keep protocol files data-only.
-
-## 12) Authoring vs Runtime
-
-- Edit human source in `aidl/*.aidl.json`.
-- Compile to canonical runtime JSON with:
+Use these commands while iterating:
 
 ```bash
-npm run aidl:compile
+npm run aidl:check
+npm run pack:check
+npm run pack:lint
+npm run pack:complexity:enforce
 ```
 
-- Runtime only consumes generated `public/idl/*.meta.json`.
+Optional RPC checks:
 
-## 11) Readonly Inputs via Derived/Computed Paths
+```bash
+npm run pack:rpc-check
+```
 
-Meta input specs can use:
-- `read_from: "$path.to.value"`
+## Practical Debug Checklist
 
-Runtime input precedence is:
-1. user input
-2. input default
-3. required error
-
-`read_from` is UI-facing only: readonly fields can display derived/computed values without user editing.
+When an operation fails:
+- verify required inputs are present and typed
+- inspect `/meta-explain <protocol> <operation>`
+- run `--simulate` first
+- inspect derived accounts and compute outputs in raw details
+- check view operation output when app step depends on `requires_paths`

@@ -1,78 +1,92 @@
-# Protocol Pack Builder (Human Tooling)
+# Protocol Pack Builder (Current)
 
-This doc covers the new human-facing tooling for creating and validating protocol packs.
+This doc covers the practical workflow to add or evolve protocol packs in this repo.
 
-## 1) Initialize a new pack scaffold
+## Pack Layout
+
+A protocol pack is represented by files under `public/idl`:
+- `<slug>.json` (IDL)
+- `<slug>.meta.json` (full meta pack)
+- `<slug>.meta.core.json` (operations/templates only)
+- `<slug>.app.json` (apps only)
+
+Registry entry:
+- `public/idl/registry.json`
+
+## 1) Scaffold a New Pack
 
 ```bash
 npm run pack:init -- \
   --id my-protocol-mainnet \
   --name "My Protocol" \
-  --program-id 11111111111111111111111111111111 \
-  --network mainnet-beta \
-  --transport local-my-protocol \
-  --status inactive \
-  --commands /my-protocol
+  --program-id 11111111111111111111111111111111
 ```
 
-What it creates:
-- `aidl/<slug>.aidl.json` (authoring source)
-- `public/idl/<slug>.json` (IDL scaffold)
-- `public/idl/registry.json` entry
-- then runs `npm run aidl:compile` to generate `public/idl/<slug>.meta.json`
+Useful optional flags:
+- `--network mainnet-beta`
+- `--slug my_protocol`
+- `--transport local-my-protocol`
+- `--status inactive|active`
+- `--commands /my-op,/my-read`
+- `--overwrite`
 
-Notes:
-- default `status` is `inactive` (safer for CI while scaffolding)
-- use `--overwrite` to replace existing scaffold files/registry entry
-- `--commands` accepts comma-separated values (`/a,/b`)
+What scaffold creates:
+- `aidl/<slug>.aidl.json` (starter AIDL source)
+- `public/idl/<slug>.json` (starter IDL)
+- `registry.json` entry
+- then runs AIDL compile
 
-## 2) Run targeted diagnostics while building
+## 2) Author Operations + App Flow
 
-Check one protocol:
+In AIDL source:
+- define templates/operations (MetaIDL)
+- define `apps` with step actions and transitions
 
-```bash
-npm run pack:doctor -- --protocol my-protocol-mainnet
-```
+Rules to keep in mind:
+- app step actions must use `do.fn` (`run|back|reset`)
+- `run` requires `do.mode` (`view|simulate|send`)
+- use `next_on_success` for transitions
+- use `requires_paths` for gating
+- use `ui_mode` (`edit|readonly|hidden`) on inputs
 
-Check all protocols:
-
-```bash
-npm run pack:doctor
-```
-
-Strict mode (warnings fail the command):
-
-```bash
-npm run pack:doctor -- --strict
-```
-
-Doctor checks:
-- registry entry + file existence
-- IDL / Meta JSON parse + protocolId/schema sanity
-- `user_forms` wiring (`form.operation` points to an existing operation)
-- AIDL target linkage (`target.protocolId` and `target.output` hints)
-- active protocol warning when no `user_forms` are declared
-
-## 3) Compile and CI checks
+## 3) Compile and Split Outputs
 
 ```bash
 npm run aidl:compile
-npm run aidl:check
-npm run pack:check
 ```
 
-Optional RPC parity/simulation checks:
+This compiles AIDL and generates split outputs consumed by runtime/UI.
+
+## 4) Validate During Authoring
+
+```bash
+npm run pack:doctor -- --protocol my-protocol-mainnet
+npm run aidl:check
+npm run pack:check
+npm run pack:lint
+npm run pack:complexity:enforce
+```
+
+Optional RPC-backed checks:
 
 ```bash
 npm run pack:rpc-check
 ```
 
-## Recommended workflow
+## 5) Activate Pack
 
-1. `pack:init` scaffold
-2. replace scaffold IDL + AIDL with real protocol data
-3. add end-user `user_forms` and geek operations
-4. `aidl:compile`
-5. `pack:doctor -- --protocol <id>`
-6. `pack:check`
-7. add fixtures and RPC checks before activation
+Once checks and fixtures are ready:
+- set protocol `status` to `active` in `registry.json`
+- run full CI command:
+
+```bash
+npm run ci:protocol-packs
+```
+
+## Recommended Iteration Loop
+
+1. Edit AIDL + compute libraries.
+2. `npm run aidl:compile`.
+3. Validate with `pack:check`, `pack:lint`, complexity gate.
+4. Run app in `npm run dev` and test in Apps + Raw + Command tabs.
+5. Commit source and generated pack outputs together.
