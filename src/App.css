@@ -381,6 +381,18 @@
   color: #486088;
 }
 
+.builder-app-description {
+  margin: 0;
+  color: #486088;
+  font-size: 0.9rem;
+}
+
+.builder-app-step {
+  margin: 0;
+  color: #2a3f65;
+  font-size: 0.9rem;
+}
+
 .builder-note {
   margin: 0;
   color: #4d638a;

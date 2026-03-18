@@ -342,7 +342,7 @@
           "placeholder": "SOL or mint address",
           "help": "Output token symbol or mint address.",
           "group": "market",
-          "display_order": 2
+          "display_order": 4
         },
         "amount_in": {
           "type": "u64",
@@ -350,7 +350,7 @@
           "label": "Amount In",
           "placeholder": "0.01",
           "group": "trade",
-          "display_order": 3,
+          "display_order": 2,
           "validate": {
             "min": "1",
             "message": "amount_in must be greater than 0."
@@ -363,7 +363,7 @@
           "placeholder": "0.50",
           "help": "Enter a percentage value.",
           "group": "trade",
-          "display_order": 4,
+          "display_order": 3,
           "validate": {
             "min": 0,
             "max": 5000,

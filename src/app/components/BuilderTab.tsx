@@ -126,6 +126,13 @@ export function BuilderTab(props: BuilderTabProps) {
     (selectedBuilderOperation && builderOperationLabelsByOperationId[selectedBuilderOperation.operationId]) ||
     selectedBuilderOperation?.operationId ||
     '';
+  const selectedBuilderAppStep = selectedBuilderApp ? selectedBuilderApp.steps[builderAppStepIndex] : null;
+  const selectedBuilderAppStepLabel = selectedBuilderAppStep
+    ? builderStepLabelsByAppStepKey[`${selectedBuilderApp.appId}:${selectedBuilderAppStep.stepId}`] ??
+      selectedBuilderAppStep.title
+    : '';
+  const builderAppHeaderTitle =
+    builderViewMode === 'enduser' && selectedBuilderApp ? selectedBuilderApp.title : `${builderProtocolId}/${selectedOperationDisplayLabel}`;
   const supportedTokens = listSupportedTokens();
 
   const actionClassName = (action: BuilderStepAction): string => {
@@ -230,6 +237,14 @@ export function BuilderTab(props: BuilderTabProps) {
     return null;
   };
 
+  const isAmountLikeInputName = (normalizedInputName: string): boolean => {
+    return (
+      normalizedInputName.includes('amount') ||
+      normalizedInputName.endsWith('_in') ||
+      normalizedInputName.endsWith('_out')
+    );
+  };
+
   return (
     <>
       <div className="builder-mode-switch builder-mode-switch-global" role="tablist" aria-label="Builder audience mode">
@@ -311,15 +326,17 @@ export function BuilderTab(props: BuilderTabProps) {
 
             {selectedBuilderOperation ? (
               <form className="builder-form" onSubmit={onSubmit}>
-                <h3>
-                  {builderProtocolId}/{selectedOperationDisplayLabel}
-                </h3>
+                <h3>{builderAppHeaderTitle}</h3>
                 {builderViewMode === 'enduser' && selectedBuilderApp ? (
                   <>
-                    <p>
-                      app: <strong>{selectedBuilderApp.title}</strong>
-                      {selectedBuilderApp.description ? ` — ${selectedBuilderApp.description}` : ''}
-                    </p>
+                    {selectedBuilderApp.description ? (
+                      <p className="builder-app-description">{selectedBuilderApp.description}</p>
+                    ) : null}
+                    {selectedBuilderAppStep ? (
+                      <p className="builder-app-step">
+                        Step {builderAppStepIndex + 1} of {selectedBuilderApp.steps.length}: <strong>{selectedBuilderAppStepLabel}</strong>
+                      </p>
+                    ) : null}
                     <div className="builder-step-list">
                       {selectedBuilderApp.steps.map((step, index) => (
                         <button
@@ -329,7 +346,6 @@ export function BuilderTab(props: BuilderTabProps) {
                           disabled={isWorking || !canOpenBuilderAppStep(index)}
                           onClick={() => onOpenBuilderAppStep(index)}
                         >
-                          {index + 1}.{' '}
                           {builderStepLabelsByAppStepKey[`${selectedBuilderApp.appId}:${step.stepId}`] ?? step.title}
                         </button>
                       ))}
@@ -388,7 +404,10 @@ export function BuilderTab(props: BuilderTabProps) {
                         const resolvedToken = showTokenPicker ? resolveToken(value) : null;
                         const selectedMint = resolvedToken?.mint ?? '';
                         const normalizedName = inputName.toLowerCase();
-                        const isAmountField = !showTokenPicker && spec.type.toLowerCase() === 'u64' && normalizedName.includes('amount');
+                        const isAmountField =
+                          !showTokenPicker &&
+                          spec.type.toLowerCase() === 'u64' &&
+                          isAmountLikeInputName(normalizedName);
                         const amountToken = isAmountField ? resolveAmountToken(inputName) : null;
                         const isSlippageField = !showTokenPicker && normalizedName === 'slippage_bps';
                         const draftDisplayValue = displayDraftByInput[inputName];
