@@ -262,8 +262,19 @@ export function BuilderTab(props: BuilderTabProps) {
 
   const resolveAmountToken = (inputName: string): ReturnType<typeof resolveToken> => {
     const normalized = inputName.toLowerCase();
+    const baseMint = builderInputValues.base_mint ?? '';
+    const quoteMint = builderInputValues.quote_mint ?? '';
     const outMint = builderInputValues.token_out_mint ?? '';
     const inMint = builderInputValues.token_in_mint ?? '';
+    if (normalized.includes('sol')) {
+      return resolveToken('SOL');
+    }
+    if ((normalized.includes('quote') || normalized.includes('usdc')) && quoteMint.trim().length > 0) {
+      return resolveToken(quoteMint);
+    }
+    if ((normalized.includes('base') || normalized.includes('token')) && baseMint.trim().length > 0) {
+      return resolveToken(baseMint);
+    }
     if (normalized.includes('out') && outMint.trim().length > 0) {
       return resolveToken(outMint);
     }

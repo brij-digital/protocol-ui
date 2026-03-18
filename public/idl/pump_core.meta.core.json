@@ -21,8 +21,9 @@
         "spendable_sol_in": {
           "type": "u64",
           "required": true,
-          "label": "Amount",
+          "label": "Amount in SOL",
           "placeholder": "0.01",
+          "help": "How much SOL to spend.",
           "group": "trade",
           "display_order": 2
         },
@@ -40,7 +41,7 @@
           "required": false,
           "read_from": "$derived.min_tokens_out_auto",
           "ui_mode": "readonly",
-          "label": "Minimum received",
+          "label": "Minimum tokens received",
           "help": "Calculated automatically.",
           "group": "trade",
           "display_order": 4
