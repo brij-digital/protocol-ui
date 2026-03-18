@@ -59,6 +59,40 @@ type BuilderStepFlow = {
   statusText: BuilderStepStatusTextTemplates;
 };
 
+const DEV_PREFILL_PRESETS: Record<string, Record<string, Record<string, string>>> = {
+  'pump-core-mainnet': {
+    buy_exact_sol_in: {
+      base_mint: 'C8KGwny4tfPwcLvXC9bgcaFMbqyDvroZgxW7AoBbpump',
+      spendable_sol_in: '10000000',
+      min_tokens_out: '1',
+      slippage_bps: '100',
+    },
+  },
+  'pump-amm-mainnet': {
+    list_tokens: {
+      quote_mint: 'So11111111111111111111111111111111111111112',
+    },
+    view_pool: {
+      base_mint: 'C4yDhKwkikpVGCQWD9BT2SJyHAtRFFnKPDM9Nyshpump',
+      quote_mint: 'So11111111111111111111111111111111111111112',
+    },
+    buy: {
+      base_mint: 'C4yDhKwkikpVGCQWD9BT2SJyHAtRFFnKPDM9Nyshpump',
+      quote_mint: 'So11111111111111111111111111111111111111112',
+      pool: 'HVuJoW1px34PAEfc9uWUv7Lrh7Ta4uSoPrkztCcdwa21',
+      quote_amount_in: '10000000',
+      slippage_bps: '100',
+    },
+    sell: {
+      base_mint: 'C4yDhKwkikpVGCQWD9BT2SJyHAtRFFnKPDM9Nyshpump',
+      quote_mint: 'So11111111111111111111111111111111111111112',
+      pool: 'HVuJoW1px34PAEfc9uWUv7Lrh7Ta4uSoPrkztCcdwa21',
+      base_amount_in: '1000000',
+      min_quote_amount_out: '1',
+    },
+  },
+};
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return null;
@@ -684,9 +718,11 @@ export function useBuilderController() {
 
     const built = buildExampleInputsForOperation(selectedBuilderOperation);
     const declaredExamples = builderInputExamplesByOperation[selectedBuilderOperation.operationId] ?? {};
+    const presetExamples = DEV_PREFILL_PRESETS[builderProtocolId]?.[selectedBuilderOperation.operationId] ?? {};
     setBuilderInputValues({
       ...built,
       ...declaredExamples,
+      ...presetExamples,
     });
     setBuilderStatusText(`Prefilled example inputs for ${builderProtocolId}/${selectedBuilderOperation.operationId}.`);
     setBuilderRawDetails(null);
