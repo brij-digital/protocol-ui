@@ -731,6 +731,11 @@
             "token_out_mint": "$steps.discover.input.token_out_mint",
             "whirlpool": "$steps.discover.derived.selected_pool.whirlpool"
           },
+          "input_mode": {
+            "token_in_mint": "readonly",
+            "token_out_mint": "readonly",
+            "whirlpool": "hidden"
+          },
           "requires_paths": [
             "$steps.discover.derived.selected_pool.whirlpool"
           ]

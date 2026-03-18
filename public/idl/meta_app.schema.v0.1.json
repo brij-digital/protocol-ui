@@ -199,6 +199,17 @@
           "type": "object",
           "additionalProperties": {}
         },
+        "input_mode": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "edit",
+              "readonly",
+              "hidden"
+            ]
+          }
+        },
         "requires_paths": {
           "type": "array",
           "items": {

@@ -407,8 +407,18 @@ export function useBuilderController() {
     if (!selectedBuilderOperation) {
       return [] as Array<[string, MetaOperationSummary['inputs'][string]]>;
     }
+    const stepInputModeOverrides =
+      builderViewMode === 'enduser' && selectedBuilderAppStep ? selectedBuilderAppStep.inputMode : {};
 
-    const filtered = Object.entries(selectedBuilderOperation.inputs).filter(([, spec]) => {
+    const withOverrides = Object.entries(selectedBuilderOperation.inputs).map(([inputName, spec]) => {
+      const modeOverride = stepInputModeOverrides?.[inputName];
+      if (modeOverride === 'edit' || modeOverride === 'readonly' || modeOverride === 'hidden') {
+        return [inputName, { ...spec, ui_mode: modeOverride }] as [string, MetaOperationSummary['inputs'][string]];
+      }
+      return [inputName, spec] as [string, MetaOperationSummary['inputs'][string]];
+    });
+
+    const filtered = withOverrides.filter(([, spec]) => {
       const hasReadFrom = typeof spec.read_from === 'string' && spec.read_from.length > 0;
       const mode =
         spec.ui_mode === 'edit' || spec.ui_mode === 'readonly' || spec.ui_mode === 'hidden'
@@ -440,7 +450,7 @@ export function useBuilderController() {
       }
       return leftInput.localeCompare(rightInput);
     });
-  }, [selectedBuilderOperation, builderViewMode, selectedBuilderOperationEnhancement]);
+  }, [selectedBuilderOperation, builderViewMode, selectedBuilderOperationEnhancement, selectedBuilderAppStep]);
   const hiddenBuilderInputsCount = selectedBuilderOperation
     ? Object.keys(selectedBuilderOperation.inputs).length - visibleBuilderInputs.length
     : 0;

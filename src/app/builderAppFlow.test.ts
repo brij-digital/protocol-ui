@@ -33,6 +33,7 @@ const app: MetaAppSummary = {
         error: 'Discover failed',
       },
       inputFrom: {},
+      inputMode: {},
       requiresPaths: [],
     },
     {
@@ -47,6 +48,7 @@ const app: MetaAppSummary = {
         error: 'Swap failed',
       },
       inputFrom: {},
+      inputMode: {},
       requiresPaths: ['$steps.discover.derived.selected_pool.pool'],
     },
   ],
