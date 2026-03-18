@@ -39,7 +39,7 @@
         "min_tokens_out": {
           "type": "u64",
           "required": false,
-          "read_from": "$derived.min_tokens_out_auto",
+          "read_from": "$args.min_tokens_out",
           "ui_mode": "readonly",
           "label": "Minimum tokens received",
           "help": "Calculated automatically.",
