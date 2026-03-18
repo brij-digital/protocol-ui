@@ -155,21 +155,26 @@ export function isAutoResolvedBuilderInput(spec: MetaOperationSummary['inputs'][
   );
 }
 
+export function getBuilderInputMode(spec: MetaOperationSummary['inputs'][string]): 'edit' | 'readonly' | 'hidden' {
+  if (spec.ui_mode === 'edit' || spec.ui_mode === 'readonly' || spec.ui_mode === 'hidden') {
+    return spec.ui_mode;
+  }
+  if (isAutoResolvedBuilderInput(spec)) {
+    return 'readonly';
+  }
+  return 'edit';
+}
+
 export function isBuilderInputEditable(spec: MetaOperationSummary['inputs'][string]): boolean {
-  if (spec.ui_mode === 'edit') {
-    return true;
-  }
-  if (spec.ui_mode === 'readonly' || spec.ui_mode === 'hidden') {
-    return false;
-  }
-  return !isAutoResolvedBuilderInput(spec);
+  return getBuilderInputMode(spec) === 'edit';
 }
 
 export function getBuilderInputTag(spec: MetaOperationSummary['inputs'][string]): string {
-  if (spec.ui_mode === 'hidden') {
+  const mode = getBuilderInputMode(spec);
+  if (mode === 'hidden') {
     return 'hidden';
   }
-  if (typeof spec.read_from === 'string' && spec.read_from.length > 0) {
+  if (mode === 'readonly') {
     return 'readonly';
   }
   if (spec.default !== undefined) {

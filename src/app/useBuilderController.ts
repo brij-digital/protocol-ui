@@ -409,26 +409,20 @@ export function useBuilderController() {
     }
 
     const filtered = Object.entries(selectedBuilderOperation.inputs).filter(([, spec]) => {
+      const hasReadFrom = typeof spec.read_from === 'string' && spec.read_from.length > 0;
+      const mode =
+        spec.ui_mode === 'edit' || spec.ui_mode === 'readonly' || spec.ui_mode === 'hidden'
+          ? spec.ui_mode
+          : spec.default !== undefined || hasReadFrom
+            ? 'readonly'
+            : 'edit';
+      if (mode === 'hidden') {
+        return false;
+      }
       if (builderViewMode === 'geek') {
         return true;
       }
-      if (spec.ui_mode === 'hidden') {
-        return false;
-      }
-      if (spec.ui_mode === 'edit' || spec.ui_mode === 'readonly') {
-        return true;
-      }
-
-      if (typeof spec.read_from === 'string' && spec.read_from.length > 0) {
-        return true;
-      }
-
-      const autoResolved =
-        spec.default !== undefined || (typeof spec.read_from === 'string' && spec.read_from.length > 0);
-      if (spec.required && !autoResolved) {
-        return true;
-      }
-      return false;
+      return mode === 'edit' || mode === 'readonly';
     });
 
     const hintsByInput = selectedBuilderOperationEnhancement?.inputUi ?? {};

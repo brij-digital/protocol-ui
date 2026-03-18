@@ -3,6 +3,7 @@ import type { MetaAppSummary, MetaOperationSummary } from '@agentform/apppack-ru
 import { listSupportedTokens, resolveToken } from '../../constants/tokens';
 import {
   formatBuilderSelectableItemLabel,
+  getBuilderInputMode,
   getBuilderInputTag,
   isBuilderInputEditable,
   readBuilderPath,
@@ -299,13 +300,16 @@ export function BuilderTab(props: BuilderTabProps) {
                   <>
                     {hiddenBuilderInputsCount > 0 && builderViewMode === 'enduser' ? (
                       <p className="builder-note">
-                        {hiddenBuilderInputsCount} field(s) auto-resolved (default/derived/computed). Switch to Geek mode
-                        to view them.
+                        {hiddenBuilderInputsCount} field(s) are auto-resolved or hidden by form configuration.
                       </p>
                     ) : null}
 
                     <div className="builder-inputs">
                       {visibleBuilderInputs.map(([inputName, spec]) => {
+                        const inputMode = getBuilderInputMode(spec);
+                        if (inputMode === 'hidden') {
+                          return null;
+                        }
                         const editable = isBuilderInputEditable(spec);
                         const fieldTag = getBuilderInputTag(spec);
                         const value = builderInputValues[inputName] ?? '';
@@ -324,22 +328,28 @@ export function BuilderTab(props: BuilderTabProps) {
                             </span>
                             {showTokenPicker ? (
                               <div className="builder-token-selector">
-                                <div className="builder-token-selector-shell">
-                                  <select
-                                    value={selectedMint}
-                                    onChange={(event) => onInputChange(inputName, event.target.value)}
-                                    disabled={isWorking || !editable}
-                                  >
-                                    <option value="" disabled>
-                                      Select token
-                                    </option>
-                                    {supportedTokens.map((token) => (
-                                      <option key={`${inputName}:${token.symbol}`} value={token.mint}>
-                                        {token.symbol}
+                                {inputMode === 'readonly' ? (
+                                  <div className="builder-token-selector-shell builder-token-selector-shell-readonly">
+                                    <span>{resolvedToken?.symbol ?? (selectedMint ? 'Custom mint' : 'No token')}</span>
+                                  </div>
+                                ) : (
+                                  <div className="builder-token-selector-shell">
+                                    <select
+                                      value={selectedMint}
+                                      onChange={(event) => onInputChange(inputName, event.target.value)}
+                                      disabled={isWorking || !editable}
+                                    >
+                                      <option value="" disabled>
+                                        Select token
                                       </option>
-                                    ))}
-                                  </select>
-                                </div>
+                                      {supportedTokens.map((token) => (
+                                        <option key={`${inputName}:${token.symbol}`} value={token.mint}>
+                                          {token.symbol}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                )}
                               </div>
                             ) : (
                               <input

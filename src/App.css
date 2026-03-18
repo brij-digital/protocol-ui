@@ -523,6 +523,18 @@
   background-repeat: no-repeat;
 }
 
+.builder-token-selector-shell-readonly {
+  background: #eef3ff;
+  border-color: #cdd7ea;
+  min-height: 2.15rem;
+}
+
+.builder-token-selector-shell-readonly span {
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: #1f3252;
+}
+
 .builder-token-selector-shell select:disabled {
   opacity: 0.68;
   cursor: not-allowed;
