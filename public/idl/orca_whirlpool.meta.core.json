@@ -613,39 +613,116 @@
         }
       ],
       "view": {
+        "kind": "search",
+        "source": "indexed",
+        "entity_type": "whirlpool_pool",
+        "title": "List pools",
+        "description": "Find Whirlpool pools for a token pair.",
         "bootstrap": {
-          "kind": "query",
-          "steps": [
-            "pool_candidates"
-          ]
+          "kind": "scan_accounts",
+          "source": "rpc.getProgramAccounts",
+          "program_id": "$protocol.programId",
+          "account_type": "Whirlpool",
+          "filters": []
         },
-        "stream": {
-          "kind": "event",
-          "source": "substreams.transactions_by_programid_without_votes",
-          "filter": "program:$protocol.programId",
-          "cursor_path": "$event.slot",
-          "account_keys_paths": [
-            "$event.transaction.message.accountKeys",
-            "$event.meta.loadedWritableAddresses",
-            "$event.meta.loadedReadonlyAddresses"
-          ]
+        "refresh": {
+          "mode": "stream",
+          "source": "program_account_updates"
         },
-        "mapping": {
-          "source": "$derived.pool_candidates",
-          "select": {
-            "whirlpool": "$item.whirlpool",
-            "tokenMintA": "$item.tokenMintA",
-            "tokenMintB": "$item.tokenMintB",
-            "tickSpacing": "$item.tickSpacing",
-            "liquidity": "$item.liquidity"
+        "query": {
+          "indexed_filters": {
+            "any": [
+              {
+                "all": [
+                  {
+                    "field": "memcmp.101",
+                    "op": "=",
+                    "value": "$input.token_in_mint"
+                  },
+                  {
+                    "field": "memcmp.181",
+                    "op": "=",
+                    "value": "$input.token_out_mint"
+                  }
+                ]
+              },
+              {
+                "all": [
+                  {
+                    "field": "memcmp.101",
+                    "op": "=",
+                    "value": "$input.token_out_mint"
+                  },
+                  {
+                    "field": "memcmp.181",
+                    "op": "=",
+                    "value": "$input.token_in_mint"
+                  }
+                ]
+              }
+            ]
           },
-          "transforms": [
-            "sort(liquidity desc)"
-          ]
-        },
-        "entity_keys": [
-          "whirlpool"
-        ]
+          "filters": {
+            "any": [
+              {
+                "all": [
+                  {
+                    "field": "decoded.token_mint_a",
+                    "op": "=",
+                    "value": "$input.token_in_mint"
+                  },
+                  {
+                    "field": "decoded.token_mint_b",
+                    "op": "=",
+                    "value": "$input.token_out_mint"
+                  }
+                ]
+              },
+              {
+                "all": [
+                  {
+                    "field": "decoded.token_mint_a",
+                    "op": "=",
+                    "value": "$input.token_out_mint"
+                  },
+                  {
+                    "field": "decoded.token_mint_b",
+                    "op": "=",
+                    "value": "$input.token_in_mint"
+                  }
+                ]
+              }
+            ]
+          },
+          "hydrate": {
+            "mode": "accounts",
+            "candidate_limit": 20,
+            "fields": [
+              "pubkey",
+              "data_bytes",
+              "slot"
+            ]
+          },
+          "decode": {
+            "account_type": "Whirlpool"
+          },
+          "sort": [
+            {
+              "field": "decoded.liquidity",
+              "dir": "desc",
+              "mode": "indexed_then_live_refine",
+              "candidate_limit": 20
+            }
+          ],
+          "limit": 20,
+          "select": {
+            "whirlpool": "$account.pubkey",
+            "tokenMintA": "$decoded.token_mint_a",
+            "tokenMintB": "$decoded.token_mint_b",
+            "tickSpacing": "$decoded.tick_spacing",
+            "liquidity": "$decoded.liquidity"
+          }
+        }
       },
       "read_output": {
         "type": "array",

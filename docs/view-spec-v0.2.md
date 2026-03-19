@@ -43,6 +43,10 @@ The model is:
 - `refresh`: how it stays up to date
 - `query`: how filters, hydration, decode, sort, and select work
 
+Inside `query`, split filters into two layers:
+- `indexed_filters`: binary/index-friendly shortlist filters
+- `filters`: decoded business filters applied after hydration/decode
+
 ## Rules
 
 1. The spec describes business intent, not infra implementation.
@@ -105,6 +109,22 @@ Required fields:
     "source": "program_account_updates"
   },
   "query": {
+    "indexed_filters": {
+      "any": [
+        {
+          "all": [
+            { "field": "memcmp.101", "op": "=", "value": "$input.token_in_mint" },
+            { "field": "memcmp.181", "op": "=", "value": "$input.token_out_mint" }
+          ]
+        },
+        {
+          "all": [
+            { "field": "memcmp.101", "op": "=", "value": "$input.token_out_mint" },
+            { "field": "memcmp.181", "op": "=", "value": "$input.token_in_mint" }
+          ]
+        }
+      ]
+    },
     "filters": {
       "any": [
         {
@@ -231,6 +251,8 @@ The view spec should not force the platform to index every decoded field.
 Practical guidance:
 - stable fields should be indexed when they are useful for broad search
 - moving fields should be hydrated live or refreshed separately
+- if a field has a known binary offset, prefer `indexed_filters` for shortlist creation
+- keep semantic correctness checks in `filters`
 
 Examples of stable fields:
 - account type

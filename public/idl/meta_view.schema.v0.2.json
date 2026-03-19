@@ -159,6 +159,12 @@
       "type": "object",
       "required": ["select"],
       "properties": {
+        "indexed_filters": {
+          "oneOf": [
+            { "$ref": "#/$defs/filterGroupAll" },
+            { "$ref": "#/$defs/filterGroupAny" }
+          ]
+        },
         "filters": {
           "oneOf": [
             { "$ref": "#/$defs/filterGroupAll" },
