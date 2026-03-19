@@ -159,3 +159,4 @@ npm run ci:protocol-packs:rpc
 - [docs/meta-idl-tutorial.md](docs/meta-idl-tutorial.md)
 - [docs/pack-builder.md](docs/pack-builder.md)
 - [docs/protocol-pack-ci.md](docs/protocol-pack-ci.md)
+- [docs/view-spec-v0.2.md](docs/view-spec-v0.2.md)
