@@ -52,6 +52,11 @@ Temporal shortlist guidance:
 - use an optional input like `min_last_seen_slot` when a search view benefits from recency windows
 - keep exact binary shortlist filters in `indexed_filters`, and use temporal narrowing in `filters`
 
+Bootstrap hot-set guidance:
+- high-cardinality protocols can set `bootstrap.lookback_seconds`
+- this tells the sync worker to use `changedSinceSlot` on the initial bootstrap
+- example: `lookback_seconds: 600` keeps the initial sync focused on accounts changed in roughly the last 10 minutes instead of scanning the full universe
+
 ## Rules
 
 1. The spec describes business intent, not infra implementation.
@@ -188,6 +193,7 @@ Required fields:
     "source": "rpc.getProgramAccounts",
     "program_id": "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA",
     "account_type": "Pool",
+    "lookback_seconds": 600,
     "filters": []
   },
   "refresh": {

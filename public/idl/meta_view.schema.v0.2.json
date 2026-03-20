@@ -103,6 +103,10 @@
         "source": { "const": "rpc.getProgramAccounts" },
         "program_id": { "type": "string" },
         "account_type": { "type": "string" },
+        "lookback_seconds": {
+          "type": "integer",
+          "minimum": 1
+        },
         "filters": {
           "type": "array",
           "items": { "$ref": "#/$defs/bootstrapFilterSpec" }

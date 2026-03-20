@@ -925,6 +925,7 @@
           "source": "rpc.getProgramAccounts",
           "program_id": "$protocol.programId",
           "account_type": "Pool",
+          "lookback_seconds": 600,
           "filters": []
         },
         "refresh": {
