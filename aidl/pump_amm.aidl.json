@@ -666,6 +666,12 @@
           "required": false,
           "default": "So11111111111111111111111111111111111111112",
           "label": "Quote Mint"
+        },
+        "min_last_seen_slot": {
+          "type": "u64",
+          "required": false,
+          "default": "0",
+          "label": "Min Last Seen Slot"
         }
       },
       "useTemplate": [
@@ -711,6 +717,11 @@
                 "value": "$input.quote_mint"
               },
               {
+                "field": "account.lastSeenSlot",
+                "op": ">=",
+                "value": "$input.min_last_seen_slot"
+              },
+              {
                 "field": "decoded.lp_supply",
                 "op": ">",
                 "value": "0"
@@ -730,6 +741,11 @@
             "account_type": "Pool"
           },
           "sort": [
+            {
+              "field": "account.lastSeenSlot",
+              "dir": "desc",
+              "mode": "indexed"
+            },
             {
               "field": "decoded.index",
               "dir": "desc",

@@ -47,6 +47,11 @@ Inside `query`, split filters into two layers:
 - `indexed_filters`: binary/index-friendly shortlist filters
 - `filters`: decoded business filters applied after hydration/decode
 
+Temporal shortlist guidance:
+- the cache layer can expose `account.firstSeenSlot` and `account.lastSeenSlot`
+- use an optional input like `min_last_seen_slot` when a search view benefits from recency windows
+- keep exact binary shortlist filters in `indexed_filters`, and use temporal narrowing in `filters`
+
 ## Rules
 
 1. The spec describes business intent, not infra implementation.
@@ -192,7 +197,8 @@ Required fields:
   "query": {
     "filters": {
       "all": [
-        { "field": "decoded.quote_mint", "op": "=", "value": "$input.quote_mint" }
+        { "field": "decoded.quote_mint", "op": "=", "value": "$input.quote_mint" },
+        { "field": "account.lastSeenSlot", "op": ">=", "value": "$input.min_last_seen_slot" }
       ]
     },
     "hydrate": {
@@ -204,6 +210,11 @@ Required fields:
       "account_type": "Pool"
     },
     "sort": [
+      {
+        "field": "account.lastSeenSlot",
+        "dir": "desc",
+        "mode": "indexed"
+      },
       {
         "field": "decoded.index",
         "dir": "desc",
@@ -258,6 +269,15 @@ Examples of stable fields:
 - account type
 - mint addresses
 - creator
+
+## Temporal Filtering
+
+If a search view needs “recently seen” behavior, prefer:
+- optional input: `min_last_seen_slot`
+- query filter: `account.lastSeenSlot >= $input.min_last_seen_slot`
+- primary sort: `account.lastSeenSlot desc`
+
+This keeps recency logic declarative without inventing a separate feed model too early.
 - tick spacing
 
 Examples of moving fields:
