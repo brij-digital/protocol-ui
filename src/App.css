@@ -314,6 +314,7 @@
 .view-scenario-actions {
   display: flex;
   gap: 0.65rem;
+  flex-wrap: wrap;
 }
 
 .view-scenario-actions button {
@@ -331,6 +332,24 @@
   border: 1px solid #304156;
 }
 
+.view-scenario-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  color: #9fb0c7;
+  font-size: 0.9rem;
+}
+
+.view-scenario-meta button {
+  border: 1px solid #304156;
+  border-radius: 999px;
+  background: #16212f;
+  color: #dce6f3;
+  padding: 0.35rem 0.65rem;
+  font-weight: 600;
+}
+
 .view-scenario-hero {
   display: grid;
   grid-template-columns: 1.5fr 1fr;
@@ -345,6 +364,15 @@
   margin: 0.2rem 0 0;
   font-size: 3rem;
   line-height: 1;
+}
+
+.view-scenario-value-label {
+  margin-top: 0.65rem;
+  color: #8ef0ae;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .view-scenario-hero-main p {
@@ -462,6 +490,87 @@
   overflow: auto;
 }
 
+.view-scenario-feed-table-wrap {
+  max-height: 460px;
+  overflow: auto;
+  border: 1px solid #223044;
+  border-radius: 12px;
+}
+
+.view-scenario-feed-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+  background: rgba(9, 14, 21, 0.82);
+}
+
+.view-scenario-feed-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #101721;
+  color: #8da2bd;
+  text-align: left;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.7rem 0.8rem;
+  border-bottom: 1px solid #223044;
+}
+
+.view-scenario-feed-table tbody td {
+  padding: 0.8rem;
+  border-bottom: 1px solid rgba(34, 48, 68, 0.7);
+  vertical-align: top;
+}
+
+.view-scenario-feed-table tbody td strong,
+.view-scenario-feed-table tbody td span {
+  display: block;
+}
+
+.view-scenario-feed-table tbody td strong {
+  color: #f8fbff;
+}
+
+.view-scenario-feed-table tbody td span {
+  color: #9fb0c7;
+  margin-top: 0.18rem;
+}
+
+.view-scenario-feed-row.buy td:first-child {
+  box-shadow: inset 3px 0 0 #4ade80;
+}
+
+.view-scenario-feed-row.sell td:first-child {
+  box-shadow: inset 3px 0 0 #fb7185;
+}
+
+.view-scenario-side-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: #1d2837;
+  color: #dce6f3;
+}
+
+.view-scenario-side-pill.buy {
+  background: rgba(74, 222, 128, 0.14);
+  color: #8ef0ae;
+}
+
+.view-scenario-side-pill.sell {
+  background: rgba(251, 113, 133, 0.14);
+  color: #ff9cad;
+}
+
 .view-scenario-feed-item {
   padding: 0.75rem;
   display: grid;
@@ -480,6 +589,10 @@
 .view-scenario-feed-item div {
   display: grid;
   gap: 0.2rem;
+}
+
+.view-scenario-feed-item strong {
+  line-height: 1.35;
 }
 
 .view-playground-header {

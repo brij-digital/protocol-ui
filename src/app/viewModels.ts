@@ -6,7 +6,7 @@ export type ViewExample = {
   limit: string;
 };
 
-export type ScenarioMetricFormat = 'compact' | 'price' | 'percent' | 'pubkey' | 'time' | 'text';
+export type ScenarioMetricFormat = 'compact' | 'currencyCompact' | 'price' | 'percent' | 'pubkey' | 'time' | 'text';
 export type ScenarioMetricSource = 'snapshot' | 'stats' | 'resolved';
 
 export type ScenarioMetric = {
@@ -63,15 +63,24 @@ export type ViewScenarioDefinition = {
   chart: {
     title: string;
     valueFields: string[];
+    valueLabel?: string;
   };
   feed: {
     title: string;
     sideField?: string;
+    accountField?: string;
+    txField?: string;
     timeField: string;
     amountField: string;
+    tokenAmountField?: string;
     priceField: string;
+    amountLabel?: string;
+    tokenAmountLabel?: string;
+    priceLabel?: string;
     secondaryValueField?: string;
+    secondaryValueLabel?: string;
     secondaryTextField?: string;
+    secondaryTextLabel?: string;
   };
 };
 
@@ -205,10 +214,10 @@ export const DEFAULT_VIEW_SCENARIO: ViewScenarioDefinition = {
     highlights: [
       { label: 'Price', source: 'snapshot', field: 'priceQuote', format: 'price' },
       { label: '24h', source: 'stats', field: 'priceChange24hPct', format: 'percent' },
-      { label: 'Vol', source: 'stats', field: 'volume24hQuote', format: 'compact', digits: 1 },
+      { label: '24h Vol', source: 'stats', field: 'volume24hQuote', format: 'currencyCompact', digits: 2 },
     ],
     sideMetrics: [
-      { label: 'Liquidity', source: 'snapshot', field: 'liquidityQuote', format: 'compact', digits: 1 },
+      { label: 'Liquidity', source: 'snapshot', field: 'liquidityQuote', format: 'currencyCompact', digits: 2 },
       { label: 'Creator', source: 'snapshot', field: 'coinCreator', format: 'pubkey' },
       { label: 'Observed', source: 'snapshot', field: 'observedAt', format: 'time' },
     ],
@@ -218,19 +227,28 @@ export const DEFAULT_VIEW_SCENARIO: ViewScenarioDefinition = {
     { label: '5m', source: 'stats', field: 'priceChange5mPct', format: 'percent' },
     { label: '1h', source: 'stats', field: 'priceChange1hPct', format: 'percent' },
     { label: '6h', source: 'stats', field: 'priceChange6hPct', format: 'percent' },
-    { label: '24h Volume', source: 'stats', field: 'volume24hQuote', format: 'compact', digits: 1 },
+    { label: '24h Volume', source: 'stats', field: 'volume24hQuote', format: 'currencyCompact', digits: 2 },
   ],
   chart: {
-    title: 'Series',
+    title: 'Market Cap Series',
     valueFields: ['closeMarketCap', 'close'],
+    valueLabel: 'Market Cap / Price',
   },
   feed: {
-    title: 'Feed',
+    title: 'Recent Trades',
+    accountField: 'user',
+    txField: 'signature',
     sideField: 'side',
     timeField: 'eventTime',
     amountField: 'quoteAmountUi',
+    tokenAmountField: 'baseAmountUi',
     priceField: 'priceQuote',
+    amountLabel: 'Amount (SOL)',
+    tokenAmountLabel: 'Amount (Token)',
+    priceLabel: 'Price',
     secondaryValueField: 'marketCapQuote',
+    secondaryValueLabel: 'Market Cap',
     secondaryTextField: 'user',
+    secondaryTextLabel: 'User',
   },
 };

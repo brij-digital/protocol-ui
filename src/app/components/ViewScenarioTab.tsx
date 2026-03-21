@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ScenarioMetric, ViewScenarioDefinition } from '../viewModels';
 
 type ViewScenarioTabProps = {
@@ -25,14 +25,29 @@ function formatCompact(value: number | null | undefined, digits = 2): string {
   }).format(value);
 }
 
+function formatCurrencyCompact(value: number | null | undefined, digits = 2): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return '—';
+  }
+  if (Math.abs(value) < 1) {
+    return `$${value.toFixed(Math.min(Math.max(digits, 2), 4))}`;
+  }
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    notation: 'compact',
+    maximumFractionDigits: digits,
+  }).format(value);
+}
+
 function formatPrice(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) {
     return '—';
   }
   if (value >= 1) {
-    return value.toFixed(4);
+    return `$${value.toFixed(4)}`;
   }
-  return value.toPrecision(4);
+  return `$${value.toPrecision(4)}`;
 }
 
 function formatPercent(value: number | null | undefined): string {
@@ -43,6 +58,17 @@ function formatPercent(value: number | null | undefined): string {
   return `${prefix}${value.toFixed(2)}%`;
 }
 
+function formatDecimal(value: number | null | undefined, digits = 9): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return '—';
+  }
+  const maximumFractionDigits = Math.min(Math.max(digits, 2), 9);
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits,
+  }).format(value);
+}
+
 function shortPubkey(value: string | null | undefined): string {
   if (!value) {
     return '—';
@@ -51,6 +77,31 @@ function shortPubkey(value: string | null | undefined): string {
     return value;
   }
   return `${value.slice(0, 4)}…${value.slice(-4)}`;
+}
+
+function formatRelativeTime(value: string | null | undefined): string {
+  if (!value) {
+    return '—';
+  }
+  const date = new Date(value);
+  const timestamp = date.getTime();
+  if (!Number.isFinite(timestamp)) {
+    return '—';
+  }
+  const diffSeconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+  if (diffSeconds < 60) {
+    return `${diffSeconds}s ago`;
+  }
+  const diffMinutes = Math.floor(diffSeconds / 60);
+  if (diffMinutes < 60) {
+    return `${diffMinutes}m ago`;
+  }
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `${diffHours}h ago`;
+  }
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d ago`;
 }
 
 function getField(record: DataRecord | null, field?: string): unknown {
@@ -69,6 +120,8 @@ function formatMetricValue(value: unknown, metric: ScenarioMetric): string {
   switch (metric.format) {
     case 'compact':
       return formatCompact(typeof value === 'number' ? value : Number(value ?? NaN), metric.digits ?? 2);
+    case 'currencyCompact':
+      return formatCurrencyCompact(typeof value === 'number' ? value : Number(value ?? NaN), metric.digits ?? 2);
     case 'price':
       return formatPrice(typeof value === 'number' ? value : Number(value ?? NaN));
     case 'percent':
@@ -86,9 +139,12 @@ function formatMetricValue(value: unknown, metric: ScenarioMetric): string {
   }
 }
 
-function buildChartPath(points: DataRecord[], fields: string[], width: number, height: number): string {
+function buildChartGeometry(points: DataRecord[], fields: string[], width: number, height: number): {
+  path: string;
+  points: Array<{ x: number; y: number; value: number }>;
+} {
   if (points.length === 0) {
-    return '';
+    return { path: '', points: [] };
   }
   const values = points
     .map((point) => {
@@ -103,13 +159,12 @@ function buildChartPath(points: DataRecord[], fields: string[], width: number, h
     })
     .filter((value) => Number.isFinite(value));
   if (values.length === 0) {
-    return '';
+    return { path: '', points: [] };
   }
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = max - min || 1;
-  return points
-    .map((point, index) => {
+  const chartPoints = points.map((point, index) => {
       let numeric = NaN;
       for (const field of fields) {
         const value = getField(point, field);
@@ -122,9 +177,12 @@ function buildChartPath(points: DataRecord[], fields: string[], width: number, h
       const safe = Number.isFinite(numeric) ? numeric : min;
       const x = points.length === 1 ? width / 2 : (index / (points.length - 1)) * width;
       const y = height - ((safe - min) / range) * height;
-      return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
-    })
+      return { x, y, value: safe };
+    });
+  const path = chartPoints
+    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`)
     .join(' ');
+  return { path, points: chartPoints };
 }
 
 async function runView<T>(
@@ -154,6 +212,7 @@ async function runView<T>(
 }
 
 export function ViewScenarioTab({ viewApiBaseUrl, scenario }: ViewScenarioTabProps) {
+  const REFRESH_INTERVAL_MS = 60_000;
   const [entityValue, setEntityValue] = useState(scenario.entity.defaultValue);
   const [resolvedResource, setResolvedResource] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<DataRecord | null>(null);
@@ -161,11 +220,15 @@ export function ViewScenarioTab({ viewApiBaseUrl, scenario }: ViewScenarioTabPro
   const [series, setSeries] = useState<DataRecord[]>([]);
   const [feed, setFeed] = useState<DataRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [statusText, setStatusText] = useState<string | null>(null);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
+  const lastEntityRef = useRef<string | null>(null);
 
   const trimmedBaseUrl = useMemo(() => viewApiBaseUrl.trim().replace(/\/+$/, ''), [viewApiBaseUrl]);
-  const chartPath = useMemo(() => buildChartPath(series, scenario.chart.valueFields, 720, 220), [scenario.chart.valueFields, series]);
+  const chartGeometry = useMemo(() => buildChartGeometry(series, scenario.chart.valueFields, 720, 220), [scenario.chart.valueFields, series]);
 
   const readMetric = (metric: ScenarioMetric): string => {
     const sourceRecord =
@@ -174,10 +237,15 @@ export function ViewScenarioTab({ viewApiBaseUrl, scenario }: ViewScenarioTabPro
     return formatMetricValue(rawValue, metric);
   };
 
-  const loadScenario = async (targetValue: string) => {
-    setIsLoading(true);
+  const fetchScenarioData = useCallback(async (targetValue: string, mode: 'initial' | 'refresh' = 'initial') => {
+    if (mode === 'initial') {
+      setIsLoading(true);
+      setStatusText(scenario.resolve.statusText);
+    } else {
+      setIsRefreshing(true);
+      setStatusText(`Refreshing ${scenario.title.toLowerCase()}...`);
+    }
     setErrorText(null);
-    setStatusText(scenario.resolve.statusText);
     try {
       const resolved = await runView<DataRecord>(
         trimmedBaseUrl,
@@ -191,8 +259,11 @@ export function ViewScenarioTab({ viewApiBaseUrl, scenario }: ViewScenarioTabPro
         throw new Error(`No ${scenario.resource.label.toLowerCase()} found for this value.`);
       }
 
+      lastEntityRef.current = targetValue;
       setResolvedResource(resourceValue);
-      setStatusText(`Loading ${scenario.views.snapshot}, ${scenario.views.stats}, ${scenario.views.series}, and ${scenario.views.feed}...`);
+      if (mode === 'initial') {
+        setStatusText(`Loading ${scenario.views.snapshot}, ${scenario.views.stats}, ${scenario.views.series}, and ${scenario.views.feed}...`);
+      }
       const resourceInput = { [scenario.resource.inputKey]: resourceValue };
 
       const [snapshotResult, statsResult, seriesResult, feedResult] = await Promise.all([
@@ -206,21 +277,34 @@ export function ViewScenarioTab({ viewApiBaseUrl, scenario }: ViewScenarioTabPro
       setStats(statsResult.items?.[0] ?? null);
       setSeries((seriesResult.items as DataRecord[] | undefined) ?? []);
       setFeed((feedResult.items as DataRecord[] | undefined) ?? []);
+      setLastUpdatedAt(new Date().toISOString());
       setStatusText(`Loaded ${scenario.resource.label.toLowerCase()} ${resourceValue}.`);
     } catch (error) {
       setErrorText(error instanceof Error ? error.message : 'Scenario load failed.');
       setStatusText(null);
-      setSnapshot(null);
-      setStats(null);
-      setSeries([]);
-      setFeed([]);
-      setResolvedResource(null);
+      if (mode === 'initial') {
+        setSnapshot(null);
+        setStats(null);
+        setSeries([]);
+        setFeed([]);
+        setResolvedResource(null);
+        lastEntityRef.current = null;
+        setLastUpdatedAt(null);
+      }
     } finally {
-      setIsLoading(false);
+      if (mode === 'initial') {
+        setIsLoading(false);
+      } else {
+        setIsRefreshing(false);
+      }
     }
-  };
+  }, [scenario, trimmedBaseUrl]);
 
-  const loadLatest = async () => {
+  const loadScenario = useCallback(async (targetValue: string) => {
+    await fetchScenarioData(targetValue, 'initial');
+  }, [fetchScenarioData]);
+
+  const loadLatest = useCallback(async () => {
     if (!scenario.latest) {
       return;
     }
@@ -240,14 +324,24 @@ export function ViewScenarioTab({ viewApiBaseUrl, scenario }: ViewScenarioTabPro
         throw new Error(`No entity value returned by ${scenario.latest.operationId}.`);
       }
       setEntityValue(nextValue);
-      await loadScenario(nextValue);
+      await fetchScenarioData(nextValue, 'initial');
     } catch (error) {
       setErrorText(error instanceof Error ? error.message : 'Unable to load latest entity.');
       setStatusText(null);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [fetchScenarioData, scenario, trimmedBaseUrl]);
+
+  useEffect(() => {
+    if (!autoRefreshEnabled || !lastEntityRef.current) {
+      return;
+    }
+    const intervalId = window.setInterval(() => {
+      void fetchScenarioData(lastEntityRef.current as string, 'refresh');
+    }, REFRESH_INTERVAL_MS);
+    return () => window.clearInterval(intervalId);
+  }, [autoRefreshEnabled, fetchScenarioData]);
 
   return (
     <section className="view-scenario-shell">
@@ -276,6 +370,14 @@ export function ViewScenarioTab({ viewApiBaseUrl, scenario }: ViewScenarioTabPro
           <button type="button" onClick={() => void loadScenario(entityValue)} disabled={isLoading}>
             {isLoading ? 'Loading...' : 'Load Scenario'}
           </button>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => void fetchScenarioData(entityValue, 'refresh')}
+            disabled={isLoading || isRefreshing}
+          >
+            {isRefreshing ? 'Refreshing...' : 'Refresh Now'}
+          </button>
           {scenario.latest ? (
             <button type="button" className="secondary" onClick={() => void loadLatest()} disabled={isLoading}>
               {scenario.latest.label}
@@ -286,12 +388,20 @@ export function ViewScenarioTab({ viewApiBaseUrl, scenario }: ViewScenarioTabPro
 
       {statusText ? <p className="view-playground-info">{statusText}</p> : null}
       {errorText ? <p className="view-playground-error">{errorText}</p> : null}
+      <div className="view-scenario-meta">
+        <span>{autoRefreshEnabled ? 'Auto-refresh on (60s)' : 'Auto-refresh off'}</span>
+        <button type="button" className="secondary" onClick={() => setAutoRefreshEnabled((value) => !value)}>
+          {autoRefreshEnabled ? 'Pause Auto-refresh' : 'Enable Auto-refresh'}
+        </button>
+        <span>{lastUpdatedAt ? `Last updated ${new Date(lastUpdatedAt).toLocaleTimeString()}` : 'Not loaded yet'}</span>
+      </div>
 
       <section className="view-scenario-hero">
         <div className="view-scenario-hero-main">
           <span className="view-scenario-eyebrow">
             {resolvedResource ? shortPubkey(resolvedResource) : scenario.resource.pendingLabel}
           </span>
+          <div className="view-scenario-value-label">{scenario.hero.title.label}</div>
           <h3>{readMetric(scenario.hero.title)}</h3>
           <p>{scenario.hero.subtitle.map(readMetric).join(' / ')}</p>
           <div className="view-scenario-highlights">
@@ -325,17 +435,33 @@ export function ViewScenarioTab({ viewApiBaseUrl, scenario }: ViewScenarioTabPro
         <section className="view-scenario-chart-panel">
           <div className="view-scenario-panel-header">
             <h3>{scenario.chart.title}</h3>
-            <span>{series.length} point(s)</span>
+            <span>{scenario.chart.valueLabel ? `${series.length} point(s) · ${scenario.chart.valueLabel}` : `${series.length} point(s)`}</span>
           </div>
-          {series.length > 0 && chartPath ? (
+          {series.length > 0 && chartGeometry.points.length > 0 ? (
             <div className="view-scenario-chart-shell">
               <svg viewBox="0 0 720 220" preserveAspectRatio="none" role="img" aria-label="Scenario chart">
-                <path d={chartPath} fill="none" stroke="#4ade80" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+                {chartGeometry.points.length > 1 ? (
+                  <path d={chartGeometry.path} fill="none" stroke="#4ade80" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+                ) : null}
+                {chartGeometry.points.map((point, index) => (
+                  <circle
+                    key={`${index}:${point.x}:${point.y}`}
+                    cx={point.x}
+                    cy={point.y}
+                    r={chartGeometry.points.length === 1 ? 6 : 4}
+                    fill="#4ade80"
+                    stroke="#d9ffe7"
+                    strokeWidth="2"
+                  />
+                ))}
               </svg>
             </div>
           ) : (
             <p className="view-playground-empty">No series points yet for this scenario.</p>
           )}
+          {series.length === 1 ? (
+            <p className="view-playground-empty">Only one 1-minute bucket so far. The line will appear as more trades arrive.</p>
+          ) : null}
         </section>
 
         <section className="view-scenario-feed-panel">
@@ -344,31 +470,63 @@ export function ViewScenarioTab({ viewApiBaseUrl, scenario }: ViewScenarioTabPro
             <span>{feed.length} item(s)</span>
           </div>
           {feed.length > 0 ? (
-            <div className="view-scenario-feed-list">
-              {feed.map((item, index) => {
-                const sideText = scenario.feed.sideField ? String(getField(item, scenario.feed.sideField) ?? '') : '';
-                const timeValue = getField(item, scenario.feed.timeField);
-                const amountValue = getField(item, scenario.feed.amountField);
-                const priceValue = getField(item, scenario.feed.priceField);
-                const secondaryValue = scenario.feed.secondaryValueField ? getField(item, scenario.feed.secondaryValueField) : null;
-                const secondaryText = scenario.feed.secondaryTextField ? getField(item, scenario.feed.secondaryTextField) : null;
-                return (
-                  <article key={`${index}:${String(getField(item, 'signature') ?? getField(item, 'slot') ?? index)}`} className={`view-scenario-feed-item ${sideText}`}>
-                    <div>
-                      <strong>{sideText ? sideText.toUpperCase() : 'ITEM'}</strong>
-                      <span>{typeof timeValue === 'string' && timeValue ? new Date(timeValue).toLocaleTimeString() : '—'}</span>
-                    </div>
-                    <div>
-                      <strong>{formatCompact(typeof amountValue === 'number' ? amountValue : Number(amountValue ?? NaN), 2)}</strong>
-                      <span>@ {formatPrice(typeof priceValue === 'number' ? priceValue : Number(priceValue ?? NaN))}</span>
-                    </div>
-                    <div>
-                      <strong>{formatCompact(typeof secondaryValue === 'number' ? secondaryValue : Number(secondaryValue ?? NaN), 1)}</strong>
-                      <span>{typeof secondaryText === 'string' ? shortPubkey(secondaryText) : '—'}</span>
-                    </div>
-                  </article>
-                );
-              })}
+            <div className="view-scenario-feed-table-wrap">
+              <table className="view-scenario-feed-table">
+                <thead>
+                  <tr>
+                    <th>{scenario.feed.accountField ? 'Account' : 'Item'}</th>
+                    <th>Type</th>
+                    <th>{scenario.feed.amountLabel ?? 'Amount'}</th>
+                    <th>{scenario.feed.tokenAmountLabel ?? 'Token Amount'}</th>
+                    <th>Time</th>
+                    <th>{scenario.feed.txField ? 'Txn' : 'Reference'}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {feed.map((item, index) => {
+                    const sideText = scenario.feed.sideField ? String(getField(item, scenario.feed.sideField) ?? '') : '';
+                    const timeValue = getField(item, scenario.feed.timeField);
+                    const amountValue = getField(item, scenario.feed.amountField);
+                    const tokenAmountValue = scenario.feed.tokenAmountField ? getField(item, scenario.feed.tokenAmountField) : null;
+                    const txValue = scenario.feed.txField ? getField(item, scenario.feed.txField) : null;
+                    const accountValue = scenario.feed.accountField ? getField(item, scenario.feed.accountField) : null;
+                    const priceValue = getField(item, scenario.feed.priceField);
+                    const secondaryValue = scenario.feed.secondaryValueField ? getField(item, scenario.feed.secondaryValueField) : null;
+
+                    return (
+                      <tr key={`${index}:${String(getField(item, 'signature') ?? getField(item, 'slot') ?? index)}`} className={`view-scenario-feed-row ${sideText}`}>
+                        <td>
+                          <strong>{typeof accountValue === 'string' ? shortPubkey(accountValue) : '—'}</strong>
+                        </td>
+                        <td>
+                          <span className={`view-scenario-side-pill ${sideText}`}>{sideText ? sideText.toUpperCase() : 'ITEM'}</span>
+                        </td>
+                        <td>
+                          <strong>{formatDecimal(typeof amountValue === 'number' ? amountValue : Number(amountValue ?? NaN), 9)}</strong>
+                          <span>SOL</span>
+                        </td>
+                        <td>
+                          <strong>{formatCompact(typeof tokenAmountValue === 'number' ? tokenAmountValue : Number(tokenAmountValue ?? NaN), 2)}</strong>
+                          <span>{scenario.feed.tokenAmountLabel ?? 'Token'}</span>
+                        </td>
+                        <td>
+                          <strong>{formatRelativeTime(typeof timeValue === 'string' ? timeValue : null)}</strong>
+                          <span>{typeof timeValue === 'string' && timeValue ? new Date(timeValue).toLocaleTimeString() : '—'}</span>
+                        </td>
+                        <td>
+                          <strong>{typeof txValue === 'string' ? shortPubkey(txValue) : '—'}</strong>
+                          <span>
+                            {scenario.feed.priceLabel ? `${scenario.feed.priceLabel} ${formatPrice(typeof priceValue === 'number' ? priceValue : Number(priceValue ?? NaN))}` : formatPrice(typeof priceValue === 'number' ? priceValue : Number(priceValue ?? NaN))}
+                          </span>
+                          {scenario.feed.secondaryValueLabel ? (
+                            <span>{`${scenario.feed.secondaryValueLabel} ${formatCurrencyCompact(typeof secondaryValue === 'number' ? secondaryValue : Number(secondaryValue ?? NaN), 2)}`}</span>
+                          ) : null}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           ) : (
             <p className="view-playground-empty">No feed items materialized yet for this scenario.</p>
