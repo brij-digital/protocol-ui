@@ -22,6 +22,11 @@ This is one of the three main AppPack repositories:
 
 Package installs in this repo are expected to resolve the runtime from GitHub Packages under the `@brij-digital` scope.
 
+## Package Naming
+
+Use `@brij-digital/apppack-runtime` directly in both `package.json` and source imports.
+Do not reintroduce the legacy `@agentform/apppack-runtime` alias.
+
 ## Current Scope
 
 Active protocols in this repo:
