@@ -30,7 +30,10 @@ function formatCurrencyCompact(value: number | null | undefined, digits = 2): st
     return '—';
   }
   if (Math.abs(value) < 1) {
-    return `$${value.toFixed(Math.min(Math.max(digits, 2), 4))}`;
+    return `$${new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: Math.min(Math.max(digits + 2, 2), 6),
+    }).format(value)}`;
   }
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -47,7 +50,13 @@ function formatPrice(value: number | null | undefined): string {
   if (value >= 1) {
     return `$${value.toFixed(4)}`;
   }
-  return `$${value.toPrecision(4)}`;
+  if (value >= 0.01) {
+    return `$${value.toFixed(6)}`;
+  }
+  return `$${new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 12,
+  }).format(value)}`;
 }
 
 function formatPercent(value: number | null | undefined): string {
@@ -463,76 +472,76 @@ export function ViewScenarioTab({ viewApiBaseUrl, scenario }: ViewScenarioTabPro
             <p className="view-playground-empty">Only one 1-minute bucket so far. The line will appear as more trades arrive.</p>
           ) : null}
         </section>
-
-        <section className="view-scenario-feed-panel">
-          <div className="view-scenario-panel-header">
-            <h3>{scenario.feed.title}</h3>
-            <span>{feed.length} item(s)</span>
-          </div>
-          {feed.length > 0 ? (
-            <div className="view-scenario-feed-table-wrap">
-              <table className="view-scenario-feed-table">
-                <thead>
-                  <tr>
-                    <th>{scenario.feed.accountField ? 'Account' : 'Item'}</th>
-                    <th>Type</th>
-                    <th>{scenario.feed.amountLabel ?? 'Amount'}</th>
-                    <th>{scenario.feed.tokenAmountLabel ?? 'Token Amount'}</th>
-                    <th>Time</th>
-                    <th>{scenario.feed.txField ? 'Txn' : 'Reference'}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {feed.map((item, index) => {
-                    const sideText = scenario.feed.sideField ? String(getField(item, scenario.feed.sideField) ?? '') : '';
-                    const timeValue = getField(item, scenario.feed.timeField);
-                    const amountValue = getField(item, scenario.feed.amountField);
-                    const tokenAmountValue = scenario.feed.tokenAmountField ? getField(item, scenario.feed.tokenAmountField) : null;
-                    const txValue = scenario.feed.txField ? getField(item, scenario.feed.txField) : null;
-                    const accountValue = scenario.feed.accountField ? getField(item, scenario.feed.accountField) : null;
-                    const priceValue = getField(item, scenario.feed.priceField);
-                    const secondaryValue = scenario.feed.secondaryValueField ? getField(item, scenario.feed.secondaryValueField) : null;
-
-                    return (
-                      <tr key={`${index}:${String(getField(item, 'signature') ?? getField(item, 'slot') ?? index)}`} className={`view-scenario-feed-row ${sideText}`}>
-                        <td>
-                          <strong>{typeof accountValue === 'string' ? shortPubkey(accountValue) : '—'}</strong>
-                        </td>
-                        <td>
-                          <span className={`view-scenario-side-pill ${sideText}`}>{sideText ? sideText.toUpperCase() : 'ITEM'}</span>
-                        </td>
-                        <td>
-                          <strong>{formatDecimal(typeof amountValue === 'number' ? amountValue : Number(amountValue ?? NaN), 9)}</strong>
-                          <span>SOL</span>
-                        </td>
-                        <td>
-                          <strong>{formatCompact(typeof tokenAmountValue === 'number' ? tokenAmountValue : Number(tokenAmountValue ?? NaN), 2)}</strong>
-                          <span>{scenario.feed.tokenAmountLabel ?? 'Token'}</span>
-                        </td>
-                        <td>
-                          <strong>{formatRelativeTime(typeof timeValue === 'string' ? timeValue : null)}</strong>
-                          <span>{typeof timeValue === 'string' && timeValue ? new Date(timeValue).toLocaleTimeString() : '—'}</span>
-                        </td>
-                        <td>
-                          <strong>{typeof txValue === 'string' ? shortPubkey(txValue) : '—'}</strong>
-                          <span>
-                            {scenario.feed.priceLabel ? `${scenario.feed.priceLabel} ${formatPrice(typeof priceValue === 'number' ? priceValue : Number(priceValue ?? NaN))}` : formatPrice(typeof priceValue === 'number' ? priceValue : Number(priceValue ?? NaN))}
-                          </span>
-                          {scenario.feed.secondaryValueLabel ? (
-                            <span>{`${scenario.feed.secondaryValueLabel} ${formatCurrencyCompact(typeof secondaryValue === 'number' ? secondaryValue : Number(secondaryValue ?? NaN), 2)}`}</span>
-                          ) : null}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="view-playground-empty">No feed items materialized yet for this scenario.</p>
-          )}
-        </section>
       </div>
+
+      <section className="view-scenario-feed-panel view-scenario-feed-panel-full">
+        <div className="view-scenario-panel-header">
+          <h3>{scenario.feed.title}</h3>
+          <span>{feed.length} item(s)</span>
+        </div>
+        {feed.length > 0 ? (
+          <div className="view-scenario-feed-table-wrap">
+            <table className="view-scenario-feed-table">
+              <thead>
+                <tr>
+                  <th>{scenario.feed.accountLabel ?? (scenario.feed.accountField ? 'Account' : 'Item')}</th>
+                  <th>{scenario.feed.typeLabel ?? 'Type'}</th>
+                  <th>{scenario.feed.amountLabel ?? 'Amount'}</th>
+                  <th>{scenario.feed.tokenAmountLabel ?? 'Token Amount'}</th>
+                  <th>Time</th>
+                  <th>{scenario.feed.referenceLabel ?? (scenario.feed.txField ? 'Txn' : 'Reference')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {feed.map((item, index) => {
+                  const sideText = scenario.feed.sideField ? String(getField(item, scenario.feed.sideField) ?? '') : '';
+                  const timeValue = getField(item, scenario.feed.timeField);
+                  const amountValue = getField(item, scenario.feed.amountField);
+                  const tokenAmountValue = scenario.feed.tokenAmountField ? getField(item, scenario.feed.tokenAmountField) : null;
+                  const txValue = scenario.feed.txField ? getField(item, scenario.feed.txField) : null;
+                  const accountValue = scenario.feed.accountField ? getField(item, scenario.feed.accountField) : null;
+                  const priceValue = getField(item, scenario.feed.priceField);
+                  const secondaryValue = scenario.feed.secondaryValueField ? getField(item, scenario.feed.secondaryValueField) : null;
+
+                  return (
+                    <tr key={`${index}:${String(getField(item, 'signature') ?? getField(item, 'slot') ?? index)}`} className={`view-scenario-feed-row ${sideText}`}>
+                      <td>
+                        <strong>{typeof accountValue === 'string' ? shortPubkey(accountValue) : '—'}</strong>
+                      </td>
+                      <td>
+                        <span className={`view-scenario-side-pill ${sideText}`}>{sideText ? sideText.toUpperCase() : 'ITEM'}</span>
+                      </td>
+                      <td>
+                        <strong>{formatDecimal(typeof amountValue === 'number' ? amountValue : Number(amountValue ?? NaN), 9)}</strong>
+                        <span>{scenario.feed.amountUnitLabel ?? '—'}</span>
+                      </td>
+                      <td>
+                        <strong>{formatCompact(typeof tokenAmountValue === 'number' ? tokenAmountValue : Number(tokenAmountValue ?? NaN), 2)}</strong>
+                        <span>{scenario.feed.tokenAmountUnitLabel ?? scenario.feed.tokenAmountLabel ?? 'Token'}</span>
+                      </td>
+                      <td>
+                        <strong>{formatRelativeTime(typeof timeValue === 'string' ? timeValue : null)}</strong>
+                        <span>{typeof timeValue === 'string' && timeValue ? new Date(timeValue).toLocaleTimeString() : '—'}</span>
+                      </td>
+                      <td>
+                        <strong>{typeof txValue === 'string' ? shortPubkey(txValue) : '—'}</strong>
+                        <span>
+                          {scenario.feed.priceLabel ? `${scenario.feed.priceLabel} ${formatPrice(typeof priceValue === 'number' ? priceValue : Number(priceValue ?? NaN))}` : formatPrice(typeof priceValue === 'number' ? priceValue : Number(priceValue ?? NaN))}
+                        </span>
+                        {scenario.feed.secondaryValueLabel ? (
+                          <span>{`${scenario.feed.secondaryValueLabel} ${formatCurrencyCompact(typeof secondaryValue === 'number' ? secondaryValue : Number(secondaryValue ?? NaN), 2)}`}</span>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="view-playground-empty">No feed items materialized yet for this scenario.</p>
+        )}
+      </section>
     </section>
   );
 }

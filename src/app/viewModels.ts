@@ -67,6 +67,9 @@ export type ViewScenarioDefinition = {
   };
   feed: {
     title: string;
+    accountLabel?: string;
+    typeLabel?: string;
+    referenceLabel?: string;
     sideField?: string;
     accountField?: string;
     txField?: string;
@@ -75,7 +78,9 @@ export type ViewScenarioDefinition = {
     tokenAmountField?: string;
     priceField: string;
     amountLabel?: string;
+    amountUnitLabel?: string;
     tokenAmountLabel?: string;
+    tokenAmountUnitLabel?: string;
     priceLabel?: string;
     secondaryValueField?: string;
     secondaryValueLabel?: string;
@@ -236,6 +241,9 @@ export const DEFAULT_VIEW_SCENARIO: ViewScenarioDefinition = {
   },
   feed: {
     title: 'Recent Trades',
+    accountLabel: 'Account',
+    typeLabel: 'Type',
+    referenceLabel: 'Txn',
     accountField: 'user',
     txField: 'signature',
     sideField: 'side',
@@ -244,7 +252,9 @@ export const DEFAULT_VIEW_SCENARIO: ViewScenarioDefinition = {
     tokenAmountField: 'baseAmountUi',
     priceField: 'priceQuote',
     amountLabel: 'Amount (SOL)',
+    amountUnitLabel: 'SOL',
     tokenAmountLabel: 'Amount (Token)',
+    tokenAmountUnitLabel: 'Token',
     priceLabel: 'Price',
     secondaryValueField: 'marketCapQuote',
     secondaryValueLabel: 'Market Cap',

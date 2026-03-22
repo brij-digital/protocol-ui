@@ -448,7 +448,7 @@
 
 .view-scenario-panels {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
 }
 
@@ -457,6 +457,10 @@
   padding: 0.9rem;
   display: grid;
   gap: 0.8rem;
+}
+
+.view-scenario-feed-panel-full {
+  margin-top: 1rem;
 }
 
 .view-scenario-panel-header {
