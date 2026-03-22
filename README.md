@@ -129,7 +129,7 @@ The app now includes a `Views` tab that can:
 It also includes a `Scenarios` tab that can run a multi-view page recipe.
 The default recipe currently uses Pump data, but the component is scenario-driven rather than protocol-specific.
 
-See [docs/local-view-dev.md](/Users/antoine/Documents/github/Espresso%20Cash/ec-ai-wallet/docs/local-view-dev.md) for the full local loop, including PostgreSQL and the local view-service worker.
+See [docs/local-view-dev.md](docs/local-view-dev.md) for the full local loop, including PostgreSQL and the local view-service worker.
 
 ## Command Mode
 
@@ -201,3 +201,11 @@ npm run ci:protocol-packs:rpc
 - [docs/protocol-pack-ci.md](docs/protocol-pack-ci.md)
 - [docs/view-spec-v0.2.md](docs/view-spec-v0.2.md)
 - [docs/view-spec-v0.3.md](docs/view-spec-v0.3.md)
+
+## Product Direction
+
+AppPack should be treated primarily as an agent-native execution platform.
+In that model:
+- `apppack-runtime` is the shared execution engine
+- `apppack-view-service` is the indexed search/read backend
+- `ec-ai-wallet` is the reference client and protocol-pack authoring environment

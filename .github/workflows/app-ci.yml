@@ -49,6 +49,9 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm ci
 
+      - name: Smoke Check Published Runtime
+        run: npm run smoke:runtime-import
+
       - name: Lint
         run: npm run lint
 

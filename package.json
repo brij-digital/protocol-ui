@@ -19,10 +19,11 @@
     "pack:rpc-check": "node scripts/check-protocol-rpc.mjs",
     "ci:protocol-packs": "npm run aidl:check && npm run pack:check && npm run pack:lint && npm run pack:complexity:enforce",
     "ci:protocol-packs:rpc": "npm run ci:protocol-packs && npm run pack:rpc-check",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "smoke:runtime-import": "node -e \"const pkg=require('./node_modules/@brij-digital/apppack-runtime/package.json'); if (pkg.name !== '@brij-digital/apppack-runtime') throw new Error('runtime package mismatch'); console.log('runtime package ok', pkg.version)\""
   },
   "dependencies": {
-    "@brij-digital/apppack-runtime": "^0.1.9",
+    "@brij-digital/apppack-runtime": "0.1.10",
     "@coral-xyz/anchor": "^0.32.1",
     "@solana/spl-token": "^0.4.14",
     "@solana/wallet-adapter-base": "^0.9.27",
