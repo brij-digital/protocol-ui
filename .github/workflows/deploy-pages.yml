@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
   pages: write
   id-token: write
 
@@ -26,8 +27,12 @@ jobs:
         with:
           node-version: "22"
           cache: "npm"
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@brij-digital"
 
       - name: Install dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm ci
 
       - name: Compute Vite base path

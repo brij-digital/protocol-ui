@@ -25,6 +25,10 @@ on:
       - "eslint.config.*"
       - ".github/workflows/app-ci.yml"
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   app-checks:
     runs-on: ubuntu-latest
@@ -37,8 +41,12 @@ jobs:
         with:
           node-version: "22"
           cache: "npm"
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@brij-digital"
 
       - name: Install Dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm ci
 
       - name: Lint
