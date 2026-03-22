@@ -222,6 +222,7 @@ export const DEFAULT_VIEW_SCENARIO: ViewScenarioDefinition = {
       { label: '24h Vol', source: 'stats', field: 'volume24hQuote', format: 'currencyCompact', digits: 2 },
     ],
     sideMetrics: [
+      { label: 'Market', source: 'snapshot', field: 'marketType', format: 'text' },
       { label: 'Liquidity', source: 'snapshot', field: 'liquidityQuote', format: 'currencyCompact', digits: 2 },
       { label: 'Creator', source: 'snapshot', field: 'coinCreator', format: 'pubkey' },
       { label: 'Observed', source: 'snapshot', field: 'observedAt', format: 'time' },
