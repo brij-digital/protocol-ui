@@ -387,7 +387,7 @@ export function ViewScenarioTab({ viewApiBaseUrl, scenario }: ViewScenarioTabPro
         runView<DataRecord>(trimmedBaseUrl, scenario.protocolId, scenario.views.snapshot, resourceInput, 1),
         runView<DataRecord>(trimmedBaseUrl, scenario.protocolId, scenario.views.stats, resourceInput, 1),
         runView<DataRecord>(trimmedBaseUrl, scenario.protocolId, scenario.views.series, resourceInput, 240),
-        runView<DataRecord>(trimmedBaseUrl, scenario.protocolId, scenario.views.feed, resourceInput, 30),
+        runView<DataRecord>(trimmedBaseUrl, scenario.protocolId, scenario.views.feed, resourceInput, 200),
       ]);
 
       setSnapshot(snapshotResult.items?.[0] ?? null);
