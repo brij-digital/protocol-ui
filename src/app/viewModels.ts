@@ -162,7 +162,7 @@ export const VIEW_PLAYGROUND_PRESETS: ViewExample[] = [
   },
 ];
 
-export const DEFAULT_VIEW_SCENARIO: ViewScenarioDefinition = {
+export const PUMP_VIEW_SCENARIO: ViewScenarioDefinition = {
   id: 'pump-coin-page',
   title: 'View Scenario',
   description:
@@ -263,3 +263,93 @@ export const DEFAULT_VIEW_SCENARIO: ViewScenarioDefinition = {
     secondaryTextLabel: 'User',
   },
 };
+
+export const ORCA_VIEW_SCENARIO: ViewScenarioDefinition = {
+  id: 'orca-pool-page',
+  title: 'Orca Pool Page',
+  description: 'SQL-backed Orca Whirlpool scenario with pool snapshot, price chart, and recent swap history.',
+  protocolId: 'orca-whirlpool-mainnet',
+  entity: {
+    label: 'Whirlpool',
+    inputKey: 'pool',
+    defaultValue: 'Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE',
+    placeholder: 'Enter an Orca Whirlpool address',
+  },
+  resolve: {
+    operationId: 'resolve_pool',
+    input: (pool) => ({ pool }),
+    resultField: 'pool',
+    statusText: 'Resolving Whirlpool pool...',
+  },
+  resource: {
+    label: 'Whirlpool',
+    inputKey: 'pool',
+    pendingLabel: 'Whirlpool pending',
+  },
+  views: {
+    snapshot: 'pool_snapshot',
+    stats: 'stat_cards',
+    series: 'market_cap_series',
+    feed: 'trade_feed',
+  },
+  hero: {
+    title: {
+      label: 'Price B per A',
+      source: 'snapshot',
+      field: 'priceQuote',
+      format: 'decimal',
+      digits: 9,
+    },
+    subtitle: [
+      { label: 'Token A', source: 'snapshot', field: 'tokenMintA', format: 'pubkey' },
+      { label: 'Token B', source: 'snapshot', field: 'tokenMintB', format: 'pubkey' },
+    ],
+    highlights: [
+      { label: 'Inverse Price', source: 'snapshot', field: 'inversePriceQuote', format: 'decimal', digits: 9 },
+      { label: '24h', source: 'stats', field: 'priceChange24hPct', format: 'percent' },
+      { label: '24h Vol (Token B)', source: 'stats', field: 'volume24hQuote', format: 'compact', digits: 2 },
+    ],
+    sideMetrics: [
+      { label: 'Tick Spacing', source: 'snapshot', field: 'tickSpacing', format: 'text' },
+      { label: 'Fee (bps)', source: 'snapshot', field: 'feeRateBps', format: 'decimal', digits: 2 },
+      { label: 'Liquidity (Token B)', source: 'snapshot', field: 'liquidityQuote', format: 'compact', digits: 2 },
+      { label: 'Observed', source: 'snapshot', field: 'observedAt', format: 'time' },
+    ],
+  },
+  statCards: [
+    { label: 'Price B per A', source: 'stats', field: 'priceQuote', format: 'decimal', digits: 9 },
+    { label: 'Price A per B', source: 'stats', field: 'inversePriceQuote', format: 'decimal', digits: 9 },
+    { label: '5m', source: 'stats', field: 'priceChange5mPct', format: 'percent' },
+    { label: '1h', source: 'stats', field: 'priceChange1hPct', format: 'percent' },
+    { label: '24h Vol (Token B)', source: 'stats', field: 'volume24hQuote', format: 'compact', digits: 2 },
+  ],
+  chart: {
+    title: 'Pool Price Chart',
+    valueFields: ['close'],
+    valueLabel: '1m price + volume',
+  },
+  feed: {
+    title: 'Recent Swaps',
+    accountLabel: 'Trader',
+    typeLabel: 'Side',
+    referenceLabel: 'Txn',
+    accountField: 'trader',
+    txField: 'signature',
+    sideField: 'side',
+    timeField: 'eventTime',
+    amountField: 'quoteNotionalUi',
+    tokenAmountField: 'amountOutUi',
+    priceField: 'priceQuote',
+    amountLabel: 'Notional (Token B)',
+    amountUnitLabel: 'Token B',
+    tokenAmountLabel: 'Output',
+    tokenAmountUnitLabel: 'Token',
+    priceLabel: 'Price B/A',
+    secondaryTextField: 'tokenInMint',
+    secondaryTextLabel: 'Token In',
+  },
+};
+
+export const VIEW_SCENARIOS: ViewScenarioDefinition[] = [PUMP_VIEW_SCENARIO, ORCA_VIEW_SCENARIO];
+
+export const DEFAULT_VIEW_SCENARIO: ViewScenarioDefinition = PUMP_VIEW_SCENARIO;
