@@ -153,6 +153,8 @@ function formatMetricValue(value: unknown, metric: ScenarioMetric): string {
       return formatCurrencyCompact(typeof value === 'number' ? value : Number(value ?? NaN), metric.digits ?? 2);
     case 'price':
       return formatPrice(typeof value === 'number' ? value : Number(value ?? NaN));
+    case 'decimal':
+      return formatDecimal(typeof value === 'number' ? value : Number(value ?? NaN), metric.digits ?? 9);
     case 'percent':
       return formatPercent(typeof value === 'number' ? value : Number(value ?? NaN));
     case 'pubkey':
@@ -200,7 +202,7 @@ function formatAxisValue(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) {
     return '—';
   }
-  return value >= 1 ? formatCurrencyCompact(value, 2) : formatPrice(value);
+  return value >= 1 ? formatCompact(value, 2) : formatDecimal(value, 9);
 }
 
 function formatBucketTime(value: unknown): string {
@@ -776,7 +778,7 @@ export function ViewScenarioTab({ viewApiBaseUrl, scenario }: ViewScenarioTabPro
                 <span>H {formatAxisValue(chartGeometry.latest.high)}</span>
                 <span>L {formatAxisValue(chartGeometry.latest.low)}</span>
                 <span>C {formatAxisValue(chartGeometry.latest.close)}</span>
-                <span>Vol {formatCurrencyCompact(chartGeometry.latest.volume, 2)}</span>
+                <span>Vol {formatCompact(chartGeometry.latest.volume, 2)}</span>
               </div>
               <svg viewBox="0 0 720 260" preserveAspectRatio="none" role="img" aria-label="Scenario chart">
                 <line x1="0" y1="10" x2="720" y2="10" className="view-scenario-grid-line" />
@@ -882,10 +884,10 @@ export function ViewScenarioTab({ viewApiBaseUrl, scenario }: ViewScenarioTabPro
                       <td>
                         <strong>{typeof txValue === 'string' ? shortPubkey(txValue) : '—'}</strong>
                         <span>
-                          {scenario.feed.priceLabel ? `${scenario.feed.priceLabel} ${formatPrice(typeof priceValue === 'number' ? priceValue : Number(priceValue ?? NaN))}` : formatPrice(typeof priceValue === 'number' ? priceValue : Number(priceValue ?? NaN))}
+                          {scenario.feed.priceLabel ? `${scenario.feed.priceLabel} ${formatDecimal(typeof priceValue === 'number' ? priceValue : Number(priceValue ?? NaN), 12)}` : formatDecimal(typeof priceValue === 'number' ? priceValue : Number(priceValue ?? NaN), 12)}
                         </span>
                         {scenario.feed.secondaryValueLabel ? (
-                          <span>{`${scenario.feed.secondaryValueLabel} ${formatCurrencyCompact(typeof secondaryValue === 'number' ? secondaryValue : Number(secondaryValue ?? NaN), 2)}`}</span>
+                          <span>{`${scenario.feed.secondaryValueLabel} ${formatCompact(typeof secondaryValue === 'number' ? secondaryValue : Number(secondaryValue ?? NaN), 2)}`}</span>
                         ) : null}
                       </td>
                     </tr>
