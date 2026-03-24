@@ -77,21 +77,22 @@ type ViewRunResponse = {
   error?: string;
 };
 
-type ExplorerSampleSeed =
-  | {
-      protocolId: 'pump-amm-mainnet';
-      mint: string;
-      pool: string;
-      quoteMint: string;
-    }
-  | {
-      protocolId: 'orca-whirlpool-mainnet';
-      pool: string;
-      tokenMintA: string;
-      tokenMintB: string;
-    };
+type PumpCandidate = {
+  pool: string;
+  mint: string;
+  quoteMint: string;
+};
 
-type ExplorerSampleMap = Partial<Record<'pump-amm-mainnet' | 'orca-whirlpool-mainnet', ExplorerSampleSeed>>;
+type OrcaCandidate = {
+  pool: string;
+  tokenMintA: string;
+  tokenMintB: string;
+};
+
+type ExplorerCandidates = {
+  pump: PumpCandidate[];
+  orca: OrcaCandidate[];
+};
 
 const INDEXED_PROTOCOL_IDS = new Set(['pump-amm-mainnet', 'orca-whirlpool-mainnet']);
 
@@ -127,135 +128,164 @@ function defaultLimitForView(view: ExplorerView): string {
   return '20';
 }
 
-function buildIndexedSample(view: ExplorerView, sampleSeeds: ExplorerSampleMap): { input: string; limit: string } | null {
+async function runView(
+  baseUrl: string,
+  protocolId: string,
+  operationId: string,
+  input: Record<string, unknown>,
+  limit?: number,
+): Promise<ViewRunResponse> {
+  const response = await fetch(`${baseUrl}/view-run`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      protocol_id: protocolId,
+      operation_id: operationId,
+      input,
+      ...(typeof limit === 'number' ? { limit } : {}),
+    }),
+  });
+  return response.json() as Promise<ViewRunResponse>;
+}
+
+async function fetchIndexedCandidates(baseUrl: string): Promise<ExplorerCandidates> {
+  const [pumpBody, orcaBody] = await Promise.all([
+    runView(baseUrl, 'pump-amm-mainnet', 'list_tokens', {
+      quote_mint: 'So11111111111111111111111111111111111111112',
+      min_last_seen_slot: '0',
+    }, 10),
+    runView(baseUrl, 'orca-whirlpool-mainnet', 'list_pools', {
+      token_in_mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+      token_out_mint: 'So11111111111111111111111111111111111111112',
+    }, 10),
+  ]);
+
+  const pump = Array.isArray(pumpBody.items)
+    ? pumpBody.items.flatMap((item) => {
+        const row = item as Record<string, unknown>;
+        return typeof row.pool === 'string' && typeof row.baseMint === 'string' && typeof row.quoteMint === 'string'
+          ? [{ pool: row.pool, mint: row.baseMint, quoteMint: row.quoteMint }]
+          : [];
+      })
+    : [];
+
+  const orca = Array.isArray(orcaBody.items)
+    ? orcaBody.items.flatMap((item) => {
+        const row = item as Record<string, unknown>;
+        return typeof row.whirlpool === 'string' && typeof row.tokenMintA === 'string' && typeof row.tokenMintB === 'string'
+          ? [{ pool: row.whirlpool, tokenMintA: row.tokenMintA, tokenMintB: row.tokenMintB }]
+          : [];
+      })
+    : [];
+
+  return { pump, orca };
+}
+
+async function resolveRunnableSample(
+  baseUrl: string,
+  view: ExplorerView,
+  candidates: ExplorerCandidates,
+): Promise<{ input: string; limit: string } | null> {
   if (view.protocolId === 'pump-amm-mainnet') {
-    const seed = sampleSeeds['pump-amm-mainnet'];
-    if (!seed || seed.protocolId !== 'pump-amm-mainnet') {
-      return null;
-    }
     if (view.operationId === 'list_tokens') {
+      const first = candidates.pump[0];
+      if (!first) {
+        return null;
+      }
       return {
         input: formatJson({
-          quote_mint: seed.quoteMint,
+          quote_mint: first.quoteMint,
           min_last_seen_slot: '0',
         }),
         limit: defaultLimitForView(view),
       };
     }
+
     if (view.operationId === 'resolve_pool') {
+      const first = candidates.pump[0];
+      if (!first) {
+        return null;
+      }
       return {
         input: formatJson({
-          mint: seed.mint,
-          quote_mint: seed.quoteMint,
+          mint: first.mint,
+          quote_mint: first.quoteMint,
         }),
         limit: '1',
       };
     }
+
     if (['pool_snapshot', 'stat_cards', 'market_cap_series', 'trade_feed'].includes(view.operationId)) {
+      for (const candidate of candidates.pump) {
+        const response = await runView(baseUrl, view.protocolId, view.operationId, { pool: candidate.pool }, 1);
+        if (Array.isArray(response.items) && response.items.length > 0) {
+          return {
+            input: formatJson({ pool: candidate.pool }),
+            limit: defaultLimitForView(view),
+          };
+        }
+      }
+      const fallback = candidates.pump[0];
+      if (!fallback) {
+        return null;
+      }
       return {
-        input: formatJson({
-          pool: seed.pool,
-        }),
+        input: formatJson({ pool: fallback.pool }),
         limit: defaultLimitForView(view),
       };
     }
   }
 
   if (view.protocolId === 'orca-whirlpool-mainnet') {
-    const seed = sampleSeeds['orca-whirlpool-mainnet'];
-    if (!seed || seed.protocolId !== 'orca-whirlpool-mainnet') {
-      return null;
-    }
     if (view.operationId === 'list_pools') {
+      const first = candidates.orca[0];
+      if (!first) {
+        return null;
+      }
       return {
         input: formatJson({
-          token_in_mint: seed.tokenMintB,
-          token_out_mint: seed.tokenMintA,
+          token_in_mint: first.tokenMintB,
+          token_out_mint: first.tokenMintA,
         }),
         limit: defaultLimitForView(view),
       };
     }
+
     if (view.operationId === 'resolve_pool') {
+      const first = candidates.orca[0];
+      if (!first) {
+        return null;
+      }
       return {
         input: formatJson({
-          pool: seed.pool,
+          pool: first.pool,
         }),
         limit: '1',
       };
     }
+
     if (['pool_snapshot', 'stat_cards', 'market_cap_series', 'trade_feed'].includes(view.operationId)) {
+      for (const candidate of candidates.orca) {
+        const response = await runView(baseUrl, view.protocolId, view.operationId, { pool: candidate.pool }, 1);
+        if (Array.isArray(response.items) && response.items.length > 0) {
+          return {
+            input: formatJson({ pool: candidate.pool }),
+            limit: defaultLimitForView(view),
+          };
+        }
+      }
+      const fallback = candidates.orca[0];
+      if (!fallback) {
+        return null;
+      }
       return {
-        input: formatJson({
-          pool: seed.pool,
-        }),
+        input: formatJson({ pool: fallback.pool }),
         limit: defaultLimitForView(view),
       };
     }
   }
 
   return null;
-}
-
-async function fetchIndexedSampleSeeds(baseUrl: string): Promise<ExplorerSampleMap> {
-  const headers = { 'content-type': 'application/json' };
-  const [pumpResponse, orcaResponse] = await Promise.all([
-    fetch(`${baseUrl}/view-run`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        protocol_id: 'pump-amm-mainnet',
-        operation_id: 'list_tokens',
-        input: {
-          quote_mint: 'So11111111111111111111111111111111111111112',
-          min_last_seen_slot: '0',
-        },
-        limit: 1,
-      }),
-    }),
-    fetch(`${baseUrl}/view-run`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        protocol_id: 'orca-whirlpool-mainnet',
-        operation_id: 'list_pools',
-        input: {
-          token_in_mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-          token_out_mint: 'So11111111111111111111111111111111111111112',
-        },
-        limit: 1,
-      }),
-    }),
-  ]);
-
-  const seeds: ExplorerSampleMap = {};
-
-  if (pumpResponse.ok) {
-    const pumpBody = (await pumpResponse.json()) as ViewRunResponse;
-    const item = Array.isArray(pumpBody.items) ? pumpBody.items[0] as Record<string, unknown> | undefined : undefined;
-    if (item && typeof item.pool === 'string' && typeof item.baseMint === 'string' && typeof item.quoteMint === 'string') {
-      seeds['pump-amm-mainnet'] = {
-        protocolId: 'pump-amm-mainnet',
-        pool: item.pool,
-        mint: item.baseMint,
-        quoteMint: item.quoteMint,
-      };
-    }
-  }
-
-  if (orcaResponse.ok) {
-    const orcaBody = (await orcaResponse.json()) as ViewRunResponse;
-    const item = Array.isArray(orcaBody.items) ? orcaBody.items[0] as Record<string, unknown> | undefined : undefined;
-    if (item && typeof item.whirlpool === 'string' && typeof item.tokenMintA === 'string' && typeof item.tokenMintB === 'string') {
-      seeds['orca-whirlpool-mainnet'] = {
-        protocolId: 'orca-whirlpool-mainnet',
-        pool: item.whirlpool,
-        tokenMintA: item.tokenMintA,
-        tokenMintB: item.tokenMintB,
-      };
-    }
-  }
-
-  return seeds;
 }
 
 export function ViewExplorerTab({ viewApiBaseUrl }: ViewExplorerTabProps) {
@@ -274,7 +304,7 @@ export function ViewExplorerTab({ viewApiBaseUrl }: ViewExplorerTabProps) {
   const [result, setResult] = useState<ViewRunResponse | null>(null);
   const [isHealthLoading, setIsHealthLoading] = useState(false);
   const [isRunLoading, setIsRunLoading] = useState(false);
-  const [sampleSeeds, setSampleSeeds] = useState<ExplorerSampleMap>({});
+  const [indexedCandidates, setIndexedCandidates] = useState<ExplorerCandidates>({ pump: [], orca: [] });
 
   const trimmedBaseUrl = useMemo(() => viewApiBaseUrl.trim().replace(/\/+$/, ''), [viewApiBaseUrl]);
 
@@ -328,20 +358,20 @@ export function ViewExplorerTab({ viewApiBaseUrl }: ViewExplorerTabProps) {
           return a.operationLabel.localeCompare(b.operationLabel);
         });
 
-        const seeds = await fetchIndexedSampleSeeds(trimmedBaseUrl);
+        const candidates = await fetchIndexedCandidates(trimmedBaseUrl);
 
         if (cancelled) {
           return;
         }
         setCatalog(loaded);
-        setSampleSeeds(seeds);
+        setIndexedCandidates(candidates);
         const first = loaded[0] ?? null;
         if (first) {
           const key = `${first.protocolId}::${first.operationId}`;
           setSelectedViewKey((current) => current ?? key);
           setProtocolId((current) => current || first.protocolId);
           setOperationId((current) => current || first.operationId);
-          const sample = buildIndexedSample(first, seeds);
+          const sample = await resolveRunnableSample(trimmedBaseUrl, first, candidates);
           const fallback = fallbackPreset(first);
           setInputText((current) => (current === '{}' ? (sample?.input ?? fallback.input) : current));
           setLimitText((current) => (current === '20' ? (sample?.limit ?? fallback.limit) : current));
@@ -382,18 +412,26 @@ export function ViewExplorerTab({ viewApiBaseUrl }: ViewExplorerTabProps) {
     [catalog, selectedViewKey],
   );
 
-  const applySelectedView = (view: ExplorerView) => {
+  const applySelectedView = async (view: ExplorerView) => {
     const key = `${view.protocolId}::${view.operationId}`;
     setSelectedViewKey(key);
     setProtocolId(view.protocolId);
     setOperationId(view.operationId);
-    const sample = buildIndexedSample(view, sampleSeeds);
     const fallback = fallbackPreset(view);
-    setInputText(sample?.input ?? fallback.input);
-    setLimitText(sample?.limit ?? fallback.limit);
+    setInputText(fallback.input);
+    setLimitText(fallback.limit);
     setResult(null);
     setResultText(null);
     setErrorText(null);
+    try {
+      const sample = await resolveRunnableSample(trimmedBaseUrl, view, indexedCandidates);
+      if (sample) {
+        setInputText(sample.input);
+        setLimitText(sample.limit);
+      }
+    } catch {
+      // Keep fallback input if live sample resolution fails.
+    }
   };
 
   const handleHealthCheck = async () => {
