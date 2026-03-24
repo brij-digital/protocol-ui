@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { VIEW_PLAYGROUND_PRESETS, VIEW_SCENARIOS, type ViewScenarioDefinition } from '../viewModels';
-import { ViewScenarioTab } from './ViewScenarioTab';
+import { VIEW_PLAYGROUND_PRESETS } from '../viewModels';
 
 type ViewExplorerTabProps = {
   viewApiBaseUrl: string;
@@ -93,10 +92,6 @@ function summarizeValue(value: unknown): string {
   return formatJson(value);
 }
 
-function labelForScenario(scenario: ViewScenarioDefinition): string {
-  return `${scenario.title} · ${scenario.protocolId}`;
-}
-
 export function ViewExplorerTab({ viewApiBaseUrl }: ViewExplorerTabProps) {
   const [catalog, setCatalog] = useState<ExplorerView[]>([]);
   const [catalogError, setCatalogError] = useState<string | null>(null);
@@ -113,7 +108,6 @@ export function ViewExplorerTab({ viewApiBaseUrl }: ViewExplorerTabProps) {
   const [result, setResult] = useState<ViewRunResponse | null>(null);
   const [isHealthLoading, setIsHealthLoading] = useState(false);
   const [isRunLoading, setIsRunLoading] = useState(false);
-  const [activeScenarioId, setActiveScenarioId] = useState(VIEW_SCENARIOS[0]?.id ?? '');
 
   const trimmedBaseUrl = useMemo(() => viewApiBaseUrl.trim().replace(/\/+$/, ''), [viewApiBaseUrl]);
 
@@ -215,11 +209,6 @@ export function ViewExplorerTab({ viewApiBaseUrl }: ViewExplorerTabProps) {
   const selectedView = useMemo(
     () => catalog.find((view) => `${view.protocolId}::${view.operationId}` === selectedViewKey) ?? null,
     [catalog, selectedViewKey],
-  );
-
-  const activeScenario = useMemo(
-    () => VIEW_SCENARIOS.find((scenario) => scenario.id === activeScenarioId) ?? VIEW_SCENARIOS[0] ?? null,
-    [activeScenarioId],
   );
 
   const applySelectedView = (view: ExplorerView) => {
@@ -440,26 +429,6 @@ export function ViewExplorerTab({ viewApiBaseUrl }: ViewExplorerTabProps) {
             ) : (
               <p className="view-playground-empty">Run a view to inspect items here.</p>
             )}
-          </section>
-
-          <section className="view-explorer-panel">
-            <div className="view-explorer-panel-header">
-              <h3>Featured Pages</h3>
-              <span>Protocol-shaped demos on top of the same indexed views</span>
-            </div>
-            <div className="view-explorer-featured-tabs">
-              {VIEW_SCENARIOS.map((scenario) => (
-                <button
-                  key={scenario.id}
-                  type="button"
-                  className={scenario.id === activeScenarioId ? 'active' : ''}
-                  onClick={() => setActiveScenarioId(scenario.id)}
-                >
-                  {labelForScenario(scenario)}
-                </button>
-              ))}
-            </div>
-            {activeScenario ? <ViewScenarioTab key={activeScenario.id} viewApiBaseUrl={trimmedBaseUrl} scenario={activeScenario} /> : null}
           </section>
 
           <section className="view-explorer-panel">
