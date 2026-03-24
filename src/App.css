@@ -1137,6 +1137,11 @@
   color: #9a4a03;
 }
 
+.view-actionable-badge.neutral {
+  background: #edf3ff;
+  color: #2450a6;
+}
+
 .view-actionable-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -1180,6 +1185,54 @@
   border-radius: 999px;
   padding: 0.2rem 0.5rem;
   font-size: 0.78rem;
+}
+
+.view-actionable-checks {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.view-actionable-check {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.35rem 0.6rem;
+  align-items: center;
+}
+
+.view-actionable-check span {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #4c6387;
+  font-size: 0.82rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.view-check-status {
+  justify-self: start;
+  border-radius: 999px;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.74rem;
+  border: 1px solid #d5deef;
+  background: #f3f7ff;
+}
+
+.view-check-status.ok {
+  background: #e9f8ef;
+  border-color: #b8e5c7;
+  color: #1f7a40;
+}
+
+.view-check-status.watch {
+  background: #fff7e7;
+  border-color: #ffd89b;
+  color: #8a5a00;
+}
+
+.view-check-status.warn {
+  background: #fff0f0;
+  border-color: #f0c5c5;
+  color: #a33232;
 }
 
 .view-actionable-actions {

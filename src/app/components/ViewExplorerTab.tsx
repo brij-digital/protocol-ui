@@ -107,6 +107,13 @@ type ActionableViewItem = {
   marketCapQuote?: number | null;
   latestTradeAt?: string | null;
   warnings?: string[];
+  checks?: Array<{
+    code?: string;
+    label?: string;
+    status?: string;
+    value?: number | string | null;
+    value_ms?: number | null;
+  }>;
   actionContext?: Record<string, unknown>;
 };
 
@@ -246,8 +253,7 @@ async function resolveRunnableSample(
           continue;
         }
         const score =
-          (firstItem.tradeable ? 100 : 0)
-          + ((typeof firstItem.confidenceScore === 'number' ? firstItem.confidenceScore : 0) * 50)
+          ((typeof firstItem.confidenceScore === 'number' ? firstItem.confidenceScore : 0) * 50)
           + (typeof firstItem.liquidityQuote === 'number' ? Math.min(firstItem.liquidityQuote, 250) : 0)
           + (typeof firstItem.volume24hQuote === 'number' ? Math.min(firstItem.volume24hQuote, 250) : 0)
           - ((Array.isArray(firstItem.warnings) ? firstItem.warnings.length : 0) * 15);
@@ -414,6 +420,7 @@ function renderItemPreview(item: unknown, index: number) {
   }
 
   const warnings = Array.isArray(item.warnings) ? item.warnings : [];
+  const checks = Array.isArray(item.checks) ? item.checks : [];
   const actions = item.actionContext && typeof item.actionContext === 'object'
     ? Object.entries(item.actionContext)
     : [];
@@ -422,11 +429,11 @@ function renderItemPreview(item: unknown, index: number) {
     <article key={index} className="view-result-card view-result-card-actionable">
       <div className="view-actionable-head">
         <div>
-          <strong>{item.tradeable ? 'Tradeable Context' : 'Context Needs Caution'}</strong>
-          <span>{item.summary ?? 'Action-oriented Pump context built from indexed state.'}</span>
+          <strong>Execution Context</strong>
+          <span>{item.summary ?? 'Indexed execution context built from snapshot, stats, and recent trades.'}</span>
         </div>
-        <div className={item.tradeable ? 'view-actionable-badge good' : 'view-actionable-badge warn'}>
-          {item.tradeable ? 'tradeable' : 'restricted'}
+        <div className="view-actionable-badge neutral">
+          {item.confidence ?? 'unknown'} confidence
         </div>
       </div>
 
@@ -442,7 +449,30 @@ function renderItemPreview(item: unknown, index: number) {
       </div>
 
       <div className="view-actionable-section">
-        <span>Warnings</span>
+        <span>State Checks</span>
+        {checks.length > 0 ? (
+          <div className="view-actionable-checks">
+            {checks.map((check, checkIndex) => (
+              <div key={`${check.code ?? 'check'}-${checkIndex}`} className="view-actionable-check">
+                <strong>{check.label ?? check.code ?? 'check'}</strong>
+                <code className={`view-check-status ${check.status ?? 'unknown'}`}>{check.status ?? 'unknown'}</code>
+                <span>
+                  {typeof check.value_ms === 'number'
+                    ? `${check.value_ms} ms`
+                    : check.value == null
+                      ? 'n/a'
+                      : String(check.value)}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <strong>No explicit checks</strong>
+        )}
+      </div>
+
+      <div className="view-actionable-section">
+        <span>Warning Codes</span>
         {warnings.length > 0 ? (
           <div className="view-actionable-tags">
             {warnings.map((warning) => <code key={warning}>{warning}</code>)}
