@@ -6,6 +6,7 @@ import { listSupportedTokens } from './constants/tokens';
 import { BuilderTab } from './app/components/BuilderTab';
 import { CommandTab } from './app/components/CommandTab';
 import { ComputeDevTab } from './app/components/ComputeDevTab';
+import { TradingViewTestTab } from './app/components/TradingViewTestTab';
 import { ViewExplorerTab } from './app/components/ViewExplorerTab';
 import { ViewPlaygroundTab } from './app/components/ViewPlaygroundTab';
 import { useBuilderController } from './app/useBuilderController';
@@ -19,7 +20,7 @@ const VIEW_API_BASE_URL = String(import.meta.env.VITE_VIEW_API_BASE_URL ?? DEFAU
 const QUICK_PREFILL_META_RUN_COMMAND =
   '/meta-run orca-whirlpool-mainnet swap_exact_in {"token_in_mint":"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v","token_out_mint":"So11111111111111111111111111111111111111112","amount_in":"10000","slippage_bps":50,"estimated_out":"100000","whirlpool":"Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE","unwrap_sol_output":true} --simulate';
 
-type AppTab = 'apps' | 'raw' | 'command' | 'compute' | 'views' | 'scenario';
+type AppTab = 'apps' | 'raw' | 'command' | 'compute' | 'views' | 'scenario' | 'tv';
 
 function App() {
   const { connection } = useConnection();
@@ -208,6 +209,15 @@ function App() {
           >
             Views
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'tv'}
+            className={activeTab === 'tv' ? 'active' : ''}
+            onClick={() => setActiveTab('tv')}
+          >
+            TradingView
+          </button>
         </div>
 
         {activeTab === 'command' ? (
@@ -223,6 +233,8 @@ function App() {
           <ComputeDevTab isWorking={isWorking} />
         ) : activeTab === 'scenario' ? (
           <ViewExplorerTab viewApiBaseUrl={VIEW_API_BASE_URL} />
+        ) : activeTab === 'tv' ? (
+          <TradingViewTestTab viewApiBaseUrl={VIEW_API_BASE_URL} />
         ) : activeTab === 'views' ? (
           <ViewPlaygroundTab viewApiBaseUrl={VIEW_API_BASE_URL} />
         ) : (
