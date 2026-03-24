@@ -216,14 +216,29 @@ async function resolveRunnableSample(
     }
 
     if (['pool_snapshot', 'stat_cards', 'market_cap_series', 'trade_feed'].includes(view.operationId)) {
+      let bestCandidate: { pool: string; count: number } | null = null;
       for (const candidate of candidates.pump) {
-        const response = await runView(baseUrl, view.protocolId, view.operationId, { pool: candidate.pool }, 1);
-        if (Array.isArray(response.items) && response.items.length > 0) {
+        const sampleLimit = view.operationId === 'market_cap_series' ? 20 : 1;
+        const response = await runView(baseUrl, view.protocolId, view.operationId, { pool: candidate.pool }, sampleLimit);
+        const itemCount = Array.isArray(response.items) ? response.items.length : 0;
+        if (view.operationId === 'market_cap_series') {
+          if (!bestCandidate || itemCount > bestCandidate.count) {
+            bestCandidate = { pool: candidate.pool, count: itemCount };
+          }
+          continue;
+        }
+        if (itemCount > 0) {
           return {
             input: formatJson({ pool: candidate.pool }),
             limit: defaultLimitForView(view),
           };
         }
+      }
+      if (view.operationId === 'market_cap_series' && bestCandidate?.count) {
+        return {
+          input: formatJson({ pool: bestCandidate.pool }),
+          limit: defaultLimitForView(view),
+        };
       }
       const fallback = candidates.pump[0];
       if (!fallback) {
@@ -265,14 +280,29 @@ async function resolveRunnableSample(
     }
 
     if (['pool_snapshot', 'stat_cards', 'market_cap_series', 'trade_feed'].includes(view.operationId)) {
+      let bestCandidate: { pool: string; count: number } | null = null;
       for (const candidate of candidates.orca) {
-        const response = await runView(baseUrl, view.protocolId, view.operationId, { pool: candidate.pool }, 1);
-        if (Array.isArray(response.items) && response.items.length > 0) {
+        const sampleLimit = view.operationId === 'market_cap_series' ? 20 : 1;
+        const response = await runView(baseUrl, view.protocolId, view.operationId, { pool: candidate.pool }, sampleLimit);
+        const itemCount = Array.isArray(response.items) ? response.items.length : 0;
+        if (view.operationId === 'market_cap_series') {
+          if (!bestCandidate || itemCount > bestCandidate.count) {
+            bestCandidate = { pool: candidate.pool, count: itemCount };
+          }
+          continue;
+        }
+        if (itemCount > 0) {
           return {
             input: formatJson({ pool: candidate.pool }),
             limit: defaultLimitForView(view),
           };
         }
+      }
+      if (view.operationId === 'market_cap_series' && bestCandidate?.count) {
+        return {
+          input: formatJson({ pool: bestCandidate.pool }),
+          limit: defaultLimitForView(view),
+        };
       }
       const fallback = candidates.orca[0];
       if (!fallback) {
