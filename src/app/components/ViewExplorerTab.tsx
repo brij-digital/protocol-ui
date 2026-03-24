@@ -535,7 +535,6 @@ export function ViewExplorerTab({ viewApiBaseUrl }: ViewExplorerTabProps) {
                 <div><span>Protocol</span><strong>{selectedView.protocolId}</strong></div>
                 <div><span>Operation</span><strong>{selectedView.operationId}</strong></div>
                 <div><span>Kind</span><strong>{selectedView.kind}</strong></div>
-                <div><span>Source</span><strong>{selectedView.source}</strong></div>
                 <div><span>Entity Type</span><strong>{selectedView.entityType ?? '—'}</strong></div>
                 <div><span>Commands</span><strong>{selectedView.supportedCommands.join(', ') || '—'}</strong></div>
               </div>
