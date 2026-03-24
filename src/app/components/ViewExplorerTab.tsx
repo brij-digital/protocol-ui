@@ -78,6 +78,24 @@ type ViewRunResponse = {
   error?: string;
 };
 
+type ExplorerSampleSeed =
+  | {
+      protocolId: 'pump-amm-mainnet';
+      mint: string;
+      pool: string;
+      quoteMint: string;
+    }
+  | {
+      protocolId: 'orca-whirlpool-mainnet';
+      pool: string;
+      tokenMintA: string;
+      tokenMintB: string;
+    };
+
+type ExplorerSampleMap = Partial<Record<'pump-amm-mainnet' | 'orca-whirlpool-mainnet', ExplorerSampleSeed>>;
+
+const INDEXED_PROTOCOL_IDS = new Set(['pump-amm-mainnet', 'orca-whirlpool-mainnet']);
+
 function formatJson(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
@@ -90,6 +108,155 @@ function summarizeValue(value: unknown): string {
     return String(value);
   }
   return formatJson(value);
+}
+
+function fallbackPreset(view: ExplorerView): { input: string; limit: string } {
+  const preset = VIEW_PLAYGROUND_PRESETS.find((entry) => entry.protocolId === view.protocolId && entry.operationId === view.operationId);
+  return {
+    input: preset?.input ?? '{}',
+    limit: preset?.limit ?? '20',
+  };
+}
+
+function defaultLimitForView(view: ExplorerView): string {
+  if (view.operationId === 'resolve_pool' || view.operationId === 'pool_snapshot' || view.operationId === 'stat_cards') {
+    return '1';
+  }
+  if (view.operationId === 'trade_feed' || view.operationId === 'market_cap_series' || view.operationId === 'list_tokens' || view.operationId === 'list_pools') {
+    return '20';
+  }
+  return '20';
+}
+
+function buildIndexedSample(view: ExplorerView, sampleSeeds: ExplorerSampleMap): { input: string; limit: string } | null {
+  if (view.protocolId === 'pump-amm-mainnet') {
+    const seed = sampleSeeds['pump-amm-mainnet'];
+    if (!seed || seed.protocolId !== 'pump-amm-mainnet') {
+      return null;
+    }
+    if (view.operationId === 'list_tokens') {
+      return {
+        input: formatJson({
+          quote_mint: seed.quoteMint,
+          min_last_seen_slot: '0',
+        }),
+        limit: defaultLimitForView(view),
+      };
+    }
+    if (view.operationId === 'resolve_pool') {
+      return {
+        input: formatJson({
+          mint: seed.mint,
+          quote_mint: seed.quoteMint,
+        }),
+        limit: '1',
+      };
+    }
+    if (['pool_snapshot', 'stat_cards', 'market_cap_series', 'trade_feed'].includes(view.operationId)) {
+      return {
+        input: formatJson({
+          pool: seed.pool,
+        }),
+        limit: defaultLimitForView(view),
+      };
+    }
+  }
+
+  if (view.protocolId === 'orca-whirlpool-mainnet') {
+    const seed = sampleSeeds['orca-whirlpool-mainnet'];
+    if (!seed || seed.protocolId !== 'orca-whirlpool-mainnet') {
+      return null;
+    }
+    if (view.operationId === 'list_pools') {
+      return {
+        input: formatJson({
+          token_in_mint: seed.tokenMintB,
+          token_out_mint: seed.tokenMintA,
+        }),
+        limit: defaultLimitForView(view),
+      };
+    }
+    if (view.operationId === 'resolve_pool') {
+      return {
+        input: formatJson({
+          pool: seed.pool,
+        }),
+        limit: '1',
+      };
+    }
+    if (['pool_snapshot', 'stat_cards', 'market_cap_series', 'trade_feed'].includes(view.operationId)) {
+      return {
+        input: formatJson({
+          pool: seed.pool,
+        }),
+        limit: defaultLimitForView(view),
+      };
+    }
+  }
+
+  return null;
+}
+
+async function fetchIndexedSampleSeeds(baseUrl: string): Promise<ExplorerSampleMap> {
+  const headers = { 'content-type': 'application/json' };
+  const [pumpResponse, orcaResponse] = await Promise.all([
+    fetch(`${baseUrl}/view-run`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        protocol_id: 'pump-amm-mainnet',
+        operation_id: 'list_tokens',
+        input: {
+          quote_mint: 'So11111111111111111111111111111111111111112',
+          min_last_seen_slot: '0',
+        },
+        limit: 1,
+      }),
+    }),
+    fetch(`${baseUrl}/view-run`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        protocol_id: 'orca-whirlpool-mainnet',
+        operation_id: 'list_pools',
+        input: {
+          token_in_mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+          token_out_mint: 'So11111111111111111111111111111111111111112',
+        },
+        limit: 1,
+      }),
+    }),
+  ]);
+
+  const seeds: ExplorerSampleMap = {};
+
+  if (pumpResponse.ok) {
+    const pumpBody = (await pumpResponse.json()) as ViewRunResponse;
+    const item = Array.isArray(pumpBody.items) ? pumpBody.items[0] as Record<string, unknown> | undefined : undefined;
+    if (item && typeof item.pool === 'string' && typeof item.baseMint === 'string' && typeof item.quoteMint === 'string') {
+      seeds['pump-amm-mainnet'] = {
+        protocolId: 'pump-amm-mainnet',
+        pool: item.pool,
+        mint: item.baseMint,
+        quoteMint: item.quoteMint,
+      };
+    }
+  }
+
+  if (orcaResponse.ok) {
+    const orcaBody = (await orcaResponse.json()) as ViewRunResponse;
+    const item = Array.isArray(orcaBody.items) ? orcaBody.items[0] as Record<string, unknown> | undefined : undefined;
+    if (item && typeof item.whirlpool === 'string' && typeof item.tokenMintA === 'string' && typeof item.tokenMintB === 'string') {
+      seeds['orca-whirlpool-mainnet'] = {
+        protocolId: 'orca-whirlpool-mainnet',
+        pool: item.whirlpool,
+        tokenMintA: item.tokenMintA,
+        tokenMintB: item.tokenMintB,
+      };
+    }
+  }
+
+  return seeds;
 }
 
 export function ViewExplorerTab({ viewApiBaseUrl }: ViewExplorerTabProps) {
@@ -108,6 +275,7 @@ export function ViewExplorerTab({ viewApiBaseUrl }: ViewExplorerTabProps) {
   const [result, setResult] = useState<ViewRunResponse | null>(null);
   const [isHealthLoading, setIsHealthLoading] = useState(false);
   const [isRunLoading, setIsRunLoading] = useState(false);
+  const [sampleSeeds, setSampleSeeds] = useState<ExplorerSampleMap>({});
 
   const trimmedBaseUrl = useMemo(() => viewApiBaseUrl.trim().replace(/\/+$/, ''), [viewApiBaseUrl]);
 
@@ -125,6 +293,9 @@ export function ViewExplorerTab({ viewApiBaseUrl }: ViewExplorerTabProps) {
         const loaded: ExplorerView[] = [];
 
         for (const protocol of registry.protocols ?? []) {
+          if (!INDEXED_PROTOCOL_IDS.has(protocol.id)) {
+            continue;
+          }
           const metaPath = protocol.metaCorePath ?? protocol.metaPath;
           if (!metaPath) {
             continue;
@@ -159,21 +330,23 @@ export function ViewExplorerTab({ viewApiBaseUrl }: ViewExplorerTabProps) {
           return a.operationLabel.localeCompare(b.operationLabel);
         });
 
+        const seeds = await fetchIndexedSampleSeeds(trimmedBaseUrl);
+
         if (cancelled) {
           return;
         }
         setCatalog(loaded);
+        setSampleSeeds(seeds);
         const first = loaded[0] ?? null;
         if (first) {
           const key = `${first.protocolId}::${first.operationId}`;
           setSelectedViewKey((current) => current ?? key);
           setProtocolId((current) => current || first.protocolId);
           setOperationId((current) => current || first.operationId);
-          const preset = VIEW_PLAYGROUND_PRESETS.find((entry) => entry.protocolId === first.protocolId && entry.operationId === first.operationId);
-          if (preset) {
-            setInputText((current) => (current === '{}' ? preset.input : current));
-            setLimitText((current) => (current === '20' ? preset.limit : current));
-          }
+          const sample = buildIndexedSample(first, seeds);
+          const fallback = fallbackPreset(first);
+          setInputText((current) => (current === '{}' ? (sample?.input ?? fallback.input) : current));
+          setLimitText((current) => (current === '20' ? (sample?.limit ?? fallback.limit) : current));
         }
       } catch (error) {
         if (!cancelled) {
@@ -189,7 +362,7 @@ export function ViewExplorerTab({ viewApiBaseUrl }: ViewExplorerTabProps) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [trimmedBaseUrl]);
 
   const protocols = useMemo(() => {
     const map = new Map<string, string>();
@@ -216,9 +389,10 @@ export function ViewExplorerTab({ viewApiBaseUrl }: ViewExplorerTabProps) {
     setSelectedViewKey(key);
     setProtocolId(view.protocolId);
     setOperationId(view.operationId);
-    const preset = VIEW_PLAYGROUND_PRESETS.find((entry) => entry.protocolId === view.protocolId && entry.operationId === view.operationId);
-    setInputText(preset?.input ?? '{}');
-    setLimitText(preset?.limit ?? '20');
+    const sample = buildIndexedSample(view, sampleSeeds);
+    const fallback = fallbackPreset(view);
+    setInputText(sample?.input ?? fallback.input);
+    setLimitText(sample?.limit ?? fallback.limit);
     setResult(null);
     setResultText(null);
     setErrorText(null);
@@ -376,6 +550,11 @@ export function ViewExplorerTab({ viewApiBaseUrl }: ViewExplorerTabProps) {
               <h3>Query Runner</h3>
               <span>{protocolId && operationId ? `${protocolId} / ${operationId}` : 'Ready'}</span>
             </div>
+            {selectedView ? (
+              <p className="view-playground-info">
+                Default input is seeded from currently indexed {selectedView.protocolLabel} data when available.
+              </p>
+            ) : null}
             <form className="view-playground-form" onSubmit={handleRun}>
               <label>
                 Protocol ID
