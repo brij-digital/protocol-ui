@@ -273,7 +273,6 @@ export function TradingViewTestTab({ viewApiBaseUrl }: TradingViewTestTabProps) 
         borderDownColor: '#c64545',
         wickUpColor: '#2e8b57',
         wickDownColor: '#c64545',
-        priceLineVisible: true,
         lastValueVisible: true,
       });
       candleSeriesRef.current = candleSeries;
