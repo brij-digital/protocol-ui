@@ -6,6 +6,7 @@ import { listSupportedTokens } from './constants/tokens';
 import { BuilderTab } from './app/components/BuilderTab';
 import { CommandTab } from './app/components/CommandTab';
 import { ComputeDevTab } from './app/components/ComputeDevTab';
+import { PumpWorkspaceTab } from './app/components/PumpWorkspaceTab';
 import { TradingViewTestTab } from './app/components/TradingViewTestTab';
 import { ViewExplorerTab } from './app/components/ViewExplorerTab';
 import { ViewPlaygroundTab } from './app/components/ViewPlaygroundTab';
@@ -20,7 +21,7 @@ const VIEW_API_BASE_URL = String(import.meta.env.VITE_VIEW_API_BASE_URL ?? DEFAU
 const QUICK_PREFILL_META_RUN_COMMAND =
   '/meta-run orca-whirlpool-mainnet swap_exact_in {"token_in_mint":"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v","token_out_mint":"So11111111111111111111111111111111111111112","amount_in":"10000","slippage_bps":50,"estimated_out":"100000","whirlpool":"Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE","unwrap_sol_output":true} --simulate';
 
-type AppTab = 'apps' | 'raw' | 'command' | 'compute' | 'views' | 'scenario' | 'tv';
+type AppTab = 'apps' | 'raw' | 'command' | 'compute' | 'views' | 'pump' | 'tv' | 'explorer';
 
 function App() {
   const { connection } = useConnection();
@@ -194,11 +195,11 @@ function App() {
           <button
             type="button"
             role="tab"
-            aria-selected={activeTab === 'scenario'}
-            className={activeTab === 'scenario' ? 'active' : ''}
-            onClick={() => setActiveTab('scenario')}
+            aria-selected={activeTab === 'pump'}
+            className={activeTab === 'pump' ? 'active' : ''}
+            onClick={() => setActiveTab('pump')}
           >
-            Explorer
+            Pump
           </button>
           <button
             type="button"
@@ -218,6 +219,15 @@ function App() {
           >
             TradingView
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'explorer'}
+            className={activeTab === 'explorer' ? 'active' : ''}
+            onClick={() => setActiveTab('explorer')}
+          >
+            Explorer
+          </button>
         </div>
 
         {activeTab === 'command' ? (
@@ -231,7 +241,9 @@ function App() {
           />
         ) : activeTab === 'compute' ? (
           <ComputeDevTab isWorking={isWorking} />
-        ) : activeTab === 'scenario' ? (
+        ) : activeTab === 'pump' ? (
+          <PumpWorkspaceTab viewApiBaseUrl={VIEW_API_BASE_URL} />
+        ) : activeTab === 'explorer' ? (
           <ViewExplorerTab viewApiBaseUrl={VIEW_API_BASE_URL} />
         ) : activeTab === 'tv' ? (
           <TradingViewTestTab viewApiBaseUrl={VIEW_API_BASE_URL} />
