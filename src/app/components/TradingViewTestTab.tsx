@@ -130,7 +130,16 @@ export function TradingViewTestTab({ viewApiBaseUrl }: TradingViewTestTabProps) 
     setStatusText(null);
     try {
       const now = Math.floor(Date.now() / 1000);
-      const lookbackSeconds = resolution === '1D' ? 90 * 24 * 60 * 60 : resolution === '60' ? 7 * 24 * 60 * 60 : 6 * 60 * 60;
+      const lookbackSeconds =
+        resolution === '1'
+          ? 24 * 60 * 60
+          : resolution === '5'
+            ? 3 * 24 * 60 * 60
+            : resolution === '15'
+              ? 7 * 24 * 60 * 60
+              : resolution === '60'
+                ? 14 * 24 * 60 * 60
+                : 90 * 24 * 60 * 60;
       const from = now - lookbackSeconds;
       const historyEndpoint = buildHistoryUrl(viewApiBaseUrl, symbol, resolution, from, now);
       const symbolEndpoint = buildSymbolUrl(viewApiBaseUrl, symbol);
