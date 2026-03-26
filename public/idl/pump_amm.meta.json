@@ -1186,13 +1186,14 @@
           "max_staleness_ms": 20000
         },
         "canonical": {
-          "source": "indexed_entity_state",
+          "source": "indexed_idl_state",
           "protocol_id": "pump-amm-mainnet",
-          "entity_type": "market",
-          "entity_input": "mint",
-          "entity_field": "entity_id",
+          "record_kind": "account",
+          "record_name": ["Pool", "BondingCurve"],
+          "subject_input": "mint",
+          "subject_field": "subject_id",
           "resource_field": "resource_id",
-          "notes": "Resolve a mint to its current canonical market state row."
+          "notes": "Resolve a mint to its current projected state derived from IDL-native records."
         },
         "entity_type": "pump_pool",
         "title": "Resolve pool",
@@ -1302,12 +1303,13 @@
           "max_staleness_ms": 10000
         },
         "canonical": {
-          "source": "indexed_entity_state",
+          "source": "indexed_idl_state",
           "protocol_id": "pump-amm-mainnet",
-          "entity_type": "market",
+          "record_kind": "account",
+          "record_name": ["Pool", "BondingCurve"],
           "resource_input": "pool",
           "resource_field": "resource_id",
-          "notes": "Read the latest canonical market state row by pool/resource id."
+          "notes": "Read the latest projected state row by pool/resource id."
         },
         "entity_type": "pump_pool",
         "title": "Pool snapshot",
@@ -1353,14 +1355,14 @@
           "max_staleness_ms": 5000
         },
         "canonical": {
-          "source": "indexed_events",
+          "source": "indexed_idl_records",
           "protocol_id": "pump-amm-mainnet",
-          "entity_type": "market",
-          "event_type": "trade",
+          "record_kind": "event",
+          "record_name": ["BuyEvent", "SellEvent", "TradeEvent"],
           "resource_input": "pool",
           "resource_field": "resource_id",
           "time_field": "event_time",
-          "notes": "Recent trade events from the canonical append-only event log."
+          "notes": "Recent trade records from the canonical append-only IDL record log."
         },
         "entity_type": "pump_trade",
         "title": "Trade feed",
@@ -1416,12 +1418,11 @@
         "canonical": {
           "source": "indexed_series_1m",
           "protocol_id": "pump-amm-mainnet",
-          "entity_type": "market",
           "series_id": "pump.market.1m",
+          "subject_field": "subject_id",
           "resource_input": "pool",
-          "resource_field": "resource_id",
           "time_field": "bucket_start",
-          "notes": "Canonical 1m market series with rollups and optional dense fill in the runner."
+          "notes": "Canonical 1m market series projected from IDL-native trade records with rollups and optional dense fill in the runner."
         },
         "entity_type": "pump_market_cap_series",
         "title": "Market cap series",
@@ -1447,12 +1448,13 @@
           "max_staleness_ms": 30000
         },
         "canonical": {
-          "source": "indexed_entity_state",
+          "source": "indexed_idl_state",
           "protocol_id": "pump-amm-mainnet",
-          "entity_type": "market",
+          "record_kind": "account",
+          "record_name": ["Pool", "BondingCurve"],
           "resource_input": "pool",
           "resource_field": "resource_id",
-          "notes": "Stat cards are derived from canonical state plus canonical market series."
+          "notes": "Stat cards are derived from projected state plus canonical market series."
         },
         "entity_type": "pump_stat_cards",
         "title": "Stat cards",
@@ -1503,12 +1505,12 @@
           "max_staleness_ms": 60000
         },
         "canonical": {
-          "source": "indexed_events",
+          "source": "indexed_idl_records",
           "protocol_id": "pump-amm-mainnet",
-          "entity_type": "market",
-          "event_type": "trade",
+          "record_kind": "event",
+          "record_name": ["BuyEvent", "SellEvent", "TradeEvent"],
           "time_field": "event_time",
-          "notes": "Ranking is computed from canonical events joined with canonical entity state."
+          "notes": "Ranking is computed from IDL-native trade records joined with projected current state."
         },
         "entity_type": "pump_ranked_token",
         "title": "Ranked active tokens",
@@ -1557,12 +1559,13 @@
           "max_staleness_ms": 30000
         },
         "canonical": {
-          "source": "indexed_entity_state",
+          "source": "indexed_idl_state",
           "protocol_id": "pump-amm-mainnet",
-          "entity_type": "market",
-          "entity_input": "mint",
-          "entity_field": "entity_id",
-          "notes": "Trade context is composed from canonical state, canonical events, and canonical series."
+          "record_kind": "account",
+          "record_name": ["Pool", "BondingCurve"],
+          "subject_input": "mint",
+          "subject_field": "subject_id",
+          "notes": "Trade context is composed from projected state, IDL-native trade records, and canonical series."
         },
         "entity_type": "pump_trade_context",
         "title": "Token trade context",

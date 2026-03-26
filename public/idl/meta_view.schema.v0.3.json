@@ -270,16 +270,25 @@
       "properties": {
         "source": {
           "type": "string",
-          "enum": ["indexed_events", "indexed_entity_state", "indexed_series_1m"]
+          "enum": ["indexed_idl_records", "indexed_idl_state", "indexed_series_1m"]
         },
         "protocol_id": { "type": "string" },
-        "entity_type": { "type": "string" },
-        "event_type": { "type": "string" },
+        "record_kind": { "type": "string" },
+        "record_name": {
+          "oneOf": [
+            { "type": "string" },
+            {
+              "type": "array",
+              "items": { "type": "string" },
+              "minItems": 1
+            }
+          ]
+        },
         "series_id": { "type": "string" },
         "market_type": { "type": "string" },
-        "entity_input": { "type": "string" },
+        "subject_input": { "type": "string" },
         "resource_input": { "type": "string" },
-        "entity_field": { "type": "string" },
+        "subject_field": { "type": "string" },
         "resource_field": { "type": "string" },
         "time_field": { "type": "string" },
         "notes": { "type": "string" }
