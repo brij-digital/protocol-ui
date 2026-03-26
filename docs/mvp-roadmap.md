@@ -4,65 +4,68 @@
 
 ### Already In Place
 
-- Edgevana server exists and Codex is installed there.
-- Postgres, API, workers, and private RPC bootstrap are underway on the server.
-- Pump AMM and Pump Core are both implemented in the current product shape.
-- Orca materialized adapter work has started.
-- Backend watch and sync-status model exists.
-- Read-path fallbacks were intentionally removed.
+- one server is running the stack under `systemd`
+- private RPC is up and usable on the box
+- Carbon is the active Pump ingestion path
+- canonical indexed tables now exist in `apppack-view-service`
+- Pump views already read primarily from canonical tables
+- a Pump-focused UI flow exists and is useful as a temporary demo surface
 
-### Not Yet True
+### Still Not True
 
-- the 3 repos are not all green together from a fresh install
-- runtime package integration is not fully stable downstream
-- private RPC is not yet the default trusted backend path
-- Pump and Orca are not yet battle-tested enough to call “boring”
-- MVP scope is still at risk of expanding
+- the system is not yet declarative end to end
+- Pump logic still lives in protocol-specific adapter code
+- Orca is not yet migrated onto the same canonical model
+- battle-tested reliability is not yet proven
+- the 3 repos are not yet treated as one hard deployment baseline
 
 ## MVP Goal
 
-Finish a battle-testable Pump/Orca agent-readable data plane that proves one sharp wedge:
+Finish a battle-testable canonical Solana data plane for intelligent clients, proven first on Pump and then on Orca.
 
-- protocol-aware reads
-- protocol-aware action surfaces
-- honest sync state
-- server deployment
-- one clear user/demo flow
+This MVP should prove one sharp idea:
+
+- one canonical indexed contract
+- protocol-aware reads on top of it
+- execution-ready context on top of it
+- honest freshness and sync state
+- one server we actually operate ourselves
 
 This MVP is **not**:
 
-- a full marketplace
-- full autonomy
+- a marketplace
+- `x402` monetization
+- a broad AI agent platform
 - many protocols
-- broad platform polish
+- broad frontend polish
 
 ## MVP Definition
 
 A finished MVP should let us say:
 
-> We can watch a Pump or Orca market, expose stable views and execution-ready protocol context, and serve that from our own backend with honest freshness and no fake fallbacks.
+> AppPack gives intelligent clients a canonical indexed way to discover, understand, and act on Solana markets, starting with Pump and Orca.
 
-## Phase 1. Fix The Foundation
+## Phase 1. Make The 3 Repos Boring Together
 
-This comes first because the three repos must behave as a single product, and right now the runtime integration chain is not fully stable.
+This remains first. The product is the combined system, not the repos separately.
 
 ### Tasks
 
-1. Fix `apppack-runtime` packaging and export resolution.
-2. Make `ec-ai-wallet` build and test clean from a fresh install.
-3. Make `apppack-view-service` build and test clean from a fresh install.
-4. Pin and document the release/update flow across the three repos.
-5. Make “all three repos green together” a baseline gate.
+1. make `apppack-runtime` packaging and exports stable
+2. make `apppack-view-service` green from fresh install
+3. make `ec-ai-wallet` green from fresh install
+4. document the release/update flow across the repos
+5. make “all 3 repos green together” a baseline gate
 
 ### Exit Criteria
 
 - all 3 repos install from scratch
-- all tests pass
-- published runtime package works in both downstream repos
+- all relevant tests/builds pass
+- published runtime package works downstream
 
-## Phase 2. Freeze MVP Scope
+## Phase 2. Freeze The Real MVP Scope
 
-Reduce drift and stop adding side quests.
+We should stop pretending this MVP is broader than it is.
 
 ### MVP Protocols
 
@@ -70,39 +73,39 @@ Reduce drift and stop adding side quests.
 - Pump Core
 - Orca Whirlpool
 
-### MVP Surfaces
+### MVP View Families
 
 - `resolve_pool`
 - `pool_snapshot`
 - `trade_feed`
 - `market_cap_series`
 - `stat_cards`
-- one action-context style view where useful
+- `ranked_active_tokens`
+- `token_trade_context`
 
 ### Explicitly Out Of Scope
 
-- view marketplace
-- `x402` monetization
-- creator economy mechanics
+- marketplace UX
+- `x402`
 - many more protocols
 - fully autonomous agents
+- speculative abstractions not required by Pump/Orca
 
 ### Exit Criteria
 
 - written MVP scope is agreed
-- no new feature work outside this scope unless it unblocks reliability
+- new work outside this scope must clearly unblock reliability or canonicalization
 
 ## Phase 3. Stabilize The Server Stack
 
-Move from “it runs” to “it is dependable.”
+The stack must be reboot-safe and operator-friendly.
 
 ### Tasks
 
-1. Finish Edgevana server bootstrap.
-2. Keep Postgres, API, and workers under `systemd`.
-3. Verify health endpoints and service restart behavior.
-4. Document env, secrets, service units, logs, and recovery steps.
-5. Make sure Codex can operate there end-to-end.
+1. keep API, Carbon, projection workers, and DB under `systemd`
+2. verify health endpoints and restart behavior
+3. document env, units, secrets, logs, and recovery steps
+4. verify Codex can operate there end-to-end
 
 ### Exit Criteria
 
@@ -111,122 +114,118 @@ Move from “it runs” to “it is dependable.”
 - logs are readable
 - one operator can recover the system quickly
 
-## Phase 4. Make The Read Plane Honest And Boring
+## Phase 4. Canonicalize Pump End To End
 
-This is the heart of the MVP.
+This is the real center of gravity now.
 
 ### Tasks
 
-1. Keep no read-path fallbacks.
-2. Make sync states explicit:
+1. keep Carbon as low-level ingestion only
+2. write Pump events and entity state into canonical indexed tables
+3. build canonical series from canonical events
+4. serve Pump views from canonical tables only
+5. remove old Pump product tables from the primary contract
+
+### Exit Criteria
+
+- Pump views no longer depend on `pump_*` product tables
+- Carbon is not the owner of product semantics
+- canonical tables are the source of truth for Pump reads
+
+## Phase 5. Make The Read Plane Honest And Boring
+
+No fake repair, no hidden magic.
+
+### Tasks
+
+1. keep no read-path fallbacks
+2. expose freshness honestly
+3. keep sync state explicit:
    - `pending`
    - `live`
    - `catching_up`
    - `stale`
-3. Ensure watch/unwatch flow is reliable.
-4. Ensure watched resources update predictably.
-5. Tighten request latency for already-synced resources.
+4. make watched-resource behavior predictable if we keep it
+5. keep already-synced request latency tight
 
 ### Exit Criteria
 
-- loading a watched token is predictable
+- loading a known resource is predictable
 - stale state is visible, not hidden
-- no magic repair in request path
+- no magic repair in the request path
 
-## Phase 5. Harden Pump
+## Phase 6. Prove The Same Canonical Model On Orca
 
-Pump is the reference market and the current proving ground.
-
-### Tasks
-
-1. Verify Pump AMM feed/series correctness against Pump.fun.
-2. Verify Pump Core feed/series correctness against bonding-curve state.
-3. Improve ranking / active token quality only if it helps usability.
-4. Reduce false negatives in “why is this token missing?”
-5. Define a small set of canonical test tokens:
-   - active AMM
-   - active Core
-   - stale/dead
-   - recently migrated
-
-### Exit Criteria
-
-- comparison against Pump.fun is trustworthy
-- watch flow works for both AMM and Core
-- demo tokens are stable and known
-
-## Phase 6. Harden Orca
-
-Orca is the second proof that this is not just a Pump-specific system.
+Orca should prove this is not a Pump-only trick.
 
 ### Tasks
 
-1. Finish Orca materialized adapter path.
-2. Validate `resolve_pool`, snapshot, feed, series, and stat cards.
-3. Make sure the watch/status model works for Orca too.
-4. Test one or two real Orca pools repeatedly.
+1. move Orca onto the same canonical indexed contract
+2. validate `resolve_pool`, snapshot, feed, series, and stat cards
+3. test one or two real Orca pools repeatedly
+4. ensure the same mental model applies as on Pump
 
 ### Exit Criteria
 
-- the same mental model works on Pump and Orca
-- the adapter pattern is proven by two real protocols
+- Pump and Orca both work on the same canonical model
+- protocol-specific adapter logic is reduced, not expanded
 
-## Phase 7. Bring Up Private Solana RPC
+## Phase 7. Tighten Source Reliability
 
-Not as product polish. As operational leverage.
+Canonical reads are not enough if the ingestion source still drops data.
 
 ### Tasks
 
-1. Finish private non-voting RPC bootstrap.
-2. Confirm `127.0.0.1:8899` serves JSON-RPC correctly.
-3. Compare local RPC vs Helius on the actual worker paths.
-4. Decide which workloads move first:
-   - likely market ingest first
-   - then selected current-state reads later
-5. Keep Helius only where still necessary during transition.
+1. keep private RPC healthy and boring
+2. remove or reduce Carbon queue drops
+3. verify end-to-end freshness from chain to indexed views
+4. document retention and replay expectations
+5. ensure the source path does not silently lose events
 
 ### Exit Criteria
 
-- private RPC is usable
-- at least one real backend path uses it successfully
-- we understand where provider dependence still remains
+- private RPC is dependable
+- Carbon is not visibly dropping updates in normal operation
+- we understand retention and replay boundaries
 
 ## Phase 8. Improve Observability
 
-We need to know whether the system works without guessing.
+We need to know where the system is unhealthy without guessing.
 
 ### Track
 
-1. last stream event time
-2. last materialized event time
-3. watch count
-4. per-resource sync status
+1. last chain event time
+2. last indexed event time
+3. last projected series point time
+4. per-resource freshness
 5. worker restart count
-6. websocket reconnect count
-7. RPC/provider errors
-8. lag from on-chain event to UI visibility
+6. RPC/provider errors
+7. queue pressure / backlog
+8. lag from on-chain event to API visibility
 
 ### Exit Criteria
 
 - we can answer “is the system healthy?” quickly
-- we can tell whether the bottleneck is ingest, DB, or UI
+- we can tell whether the bottleneck is source, projection, DB, or UI
 
-## Phase 9. Polish The Demo UX
+## Phase 9. Keep One Honest Demo Surface
 
-Not broad UI work. Just enough to sell the story.
+Not broad UI work. Just enough to demonstrate the data plane clearly.
 
 ### Tasks
 
-1. Make the Pump workspace the clean MVP surface.
-2. Keep saved/watchlisted tokens smooth.
-3. Show sync state clearly.
-4. Keep chart/feed/trades readable.
-5. Make comparison with Pump.fun easy.
+1. keep one clean Pump-first demo flow
+2. make it easy to:
+   - discover
+   - inspect
+   - understand freshness
+   - see execution context
+3. make comparison with external reality easy when useful
 
 ### Exit Criteria
 
 - someone can open the UI and understand what the product does
-- no confusing stale or missing-data behavior
+- the UI does not hide stale or missing-data behavior
 
 ## Phase 10. Battle-Test For 2–4 Weeks
 
@@ -234,33 +233,33 @@ This is where the MVP becomes real.
 
 ### Tasks
 
-1. Run the stack continuously.
-2. Watch real tokens daily.
-3. Compare with Pump.fun and Orca reality.
-4. Restart services intentionally.
-5. Reboot the server intentionally.
-6. Test recovery from interruptions.
-7. Collect concrete failure cases.
+1. run the stack continuously
+2. watch real Pump and Orca resources daily
+3. restart services intentionally
+4. reboot the server intentionally
+5. compare indexed output with external reality
+6. collect and rank recurring failures
+7. fix the top reliability issues only
 
 ### Exit Criteria
 
-- we know the top 3 recurring failures
+- we know the top recurring failures
 - we know what breaks under stress
-- we know whether Helius dependence is still acceptable
+- we know whether the architecture is good enough to keep pushing
 
 ## Priority Order
 
 If we want the strict order:
 
-1. cross-repo packaging/build green
-2. freeze MVP scope
-3. stabilize server stack
-4. harden Pump
-5. harden Orca
-6. bring private RPC into real use
+1. three repos green together
+2. stabilize server stack
+3. canonicalize Pump end to end
+4. make the read plane honest and boring
+5. move Orca onto the same canonical model
+6. tighten source reliability
 7. observability
 8. battle-testing
-9. only after that: marketplace / `x402` expansion
+9. only after that: marketplace / `x402`
 
 ## What To Cut For Now
 
@@ -270,7 +269,7 @@ To finish the MVP, pause:
 - `x402` go-to-market work
 - too many new protocols
 - generalized “AI agent platform” messaging
-- speculative abstractions not required by Pump/Orca
+- frontend abstraction work that is not required to prove the data plane
 
 ## Deliverables Of A Finished MVP
 
@@ -278,19 +277,17 @@ By the end, we should have:
 
 1. one server running the stack reliably
 2. three repos green and synchronized
-3. Pump AMM + Core working end-to-end
-4. Orca working end-to-end
-5. honest watch/sync model
-6. one clean demo UI
+3. Pump on the canonical indexed path
+4. Orca on the same canonical indexed path
+5. honest freshness and sync-state semantics
+6. one clean demo surface
 7. one clear product statement
 
 ## Product Statement For The MVP
 
 Use something like:
 
-> AppPack gives intelligent clients a structured way to discover, read, and act on Solana protocols, starting with Pump and Orca.
-
-That is narrow enough to test and strong enough to build on.
+> AppPack gives intelligent clients a canonical indexed data plane for discovering, understanding, and acting on Solana markets, starting with Pump and Orca.
 
 ## Week-By-Week Execution Plan
 
@@ -300,60 +297,56 @@ Goal:
 - get the three repos behaving as one product again
 
 Tasks:
-1. fix `apppack-runtime` export/package resolution
-2. make `ec-ai-wallet` green from fresh install
-3. make `apppack-view-service` green from fresh install
-4. document and verify the runtime release/update flow
-5. confirm the server is on the latest intended commits
+1. fix `apppack-runtime` packaging and exports
+2. make `apppack-view-service` green from fresh install
+3. make `ec-ai-wallet` green from fresh install
+4. document and verify the release/update flow
+5. confirm the server is on the intended commits
 
 Definition of done:
 - all three repos build and test cleanly
-- no unresolved runtime import/package issues remain
+- no unresolved runtime/package issues remain
 
-### Week 2. Stabilize The Server And Pump
-
-Goal:
-- make the server stack predictable
-- make Pump trustworthy
-
-Tasks:
-1. verify `systemd` behavior for API and workers
-2. verify logs, restart behavior, and health endpoints
-3. validate Pump AMM against Pump.fun
-4. validate Pump Core against bonding-curve state
-5. define and document canonical Pump test tokens
-
-Definition of done:
-- server survives routine restarts
-- Pump read surfaces are trustworthy enough for repeated use
-
-### Week 3. Finish Orca And RPC Transition Work
+### Week 2. Canonicalize Pump
 
 Goal:
-- prove the model on a second protocol
-- move closer to owned infra
+- make Pump trustworthy on the new canonical path
 
 Tasks:
-1. finish Orca adapter validation
-2. test Orca feed/series/snapshot/stat cards on real pools
-3. continue private RPC bootstrap and verify `127.0.0.1:8899`
-4. compare Helius-backed and private-RPC-backed worker paths
-5. decide which backend workloads switch first
+1. keep Carbon writing canonical Pump events/state
+2. keep Pump series and views reading canonical tables
+3. remove remaining Pump legacy product dependencies
+4. validate Pump views against reality
+5. define canonical Pump test resources
 
 Definition of done:
-- Pump and Orca both work in the same product model
-- private RPC is usable enough for real comparison work
+- Pump reads are canonically served
+- Pump output is trustworthy enough for repeated use
 
-### Week 4. Battle-Test And Tighten
+### Week 3. Prove Orca On The Same Model
+
+Goal:
+- prove the architecture is not Pump-specific
+
+Tasks:
+1. move Orca onto the same canonical path
+2. validate Orca feed/series/snapshot/stat cards
+3. test real pools repeatedly
+4. compare behavior with Pump mental model
+
+Definition of done:
+- Pump and Orca both work on the same data-plane model
+
+### Week 4. Tighten Reliability And Battle-Test
 
 Goal:
 - make the MVP credible under real use
 
 Tasks:
-1. run the stack continuously
-2. watch real tokens/pools every day
-3. track stale/catching-up/live states
-4. test service restarts and reboot recovery
+1. reduce source drops / queue pressure
+2. improve observability
+3. run the stack continuously
+4. test restart and reboot recovery
 5. collect and rank recurring failures
 6. fix the top reliability issues only
 
@@ -366,9 +359,9 @@ Definition of done:
 
 - [ ] all 3 repos green together
 - [ ] server stack restart-safe
-- [ ] Pump AMM works end-to-end
-- [ ] Pump Core works end-to-end
-- [ ] Orca works end-to-end
-- [ ] honest sync-state UX in place
+- [ ] Pump served from the canonical indexed path
+- [ ] Orca served from the same canonical model
+- [ ] honest freshness/sync-state semantics in place
 - [ ] private RPC usable and understood
+- [ ] source reliability understood and acceptable
 - [ ] one battle-tested demo flow
