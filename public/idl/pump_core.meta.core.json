@@ -14,10 +14,74 @@
       "filters": {},
       "handlers": {
         "CreateEvent": {
-          "action": "core_create_state"
+          "action": "core_create_state",
+          "emit": {
+            "state": {
+              "recordName": "BondingCurve",
+              "payload": {
+                "mint": "$ctx.mint",
+                "pool": "$ctx.pool",
+                "marketType": "$ctx.marketType",
+                "quoteMint": "$ctx.quoteMint",
+                "baseDecimals": "$ctx.baseDecimals",
+                "quoteDecimals": "$ctx.quoteDecimals",
+                "priceQuote": "$ctx.priceQuote",
+                "marketCapQuote": "$ctx.marketCapQuote",
+                "liquidityQuote": "$ctx.liquidityQuote",
+                "baseReserveUi": "$ctx.baseReserveUi",
+                "quoteReserveUi": "$ctx.quoteReserveUi",
+                "baseSupplyUi": "$ctx.baseSupplyUi",
+                "creator": "$ctx.creator",
+                "bondingCurveProgressPct": "$ctx.bondingCurveProgressPct",
+                "complete": "$ctx.complete",
+                "observedAt": "$ctx.observedAt"
+              }
+            }
+          }
         },
         "TradeEvent": {
-          "action": "core_trade"
+          "action": "core_trade",
+          "emit": {
+            "record": {
+              "recordName": "TradeEvent",
+              "payload": {
+                "mint": "$ctx.mint",
+                "pool": "$ctx.pool",
+                "marketType": "$ctx.marketType",
+                "participant": "$ctx.participant",
+                "side": "$ctx.side",
+                "priceQuote": "$ctx.priceQuote",
+                "marketCapQuote": "$ctx.marketCapQuote",
+                "quoteAmountUi": "$ctx.quoteAmountUi",
+                "baseAmountAtomic": "$ctx.baseAmountAtomic",
+                "quoteAmountAtomic": "$ctx.quoteAmountAtomic",
+                "signature": "$ctx.signature",
+                "slot": "$ctx.slot",
+                "observedAt": "$ctx.observedAt"
+              }
+            },
+            "state": {
+              "recordName": "BondingCurve",
+              "payload": {
+                "mint": "$ctx.mint",
+                "pool": "$ctx.pool",
+                "marketType": "$ctx.marketType",
+                "quoteMint": "$ctx.quoteMint",
+                "baseDecimals": "$ctx.baseDecimals",
+                "quoteDecimals": "$ctx.quoteDecimals",
+                "priceQuote": "$ctx.priceQuote",
+                "marketCapQuote": "$ctx.marketCapQuote",
+                "liquidityQuote": "$ctx.liquidityQuote",
+                "baseReserveUi": "$ctx.baseReserveUi",
+                "quoteReserveUi": "$ctx.quoteReserveUi",
+                "baseSupplyUi": "$ctx.baseSupplyUi",
+                "creator": "$ctx.creator",
+                "bondingCurveProgressPct": "$ctx.bondingCurveProgressPct",
+                "complete": "$ctx.complete",
+                "observedAt": "$ctx.observedAt"
+              }
+            }
+          }
         }
       }
     }

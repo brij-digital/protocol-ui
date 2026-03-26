@@ -18,11 +18,91 @@
         },
         "BuyEvent": {
           "action": "amm_trade",
-          "side": "buy"
+          "side": "buy",
+          "emit": {
+            "record": {
+              "recordName": "BuyEvent",
+              "payload": {
+                "mint": "$ctx.mint",
+                "pool": "$ctx.pool",
+                "marketType": "$ctx.marketType",
+                "participant": "$ctx.participant",
+                "side": "$ctx.side",
+                "priceQuote": "$ctx.priceQuote",
+                "marketCapQuote": "$ctx.marketCapQuote",
+                "quoteAmountUi": "$ctx.quoteAmountUi",
+                "baseAmountAtomic": "$ctx.baseAmountAtomic",
+                "quoteAmountAtomic": "$ctx.quoteAmountAtomic",
+                "signature": "$ctx.signature",
+                "slot": "$ctx.slot",
+                "observedAt": "$ctx.observedAt"
+              }
+            },
+            "state": {
+              "recordName": "Pool",
+              "payload": {
+                "mint": "$ctx.mint",
+                "pool": "$ctx.pool",
+                "marketType": "$ctx.marketType",
+                "quoteMint": "$ctx.quoteMint",
+                "baseDecimals": "$ctx.baseDecimals",
+                "quoteDecimals": "$ctx.quoteDecimals",
+                "priceQuote": "$ctx.priceQuote",
+                "marketCapQuote": "$ctx.marketCapQuote",
+                "liquidityQuote": "$ctx.liquidityQuote",
+                "baseReserveUi": "$ctx.baseReserveUi",
+                "quoteReserveUi": "$ctx.quoteReserveUi",
+                "baseSupplyUi": "$ctx.baseSupplyUi",
+                "coinCreator": "$ctx.coinCreator",
+                "isCashbackCoin": "$ctx.isCashbackCoin",
+                "observedAt": "$ctx.observedAt"
+              }
+            }
+          }
         },
         "SellEvent": {
           "action": "amm_trade",
-          "side": "sell"
+          "side": "sell",
+          "emit": {
+            "record": {
+              "recordName": "SellEvent",
+              "payload": {
+                "mint": "$ctx.mint",
+                "pool": "$ctx.pool",
+                "marketType": "$ctx.marketType",
+                "participant": "$ctx.participant",
+                "side": "$ctx.side",
+                "priceQuote": "$ctx.priceQuote",
+                "marketCapQuote": "$ctx.marketCapQuote",
+                "quoteAmountUi": "$ctx.quoteAmountUi",
+                "baseAmountAtomic": "$ctx.baseAmountAtomic",
+                "quoteAmountAtomic": "$ctx.quoteAmountAtomic",
+                "signature": "$ctx.signature",
+                "slot": "$ctx.slot",
+                "observedAt": "$ctx.observedAt"
+              }
+            },
+            "state": {
+              "recordName": "Pool",
+              "payload": {
+                "mint": "$ctx.mint",
+                "pool": "$ctx.pool",
+                "marketType": "$ctx.marketType",
+                "quoteMint": "$ctx.quoteMint",
+                "baseDecimals": "$ctx.baseDecimals",
+                "quoteDecimals": "$ctx.quoteDecimals",
+                "priceQuote": "$ctx.priceQuote",
+                "marketCapQuote": "$ctx.marketCapQuote",
+                "liquidityQuote": "$ctx.liquidityQuote",
+                "baseReserveUi": "$ctx.baseReserveUi",
+                "quoteReserveUi": "$ctx.quoteReserveUi",
+                "baseSupplyUi": "$ctx.baseSupplyUi",
+                "coinCreator": "$ctx.coinCreator",
+                "isCashbackCoin": "$ctx.isCashbackCoin",
+                "observedAt": "$ctx.observedAt"
+              }
+            }
+          }
         }
       }
     }

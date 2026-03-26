@@ -58,6 +58,30 @@
                 "side": {
                   "type": "string",
                   "enum": ["buy", "sell"]
+                },
+                "emit": {
+                  "type": "object",
+                  "properties": {
+                    "record": {
+                      "type": "object",
+                      "properties": {
+                        "recordName": { "type": "string" },
+                        "payload": {}
+                      },
+                      "required": ["recordName", "payload"],
+                      "additionalProperties": true
+                    },
+                    "state": {
+                      "type": "object",
+                      "properties": {
+                        "recordName": { "type": "string" },
+                        "payload": {}
+                      },
+                      "required": ["recordName", "payload"],
+                      "additionalProperties": true
+                    }
+                  },
+                  "additionalProperties": false
                 }
               },
               "required": ["action"],
