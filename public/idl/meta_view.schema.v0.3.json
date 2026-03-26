@@ -329,6 +329,40 @@
           "type": "array",
           "items": { "$ref": "#/$defs/projectionAggregationSpec" }
         },
+        "ranking": {
+          "type": "object",
+          "properties": {
+            "state_operation": { "type": "string" },
+            "window_hours_input": { "type": "string" },
+            "max_activity_age_minutes_input": { "type": "string" },
+            "min_liquidity_input": { "type": "string" },
+            "min_volume_input": { "type": "string" },
+            "default_window_hours": { "type": "integer", "minimum": 1 },
+            "default_max_activity_age_minutes": { "type": "integer", "minimum": 1 },
+            "quote_mint_input": { "type": "string" },
+            "default_quote_mint": { "type": "string" },
+            "event_fields": {
+              "type": "object",
+              "properties": {
+                "market_type": { "type": "string" },
+                "participant": { "type": "string" },
+                "side": { "type": "string" },
+                "volume": { "type": "string" }
+              }
+            },
+            "state_fields": {
+              "type": "object",
+              "properties": {
+                "market_type": { "type": "string" },
+                "quote_mint": { "type": "string" },
+                "liquidity": { "type": "string" },
+                "price": { "type": "string" },
+                "market_cap": { "type": "string" },
+                "pool": { "type": "string" }
+              }
+            }
+          }
+        },
         "sort_by": {
           "type": "array",
           "items": { "$ref": "#/$defs/sortSpec" }
