@@ -19,7 +19,31 @@
     "sources": {
       "type": "object",
       "additionalProperties": {
-        "type": "object"
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["rpc_transaction_crawler"]
+          },
+          "programId": {
+            "type": "string"
+          },
+          "decoder": {
+            "type": "string"
+          },
+          "processor": {
+            "type": "string"
+          },
+          "commitment": {
+            "type": "string",
+            "enum": ["processed", "confirmed", "finalized"]
+          },
+          "filters": {
+            "type": "object"
+          }
+        },
+        "required": ["kind", "programId", "decoder"],
+        "additionalProperties": true
       }
     },
     "templates": {

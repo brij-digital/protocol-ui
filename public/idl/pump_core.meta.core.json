@@ -4,6 +4,16 @@
   "version": "0.2.0",
   "protocolId": "pump-core-mainnet",
   "label": "Pump Core Mainnet",
+  "sources": {
+    "pump_core_crawler": {
+      "kind": "rpc_transaction_crawler",
+      "programId": "$protocol.programId",
+      "decoder": "pumpfun",
+      "processor": "pumpfun",
+      "commitment": "confirmed",
+      "filters": {}
+    }
+  },
   "templates": {},
   "operations": {
     "buy_exact_sol_in": {

@@ -4,6 +4,16 @@
   "version": "0.2.0",
   "protocolId": "pump-amm-mainnet",
   "label": "Pump Amm Mainnet",
+  "sources": {
+    "pump_swap_crawler": {
+      "kind": "rpc_transaction_crawler",
+      "programId": "$protocol.programId",
+      "decoder": "pump_swap",
+      "processor": "pump_swap",
+      "commitment": "confirmed",
+      "filters": {}
+    }
+  },
   "templates": {
     "pump.buy.v1": {
       "params": {
