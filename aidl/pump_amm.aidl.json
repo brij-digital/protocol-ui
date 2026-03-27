@@ -1147,30 +1147,6 @@
       },
       "label": "Market Cap Series"
     },
-    "stat_cards": {
-      "inputs": {
-        "pool": {
-          "type": "pubkey",
-          "required": true,
-          "label": "Pool"
-        }
-      },
-      "useTemplate": [],
-      "view": {
-        "kind": "series",
-        "source": "hybrid",
-        "source_kind": "materialized_series",
-        "freshness": {
-          "class": "near_realtime",
-          "target_ms": 5000,
-          "max_staleness_ms": 30000
-        },
-        "entity_type": "pump_stat_cards",
-        "title": "Stat cards",
-        "description": "Fast stat cards derived from current snapshot plus 1 minute market series."
-      },
-      "label": "Stat Cards"
-    },
     "buy": {
       "inputs": {
         "base_mint": {

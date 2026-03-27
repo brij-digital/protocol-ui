@@ -66,7 +66,6 @@ type HealthResponse = {
     last_updated_at?: string;
   };
   materialized?: {
-    pump_market_ingestion_provider?: string;
   };
 };
 
@@ -713,7 +712,6 @@ export function ViewExplorerTab({ viewApiBaseUrl }: ViewExplorerTabProps) {
           `provider=${body.sync?.provider ?? 'unknown'}`,
           `jobs=${body.sync?.total_jobs ?? 0}`,
           `errors=${body.sync?.jobs_with_errors ?? 0}`,
-          `pump_ingest=${body.materialized?.pump_market_ingestion_provider ?? 'unknown'}`,
         ].join(' | '),
       );
     } catch (error) {

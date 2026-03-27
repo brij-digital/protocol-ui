@@ -79,9 +79,7 @@ We should stop pretending this MVP is broader than it is.
 - `pool_snapshot`
 - `trade_feed`
 - `market_cap_series`
-- `stat_cards`
 - `ranked_active_tokens`
-- `token_trade_context`
 
 ### Explicitly Out Of Scope
 
