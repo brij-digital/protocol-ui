@@ -29,7 +29,15 @@
       "decoderRef": "pump_swap",
       "decodeTargets": ["account"],
       "filters": {
-        "accountName": "Pool"
+        "accountName": "Pool",
+        "targetsFrom": {
+          "kind": "missing_state_from_records",
+          "stateRecordName": "PoolMetadata",
+          "recordNames": ["BuyEvent", "SellEvent"],
+          "addressField": "resource_id",
+          "lookbackMinutes": 1440,
+          "limit": 500
+        }
       }
     }
   },
