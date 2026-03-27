@@ -156,6 +156,14 @@
       }
     },
     "trade_buy": {
+      "resolve": [
+        {
+          "name": "poolMeta",
+          "resolve": "state.lookup",
+          "recordName": "PoolMetadata",
+          "subjectId": "$decoded.pool"
+        }
+      ],
       "extract": {
         "mint": "$poolMeta.mint",
         "pool": "$decoded.pool",
@@ -292,6 +300,14 @@
       }
     },
     "trade_sell": {
+      "resolve": [
+        {
+          "name": "poolMeta",
+          "resolve": "state.lookup",
+          "recordName": "PoolMetadata",
+          "subjectId": "$decoded.pool"
+        }
+      ],
       "extract": {
         "mint": "$poolMeta.mint",
         "pool": "$decoded.pool",
