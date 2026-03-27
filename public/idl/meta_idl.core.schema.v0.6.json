@@ -28,10 +28,11 @@
           "programId": {
             "type": "string"
           },
-          "decoder": {
-            "type": "string"
+          "decoderFamily": {
+            "type": "string",
+            "enum": ["anchor_events"]
           },
-          "processor": {
+          "decoder": {
             "type": "string"
           },
           "commitment": {

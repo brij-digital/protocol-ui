@@ -8,8 +8,8 @@
     "pump_swap_crawler": {
       "kind": "rpc_transaction_crawler",
       "programId": "$protocol.programId",
+      "decoderFamily": "anchor_events",
       "decoder": "pump_swap",
-      "processor": "pump_swap",
       "commitment": "confirmed",
       "filters": {},
       "handlers": {
