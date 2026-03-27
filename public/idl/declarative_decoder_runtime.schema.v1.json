@@ -1,0 +1,574 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "/idl/declarative_decoder_runtime.schema.v1.json",
+  "title": "Declarative Decoder Runtime Spec V1",
+  "type": "object",
+  "required": ["schema", "protocolId", "decoderArtifacts", "sources", "matchRules", "pipelines"],
+  "properties": {
+    "schema": {
+      "const": "declarative-decoder-runtime.v1"
+    },
+    "version": {
+      "type": "string"
+    },
+    "protocolId": {
+      "type": "string"
+    },
+    "label": {
+      "type": "string"
+    },
+    "programId": {
+      "type": "string"
+    },
+    "decoderArtifacts": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "$ref": "#/$defs/decoderArtifactSpec"
+      }
+    },
+    "sources": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "$ref": "#/$defs/sourceSpec"
+      }
+    },
+    "matchRules": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/matchRuleSpec"
+      }
+    },
+    "pipelines": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "$ref": "#/$defs/pipelineSpec"
+      }
+    },
+    "projectionSpecs": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/projectionSpec"
+      }
+    },
+    "operations": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/operationSpec"
+      }
+    }
+  },
+  "$defs": {
+    "stringOrTemplate": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "number" },
+        { "type": "boolean" },
+        { "type": "null" },
+        {
+          "type": "array",
+          "items": { "$ref": "#/$defs/stringOrTemplate" }
+        },
+        {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/stringOrTemplate" }
+        }
+      ]
+    },
+    "decoderArtifactSpec": {
+      "type": "object",
+      "required": ["kind", "artifact"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["generated_idl_decoder", "precompiled_decoder"]
+        },
+        "family": {
+          "type": "string",
+          "enum": ["anchor", "codama", "custom"]
+        },
+        "idlPath": {
+          "type": "string"
+        },
+        "artifact": {
+          "type": "string"
+        },
+        "entrypoint": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "sourceSpec": {
+      "type": "object",
+      "required": ["kind", "decoderRef"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "rpc_transaction_crawler",
+            "rpc_block_subscribe",
+            "rpc_program_subscribe",
+            "rpc_account_snapshot",
+            "yellowstone_grpc",
+            "helius_ws",
+            "custom"
+          ]
+        },
+        "programId": {
+          "type": "string"
+        },
+        "commitment": {
+          "type": "string",
+          "enum": ["processed", "confirmed", "finalized"]
+        },
+        "decoderRef": {
+          "type": "string"
+        },
+        "decodeTargets": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["instruction", "log_event", "account", "transaction"]
+          },
+          "minItems": 1
+        },
+        "filters": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "cursor": {
+          "$ref": "#/$defs/cursorSpec"
+        }
+      },
+      "additionalProperties": false
+    },
+    "cursorSpec": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["signature", "slot", "time", "opaque"]
+        },
+        "field": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "matchRuleSpec": {
+      "type": "object",
+      "required": ["source", "match", "pipeline"],
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "match": {
+          "$ref": "#/$defs/matchPredicateSpec"
+        },
+        "pipeline": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "matchPredicateSpec": {
+      "type": "object",
+      "required": ["decodedType"],
+      "properties": {
+        "decodedType": {
+          "type": "string",
+          "enum": ["instruction", "event", "account", "transaction"]
+        },
+        "name": {
+          "type": "string"
+        },
+        "instruction": {
+          "type": "string"
+        },
+        "event": {
+          "type": "string"
+        },
+        "account": {
+          "type": "string"
+        },
+        "where": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/stringOrTemplate" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "pipelineSpec": {
+      "type": "object",
+      "properties": {
+        "extract": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/stringOrTemplate" }
+        },
+        "resolve": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/resolveStepSpec" }
+        },
+        "compute": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/computeStepSpec" }
+        },
+        "emit": {
+          "$ref": "#/$defs/emitSpec"
+        }
+      },
+      "additionalProperties": false
+    },
+    "resolveStepSpec": {
+      "type": "object",
+      "required": ["name", "resolve"],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "resolve": {
+          "type": "string",
+          "enum": [
+            "rpc.token_supply",
+            "rpc.account_info",
+            "rpc.token_account_balance",
+            "state.lookup",
+            "resource.lookup",
+            "custom"
+          ]
+        }
+      },
+      "additionalProperties": { "$ref": "#/$defs/stringOrTemplate" }
+    },
+    "computeStepSpec": {
+      "type": "object",
+      "required": ["name", "compute"],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "compute": {
+          "type": "string",
+          "enum": [
+            "math.amount_ui",
+            "math.safe_div",
+            "math.mul",
+            "math.add",
+            "math.sub",
+            "math.avg",
+            "compare.gt",
+            "compare.gte",
+            "compare.lt",
+            "compare.eq",
+            "logic.if",
+            "string.concat",
+            "coalesce",
+            "wasm"
+          ]
+        },
+        "module": {
+          "type": "string"
+        },
+        "entrypoint": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": { "$ref": "#/$defs/stringOrTemplate" }
+    },
+    "emitSpec": {
+      "type": "object",
+      "properties": {
+        "record": {
+          "$ref": "#/$defs/recordEmitSpec"
+        },
+        "state": {
+          "$ref": "#/$defs/stateEmitSpec"
+        }
+      },
+      "additionalProperties": false,
+      "anyOf": [
+        { "required": ["record"] },
+        { "required": ["state"] }
+      ]
+    },
+    "recordEmitSpec": {
+      "type": "object",
+      "required": ["recordKind", "recordName", "subjectId", "payload"],
+      "properties": {
+        "recordKind": {
+          "type": "string"
+        },
+        "recordName": {
+          "type": "string"
+        },
+        "subjectId": {
+          "$ref": "#/$defs/stringOrTemplate"
+        },
+        "resourceId": {
+          "$ref": "#/$defs/stringOrTemplate"
+        },
+        "participantId": {
+          "$ref": "#/$defs/stringOrTemplate"
+        },
+        "signature": {
+          "$ref": "#/$defs/stringOrTemplate"
+        },
+        "slot": {
+          "$ref": "#/$defs/stringOrTemplate"
+        },
+        "eventTime": {
+          "$ref": "#/$defs/stringOrTemplate"
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/stringOrTemplate" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "stateEmitSpec": {
+      "type": "object",
+      "required": ["recordKind", "recordName", "subjectId", "payload"],
+      "properties": {
+        "recordKind": {
+          "type": "string"
+        },
+        "recordName": {
+          "type": "string"
+        },
+        "subjectId": {
+          "$ref": "#/$defs/stringOrTemplate"
+        },
+        "resourceId": {
+          "$ref": "#/$defs/stringOrTemplate"
+        },
+        "signature": {
+          "$ref": "#/$defs/stringOrTemplate"
+        },
+        "slot": {
+          "$ref": "#/$defs/stringOrTemplate"
+        },
+        "eventTime": {
+          "$ref": "#/$defs/stringOrTemplate"
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/stringOrTemplate" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "projectionSourceSpec": {
+      "type": "object",
+      "required": ["canonicalSource", "protocolId"],
+      "properties": {
+        "canonicalSource": {
+          "type": "string",
+          "enum": ["indexed_idl_records", "indexed_idl_state", "indexed_series_1m"]
+        },
+        "protocolId": {
+          "type": "string"
+        },
+        "recordKind": {
+          "type": "string"
+        },
+        "recordName": {
+          "oneOf": [
+            { "type": "string" },
+            {
+              "type": "array",
+              "items": { "type": "string" },
+              "minItems": 1
+            }
+          ]
+        },
+        "seriesId": {
+          "type": "string"
+        },
+        "subjectInput": {
+          "type": "string"
+        },
+        "resourceInput": {
+          "type": "string"
+        },
+        "timeField": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "projectionAggregationSpec": {
+      "type": "object",
+      "required": ["name", "field", "fn"],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "field": {
+          "type": "string"
+        },
+        "fn": {
+          "type": "string",
+          "enum": ["first", "last", "min", "max", "sum", "avg", "count", "count_distinct"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "projectionSpec": {
+      "type": "object",
+      "required": ["projectionKind", "source"],
+      "properties": {
+        "projectionKind": {
+          "type": "string",
+          "enum": ["series", "feed", "ranking", "snapshot", "context"]
+        },
+        "source": {
+          "$ref": "#/$defs/projectionSourceSpec"
+        },
+        "bucket": {
+          "type": "string"
+        },
+        "groupBy": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "timeField": {
+          "type": "string"
+        },
+        "aggregations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/projectionAggregationSpec" }
+        },
+        "sortBy": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/sortSpec" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "sortSpec": {
+      "type": "object",
+      "required": ["field", "order"],
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "order": {
+          "type": "string",
+          "enum": ["asc", "desc"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "canonicalViewSpec": {
+      "type": "object",
+      "required": ["source", "protocol_id"],
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": ["indexed_idl_records", "indexed_idl_state", "indexed_series_1m"]
+        },
+        "protocol_id": {
+          "type": "string"
+        },
+        "record_kind": {
+          "type": "string"
+        },
+        "record_name": {
+          "oneOf": [
+            { "type": "string" },
+            {
+              "type": "array",
+              "items": { "type": "string" },
+              "minItems": 1
+            }
+          ]
+        },
+        "series_id": {
+          "type": "string"
+        },
+        "subject_input": {
+          "type": "string"
+        },
+        "resource_input": {
+          "type": "string"
+        },
+        "subject_field": {
+          "type": "string"
+        },
+        "resource_field": {
+          "type": "string"
+        },
+        "time_field": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "viewProjectionSpec": {
+      "type": "object",
+      "required": ["projection_kind"],
+      "properties": {
+        "projection_kind": {
+          "type": "string",
+          "enum": ["snapshot", "feed", "series", "ranking", "context"]
+        },
+        "source_operation": {
+          "type": "string"
+        },
+        "bucket": {
+          "type": "string"
+        },
+        "group_by": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "aggregations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/projectionAggregationSpec" }
+        },
+        "sort_by": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/sortSpec" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "operationSpec": {
+      "type": "object",
+      "properties": {
+        "view": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": ["search", "account", "feed", "series", "ranking", "context"]
+            },
+            "source_kind": {
+              "type": "string"
+            },
+            "canonical": {
+              "$ref": "#/$defs/canonicalViewSpec"
+            },
+            "projection": {
+              "$ref": "#/$defs/viewProjectionSpec"
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}
