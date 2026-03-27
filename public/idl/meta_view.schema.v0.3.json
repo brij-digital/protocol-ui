@@ -316,6 +316,7 @@
           "type": "string",
           "enum": ["snapshot", "feed", "series", "ranking", "context"]
         },
+        "source_operation": { "type": "string" },
         "group_by": {
           "type": "array",
           "items": { "type": "string" }
