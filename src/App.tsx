@@ -1,142 +1,19 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
-import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import './App.css';
-import { listSupportedTokens } from './constants/tokens';
-import { BuilderTab } from './app/components/BuilderTab';
-import { CommandTab } from './app/components/CommandTab';
-import { ComputeDevTab } from './app/components/ComputeDevTab';
 import { PumpWorkspaceTab } from './app/components/PumpWorkspaceTab';
 import { TradingViewTestTab } from './app/components/TradingViewTestTab';
-import { ViewExplorerTab } from './app/components/ViewExplorerTab';
 import { ViewPlaygroundTab } from './app/components/ViewPlaygroundTab';
-import { useBuilderController } from './app/useBuilderController';
-import { useBuilderSubmitController } from './app/useBuilderSubmitController';
-import { useCommandController } from './app/useCommandController';
 
 const DEFAULT_VIEW_API_BASE_URL = 'https://apppack-view-service.onrender.com';
 const VIEW_API_BASE_URL = String(import.meta.env.VITE_VIEW_API_BASE_URL ?? DEFAULT_VIEW_API_BASE_URL)
   .trim()
   .replace(/\/+$/, '');
-const QUICK_PREFILL_META_RUN_COMMAND =
-  '/meta-run orca-whirlpool-mainnet swap_exact_in {"token_in_mint":"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v","token_out_mint":"So11111111111111111111111111111111111111112","amount_in":"10000","slippage_bps":50,"estimated_out":"100000","whirlpool":"Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE","unwrap_sol_output":true} --simulate';
 
-type AppTab = 'apps' | 'raw' | 'command' | 'compute' | 'views' | 'pump' | 'tv' | 'explorer';
+type AppTab = 'views' | 'pump' | 'tv';
 
 function App() {
-  const { connection } = useConnection();
-  const wallet = useWallet();
-
-  const [activeTab, setActiveTab] = useState<AppTab>('apps');
-  const [isBuilderWorking, setIsBuilderWorking] = useState(false);
-
-  const builder = useBuilderController();
-  const {
-    builderProtocols,
-    builderProtocolLabelsById,
-    builderProtocolId,
-    builderApps,
-    builderAppId,
-    builderAppStepIndex,
-    setBuilderAppStepCompleted,
-    selectedBuilderApp,
-    selectedBuilderAppStep,
-    selectedBuilderStepActions,
-    selectedBuilderOperationEnhancement,
-    builderOperationLabelsByOperationId,
-    builderAppLabelsByAppId,
-    builderStepLabelsByAppStepKey,
-    selectedBuilderAppSelectUi,
-    selectedBuilderAppSelectableItems,
-    selectedBuilderSelectedItemValue,
-    showBuilderSelectableItems,
-    selectedBuilderOperation,
-    builderOperations,
-    builderOperationId,
-    builderViewMode,
-    visibleBuilderInputs,
-    isBuilderAppMode,
-    builderAppSubmitMode,
-    setBuilderAppSubmitMode,
-    builderSimulate,
-    setBuilderSimulate,
-    builderStatusText,
-    builderRawDetails,
-    builderShowRawDetails,
-    setBuilderStatusText,
-    setBuilderRawDetails,
-    setBuilderShowRawDetails,
-    clearBuilderAppProgressFrom,
-    getBuilderStepStatusText,
-    applyBuilderAppStepResult,
-    canOpenBuilderAppStep,
-    setBuilderResult,
-    builderInputValues,
-    handleBuilderPrefillExample,
-    handleBuilderModeForms,
-    handleBuilderModeRaw,
-    handleBuilderProtocolSelect,
-    handleBuilderAppSelect,
-    handleBuilderOperationSelect,
-    handleBuilderAppOpenStep,
-    handleBuilderAppBackStep,
-    handleBuilderAppSelectItem,
-    handleBuilderAppResetCurrentStep,
-    handleBuilderInputChange,
-    handleBuilderToggleRawDetails,
-  } = builder;
-
-  const supportedTokens = useMemo(
-    () => listSupportedTokens().map((token) => `${token.symbol} (${token.mint})`).join(', '),
-    [],
-  );
-
-  const command = useCommandController({
-    connection,
-    wallet,
-    supportedTokens,
-    viewApiBaseUrl: VIEW_API_BASE_URL,
-    defaultViewApiBaseUrl: DEFAULT_VIEW_API_BASE_URL,
-  });
-
-  const {
-    messages,
-    commandInput,
-    setCommandInput,
-    isWorking: isCommandWorking,
-    handleCommandSubmit,
-    pushMessage,
-  } = command;
-
-  const { handleBuilderSubmit } = useBuilderSubmitController({
-    connection,
-    wallet,
-    viewApiBaseUrl: VIEW_API_BASE_URL,
-    pushMessage,
-    setIsBuilderWorking,
-    builderProtocolId,
-    selectedBuilderOperation,
-    selectedBuilderOperationEnhancement,
-    builderInputValues,
-    onSetBuilderInputValue: handleBuilderInputChange,
-    builderViewMode,
-    selectedBuilderAppStep,
-    selectedBuilderApp,
-    builderAppStepIndex,
-    setBuilderAppStepCompleted,
-    clearBuilderAppProgressFrom,
-    setBuilderStatusText,
-    setBuilderRawDetails,
-    setBuilderShowRawDetails,
-    applyBuilderAppStepResult,
-    getBuilderStepStatusText,
-    setBuilderResult,
-    isBuilderAppMode,
-    builderAppSubmitMode,
-    builderSimulate,
-  });
-
-  const isWorking = isBuilderWorking || isCommandWorking;
+  const [activeTab, setActiveTab] = useState<AppTab>('pump');
 
   return (
     <main className="page-shell">
@@ -150,48 +27,6 @@ function App() {
         </header>
 
         <div className="tab-switcher" role="tablist" aria-label="Mode">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'apps'}
-            className={activeTab === 'apps' ? 'active' : ''}
-            onClick={() => {
-              handleBuilderModeForms();
-              setActiveTab('apps');
-            }}
-          >
-            Apps
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'raw'}
-            className={activeTab === 'raw' ? 'active' : ''}
-            onClick={() => {
-              handleBuilderModeRaw();
-              setActiveTab('raw');
-            }}
-          >
-            Raw Operations
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'command'}
-            className={activeTab === 'command' ? 'active' : ''}
-            onClick={() => setActiveTab('command')}
-          >
-            Command
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'compute'}
-            className={activeTab === 'compute' ? 'active' : ''}
-            onClick={() => setActiveTab('compute')}
-          >
-            Compute
-          </button>
           <button
             type="button"
             role="tab"
@@ -219,83 +54,15 @@ function App() {
           >
             TradingView
           </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'explorer'}
-            className={activeTab === 'explorer' ? 'active' : ''}
-            onClick={() => setActiveTab('explorer')}
-          >
-            Explorer
-          </button>
         </div>
 
-        {activeTab === 'command' ? (
-          <CommandTab
-            messages={messages}
-            isWorking={isWorking}
-            commandInput={commandInput}
-            onCommandInputChange={setCommandInput}
-            onSubmit={handleCommandSubmit}
-            onPrefillMetaRun={() => setCommandInput(QUICK_PREFILL_META_RUN_COMMAND)}
-          />
-        ) : activeTab === 'compute' ? (
-          <ComputeDevTab isWorking={isWorking} />
-        ) : activeTab === 'pump' ? (
+        {activeTab === 'pump' ? (
           <PumpWorkspaceTab viewApiBaseUrl={VIEW_API_BASE_URL} />
-        ) : activeTab === 'explorer' ? (
-          <ViewExplorerTab viewApiBaseUrl={VIEW_API_BASE_URL} />
         ) : activeTab === 'tv' ? (
           <TradingViewTestTab viewApiBaseUrl={VIEW_API_BASE_URL} />
         ) : activeTab === 'views' ? (
           <ViewPlaygroundTab viewApiBaseUrl={VIEW_API_BASE_URL} />
-        ) : (
-          <BuilderTab
-            isWorking={isWorking}
-            builderViewMode={builderViewMode}
-            builderProtocols={builderProtocols}
-            builderProtocolLabelsById={builderProtocolLabelsById}
-            builderProtocolId={builderProtocolId}
-            onSelectProtocol={handleBuilderProtocolSelect}
-            builderApps={builderApps}
-            builderAppId={builderAppId}
-            onSelectApp={handleBuilderAppSelect}
-            builderOperations={builderOperations}
-            builderOperationId={builderOperationId}
-            onSelectOperation={handleBuilderOperationSelect}
-            selectedBuilderOperation={selectedBuilderOperation}
-            selectedBuilderApp={selectedBuilderApp}
-            selectedBuilderStepActions={selectedBuilderStepActions}
-            selectedBuilderOperationEnhancement={selectedBuilderOperationEnhancement}
-            builderOperationLabelsByOperationId={builderOperationLabelsByOperationId}
-            builderAppLabelsByAppId={builderAppLabelsByAppId}
-            builderStepLabelsByAppStepKey={builderStepLabelsByAppStepKey}
-            builderAppStepIndex={builderAppStepIndex}
-            canOpenBuilderAppStep={canOpenBuilderAppStep}
-            onOpenBuilderAppStep={handleBuilderAppOpenStep}
-            showBuilderSelectableItems={showBuilderSelectableItems}
-            onBackStep={handleBuilderAppBackStep}
-            onResetStep={handleBuilderAppResetCurrentStep}
-            selectedBuilderAppSelectUi={selectedBuilderAppSelectUi}
-            selectedBuilderAppSelectableItems={selectedBuilderAppSelectableItems}
-            selectedBuilderSelectedItemValue={selectedBuilderSelectedItemValue}
-            onSelectItem={handleBuilderAppSelectItem}
-            visibleBuilderInputs={visibleBuilderInputs}
-            builderInputValues={builderInputValues}
-            onInputChange={handleBuilderInputChange}
-            onPrefillExample={handleBuilderPrefillExample}
-            isBuilderAppMode={isBuilderAppMode}
-            builderAppSubmitMode={builderAppSubmitMode}
-            onSetBuilderAppSubmitMode={setBuilderAppSubmitMode}
-            builderSimulate={builderSimulate}
-            onSetBuilderSimulate={setBuilderSimulate}
-            onSubmit={handleBuilderSubmit}
-            builderStatusText={builderStatusText}
-            builderRawDetails={builderRawDetails}
-            builderShowRawDetails={builderShowRawDetails}
-            onToggleRawDetails={handleBuilderToggleRawDetails}
-          />
-        )}
+        ) : null}
       </section>
     </main>
   );
