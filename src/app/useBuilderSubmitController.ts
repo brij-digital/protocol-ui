@@ -13,9 +13,9 @@ import {
   simulateIdlInstruction,
 } from '@brij-digital/apppack-runtime/idlDeclarativeRuntime';
 import {
-  prepareAppOperation as prepareMetaOperation,
   type AppOperationSummary as MetaOperationSummary,
 } from '@brij-digital/apppack-runtime/appSpecRuntime';
+import { prepareRuntimeOperation } from '@brij-digital/apppack-runtime/runtimeOperationRuntime';
 import {
   buildDerivedFromReadOutputSource,
   buildReadOnlyHighlightsFromSpec,
@@ -284,7 +284,7 @@ export function useBuilderSubmitController(options: UseBuilderSubmitControllerOp
             inputPayload[inputName] = parseBuilderInputValue(rawValue, spec.type, `input ${inputName}`);
           }
 
-          const prepared = await prepareMetaOperation({
+          const prepared = await prepareRuntimeOperation({
             protocolId: builderProtocolId,
             operationId: operation.operationId,
             input: inputPayload,
@@ -464,7 +464,7 @@ export function useBuilderSubmitController(options: UseBuilderSubmitControllerOp
           return;
         }
 
-        const prepared = await prepareMetaOperation({
+        const prepared = await prepareRuntimeOperation({
           protocolId: options.builderProtocolId,
           operationId: options.selectedBuilderOperation.operationId,
           input: executionInput,

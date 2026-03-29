@@ -7,6 +7,7 @@ import {
   listApps as listMetaApps,
   listAppOperations as listMetaOperations,
 } from '@brij-digital/apppack-runtime/appSpecRuntime';
+import { listRuntimeOperations } from '@brij-digital/apppack-runtime/runtimeOperationRuntime';
 
 vi.mock('@brij-digital/apppack-runtime/idlDeclarativeRuntime', async () => {
   return {
@@ -93,6 +94,32 @@ vi.mock('@brij-digital/apppack-runtime/appSpecRuntime', async () => {
   };
 });
 
+vi.mock('@brij-digital/apppack-runtime/runtimeOperationRuntime', async () => {
+  return {
+    listRuntimeOperations: vi.fn(async () => ({
+      operations: [
+        {
+          operationId: 'list_pools',
+          label: 'List Pools',
+          instruction: '',
+          inputs: {
+            token_in_mint: { type: 'pubkey', required: true, label: 'Token In' },
+            token_out_mint: { type: 'pubkey', required: true, label: 'Token Out' },
+          },
+        },
+        {
+          operationId: 'swap_exact_in',
+          label: 'Swap Exact In',
+          instruction: 'swap_v2',
+          inputs: {
+            amount_in: { type: 'u64', required: true, label: 'Amount In' },
+          },
+        },
+      ],
+    })),
+  };
+});
+
 describe('useBuilderController', () => {
   afterEach(() => {
     vi.clearAllMocks();
@@ -171,6 +198,19 @@ describe('useBuilderController', () => {
         },
       ],
     } as never);
+    vi.mocked(listRuntimeOperations).mockResolvedValue({
+      operations: [
+        {
+          operationId: 'list_pools',
+          label: 'List Pools',
+          instruction: '',
+          inputs: {
+            token_in_mint: { type: 'pubkey', required: true, label: 'Token In', ui_example: 'USDC_EXAMPLE' },
+            token_out_mint: { type: 'pubkey', required: true, label: 'Token Out', ui_example: 'SOL_EXAMPLE' },
+          },
+        },
+      ],
+    } as never);
 
     const { result } = renderHook(() => useBuilderController());
 
@@ -191,6 +231,19 @@ describe('useBuilderController', () => {
       protocols: [{ id: 'orca-whirlpool-mainnet', name: 'Orca Whirlpool', status: 'active' }],
     } as never);
     vi.mocked(listMetaOperations).mockResolvedValue({
+      operations: [
+        {
+          operationId: 'list_pools',
+          label: 'List Pools',
+          instruction: '',
+          inputs: {
+            token_in_mint: { type: 'token_mint', required: true, label: 'Token In', display_order: 2 },
+            token_out_mint: { type: 'token_mint', required: true, label: 'Token Out', display_order: 1 },
+          },
+        },
+      ],
+    } as never);
+    vi.mocked(listRuntimeOperations).mockResolvedValue({
       operations: [
         {
           operationId: 'list_pools',

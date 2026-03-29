@@ -3,10 +3,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { listIdlProtocols } from '@brij-digital/apppack-runtime/idlDeclarativeRuntime';
 import {
   listApps as listMetaApps,
-  listAppOperations as listMetaOperations,
   type AppSummary as MetaAppSummary,
   type AppOperationSummary as MetaOperationSummary,
 } from '@brij-digital/apppack-runtime/appSpecRuntime';
+import { listRuntimeOperations } from '@brij-digital/apppack-runtime/runtimeOperationRuntime';
 import {
   asPrettyJson,
   buildExampleInputsForOperation,
@@ -536,8 +536,37 @@ export function useBuilderController() {
 
     let cancelled = false;
     void (async () => {
+      if (builderViewMode === 'raw') {
+        const operationsView = await listRuntimeOperations({
+          protocolId: builderProtocolId,
+        });
+        if (cancelled) {
+          return;
+        }
+        const operationsWithReadFrom = operationsView.operations;
+        setBuilderApps([]);
+        setBuilderAppId('');
+        setBuilderAppStepIndex(0);
+        setBuilderAppStepContexts({});
+        setBuilderAppStepCompleted({});
+        setBuilderOperations(operationsWithReadFrom);
+        setBuilderOperationEnhancementsByOperation(
+          buildOperationEnhancementsByOperation(operationsWithReadFrom),
+        );
+        setBuilderInputExamplesByOperation(
+          extractBuilderInputExamplesByOperation(operationsWithReadFrom),
+        );
+        setBuilderOperationId((current) => {
+          if (current && operationsWithReadFrom.some((entry) => entry.operationId === current)) {
+            return current;
+          }
+          return operationsWithReadFrom[0]?.operationId ?? '';
+        });
+        return;
+      }
+
       const [operationsView, appsView] = await Promise.all([
-        listMetaOperations({
+        listRuntimeOperations({
           protocolId: builderProtocolId,
         }),
         listMetaApps({

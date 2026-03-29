@@ -13,6 +13,7 @@ import {
   listAppOperations as listMetaOperations,
   prepareAppOperation as prepareMetaOperation,
 } from '@brij-digital/apppack-runtime/appSpecRuntime';
+import { listRuntimeOperations, prepareRuntimeOperation } from '@brij-digital/apppack-runtime/runtimeOperationRuntime';
 
 vi.mock('@brij-digital/apppack-runtime/idlDeclarativeRuntime', async () => {
   return {
@@ -27,6 +28,13 @@ vi.mock('@brij-digital/apppack-runtime/appSpecRuntime', async () => {
     listAppOperations: vi.fn(),
     listApps: vi.fn(),
     prepareAppOperation: vi.fn(),
+  };
+});
+
+vi.mock('@brij-digital/apppack-runtime/runtimeOperationRuntime', async () => {
+  return {
+    listRuntimeOperations: vi.fn(),
+    prepareRuntimeOperation: vi.fn(),
   };
 });
 
@@ -50,6 +58,35 @@ describe('useBuilderSubmitController', () => {
     } as never);
 
     vi.mocked(listMetaOperations).mockResolvedValue({
+      operations: [
+        {
+          operationId: 'list_pools',
+          label: 'List Pools',
+          instruction: '',
+          inputs: {
+            token_in_mint: { type: 'pubkey', required: true, label: 'Token In' },
+            token_out_mint: { type: 'pubkey', required: true, label: 'Token Out' },
+          },
+          readOutput: {
+            source: '$derived.pool_candidates',
+            summary: {
+              mode: 'list',
+              countLabel: 'pools found',
+              itemLabelTemplate: '{item.whirlpool}',
+            },
+          },
+        },
+        {
+          operationId: 'swap_exact_in',
+          label: 'Swap Exact In',
+          instruction: 'swap_v2',
+          inputs: {
+            amount_in: { type: 'u64', required: true, label: 'Amount In' },
+          },
+        },
+      ],
+    } as never);
+    vi.mocked(listRuntimeOperations).mockResolvedValue({
       operations: [
         {
           operationId: 'list_pools',
@@ -133,6 +170,15 @@ describe('useBuilderSubmitController', () => {
     } as never);
 
     vi.mocked(prepareMetaOperation).mockResolvedValue({
+      protocolId: 'orca-whirlpool-mainnet',
+      instructionName: 'swap_v2',
+      args: { amount: '1000' },
+      accounts: { whirlpool: 'Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE' },
+      derived: {},
+      postInstructions: [],
+      remainingAccounts: undefined,
+    } as never);
+    vi.mocked(prepareRuntimeOperation).mockResolvedValue({
       protocolId: 'orca-whirlpool-mainnet',
       instructionName: 'swap_v2',
       args: { amount: '1000' },
@@ -298,6 +344,23 @@ describe('useBuilderSubmitController', () => {
         },
       ],
     } as never);
+    vi.mocked(listRuntimeOperations).mockResolvedValue({
+      operations: [
+        {
+          operationId: 'broken_read',
+          label: 'Broken Read',
+          instruction: '',
+          inputs: {
+            token_in_mint: { type: 'pubkey', required: true, label: 'Token In' },
+            token_out_mint: { type: 'pubkey', required: true, label: 'Token Out' },
+          },
+          readOutput: {
+            source: '$input.missing',
+            type: 'object',
+          },
+        },
+      ],
+    } as never);
 
     vi.mocked(listMetaApps).mockResolvedValue({
       apps: [
@@ -428,6 +491,28 @@ describe('useBuilderSubmitController', () => {
           },
         ],
       } as never);
+      vi.mocked(listRuntimeOperations).mockResolvedValue({
+        operations: [
+          {
+            operationId: 'buy_exact_sol_in',
+            label: 'Buy',
+            instruction: 'buy_exact_sol_in',
+            inputs: {
+              base_mint: { type: 'pubkey', required: true, label: 'Token' },
+              spendable_sol_in: { type: 'u64', required: true, label: 'Amount in SOL' },
+              slippage_bps: { type: 'u16', required: true, label: 'Slippage' },
+              min_tokens_out: {
+                type: 'u64',
+                required: false,
+                label: 'Minimum tokens received',
+                read_from: '$args.min_tokens_out',
+                ui_mode: 'readonly',
+              },
+              track_volume: { type: 'bool', required: false, default: false, ui_mode: 'hidden', label: 'Track Volume' },
+            },
+          },
+        ],
+      } as never);
 
       vi.mocked(listMetaApps).mockResolvedValue({
         apps: [
@@ -457,6 +542,21 @@ describe('useBuilderSubmitController', () => {
       } as never);
 
       vi.mocked(prepareMetaOperation).mockResolvedValue({
+        protocolId: 'pump-core-mainnet',
+        operationId: 'buy_exact_sol_in',
+        instructionName: 'buy_exact_sol_in',
+        args: {
+          spendable_sol_in: '10000000',
+          min_tokens_out: '941955',
+          track_volume: false,
+        },
+        accounts: {},
+        derived: {},
+        postInstructions: [],
+        remainingAccounts: undefined,
+        preInstructions: [],
+      } as never);
+      vi.mocked(prepareRuntimeOperation).mockResolvedValue({
         protocolId: 'pump-core-mainnet',
         operationId: 'buy_exact_sol_in',
         instructionName: 'buy_exact_sol_in',

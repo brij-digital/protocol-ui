@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import './App.css';
 import { PumpWorkspaceTab } from './app/components/PumpWorkspaceTab';
+import { RawOperationsTab } from './app/components/RawOperationsTab';
 import { TradingViewTestTab } from './app/components/TradingViewTestTab';
 import { ViewPlaygroundTab } from './app/components/ViewPlaygroundTab';
 
@@ -10,7 +11,7 @@ const VIEW_API_BASE_URL = String(import.meta.env.VITE_VIEW_API_BASE_URL ?? DEFAU
   .trim()
   .replace(/\/+$/, '');
 
-type AppTab = 'views' | 'pump' | 'tv';
+type AppTab = 'views' | 'pump' | 'raw' | 'tv';
 
 function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('pump');
@@ -48,6 +49,15 @@ function App() {
           <button
             type="button"
             role="tab"
+            aria-selected={activeTab === 'raw'}
+            className={activeTab === 'raw' ? 'active' : ''}
+            onClick={() => setActiveTab('raw')}
+          >
+            Raw Ops
+          </button>
+          <button
+            type="button"
+            role="tab"
             aria-selected={activeTab === 'tv'}
             className={activeTab === 'tv' ? 'active' : ''}
             onClick={() => setActiveTab('tv')}
@@ -58,6 +68,8 @@ function App() {
 
         {activeTab === 'pump' ? (
           <PumpWorkspaceTab viewApiBaseUrl={VIEW_API_BASE_URL} />
+        ) : activeTab === 'raw' ? (
+          <RawOperationsTab viewApiBaseUrl={VIEW_API_BASE_URL} />
         ) : activeTab === 'tv' ? (
           <TradingViewTestTab viewApiBaseUrl={VIEW_API_BASE_URL} />
         ) : activeTab === 'views' ? (

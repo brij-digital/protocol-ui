@@ -935,5 +935,470 @@
         ]
       }
     }
+  },
+  "templates": {
+    "orca.swap_exact_in.v2": {
+      "params": {
+        "token_in_mint": {
+          "type": "token_mint"
+        },
+        "amount_in": {
+          "type": "u64"
+        },
+        "slippage_bps": {
+          "type": "u16"
+        },
+        "estimated_out": {
+          "type": "u64"
+        }
+      },
+      "expand": {
+        "instruction": "swap_v2",
+        "discover": [],
+        "derive": [
+          {
+            "name": "wallet",
+            "resolver": "wallet_pubkey"
+          },
+          {
+            "name": "whirlpool_data",
+            "resolver": "decode_account",
+            "address": "$input.whirlpool",
+            "account_type": "Whirlpool"
+          },
+          {
+            "name": "token_owner_account_a",
+            "resolver": "ata",
+            "owner": "$wallet",
+            "mint": "$whirlpool_data.token_mint_a"
+          },
+          {
+            "name": "token_owner_account_b",
+            "resolver": "ata",
+            "owner": "$wallet",
+            "mint": "$whirlpool_data.token_mint_b"
+          },
+          {
+            "name": "oracle",
+            "resolver": "pda",
+            "program_id": "$protocol.programId",
+            "seeds": [
+              "utf8:oracle",
+              "$input.whirlpool"
+            ]
+          }
+        ],
+        "args": {
+          "amount": "$param.amount_in",
+          "other_amount_threshold": "$other_amount_threshold",
+          "sqrt_price_limit": "0",
+          "amount_specified_is_input": true,
+          "a_to_b": "$a_to_b",
+          "remaining_accounts_info": null
+        },
+        "accounts": {
+          "token_program_a": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "token_program_b": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "memo_program": "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr",
+          "token_authority": "$wallet",
+          "whirlpool": "$input.whirlpool",
+          "token_mint_a": "$whirlpool_data.token_mint_a",
+          "token_mint_b": "$whirlpool_data.token_mint_b",
+          "token_owner_account_a": "$token_owner_account_a",
+          "token_vault_a": "$whirlpool_data.token_vault_a",
+          "token_owner_account_b": "$token_owner_account_b",
+          "token_vault_b": "$whirlpool_data.token_vault_b",
+          "tick_array_0": "$tick_arrays.0",
+          "tick_array_1": "$tick_arrays.1",
+          "tick_array_2": "$tick_arrays.2",
+          "oracle": "$oracle"
+        },
+        "pre": [
+          {
+            "kind": "spl_ata_create_idempotent",
+            "payer": "$wallet",
+            "ata": "$token_owner_account_a",
+            "owner": "$wallet",
+            "mint": "$whirlpool_data.token_mint_a"
+          },
+          {
+            "kind": "spl_ata_create_idempotent",
+            "payer": "$wallet",
+            "ata": "$token_owner_account_b",
+            "owner": "$wallet",
+            "mint": "$whirlpool_data.token_mint_b"
+          },
+          {
+            "kind": "system_transfer",
+            "from": "$wallet",
+            "to": "$token_owner_account_a",
+            "lamports": "$param.amount_in",
+            "when": {
+              "all": [
+                {
+                  "equals": [
+                    "$a_to_b",
+                    true
+                  ]
+                },
+                {
+                  "equals": [
+                    "$input.token_in_mint",
+                    "So11111111111111111111111111111111111111112"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "kind": "spl_token_sync_native",
+            "account": "$token_owner_account_a",
+            "when": {
+              "all": [
+                {
+                  "equals": [
+                    "$a_to_b",
+                    true
+                  ]
+                },
+                {
+                  "equals": [
+                    "$input.token_in_mint",
+                    "So11111111111111111111111111111111111111112"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "kind": "system_transfer",
+            "from": "$wallet",
+            "to": "$token_owner_account_b",
+            "lamports": "$param.amount_in",
+            "when": {
+              "all": [
+                {
+                  "equals": [
+                    "$a_to_b",
+                    false
+                  ]
+                },
+                {
+                  "equals": [
+                    "$input.token_in_mint",
+                    "So11111111111111111111111111111111111111112"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "kind": "spl_token_sync_native",
+            "account": "$token_owner_account_b",
+            "when": {
+              "all": [
+                {
+                  "equals": [
+                    "$a_to_b",
+                    false
+                  ]
+                },
+                {
+                  "equals": [
+                    "$input.token_in_mint",
+                    "So11111111111111111111111111111111111111112"
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "post": [
+          {
+            "kind": "spl_token_close_account",
+            "account": "$token_owner_account_a",
+            "destination": "$wallet",
+            "owner": "$wallet",
+            "when": {
+              "all": [
+                {
+                  "equals": [
+                    "$input.unwrap_sol_output",
+                    true
+                  ]
+                },
+                {
+                  "equals": [
+                    "$a_to_b",
+                    false
+                  ]
+                },
+                {
+                  "equals": [
+                    "$input.token_out_mint",
+                    "So11111111111111111111111111111111111111112"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "kind": "spl_token_close_account",
+            "account": "$token_owner_account_b",
+            "destination": "$wallet",
+            "owner": "$wallet",
+            "when": {
+              "all": [
+                {
+                  "equals": [
+                    "$input.unwrap_sol_output",
+                    true
+                  ]
+                },
+                {
+                  "equals": [
+                    "$a_to_b",
+                    true
+                  ]
+                },
+                {
+                  "equals": [
+                    "$input.token_out_mint",
+                    "So11111111111111111111111111111111111111112"
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "compute": [
+          {
+            "name": "a_to_b",
+            "compute": "compare.equals",
+            "left": "$whirlpool_data.token_mint_a",
+            "right": "$param.token_in_mint"
+          },
+          {
+            "name": "tick_array_direction",
+            "compute": "logic.if",
+            "condition": "$a_to_b",
+            "then": -1,
+            "else": 1
+          },
+          {
+            "name": "ticks_per_array",
+            "compute": "math.mul",
+            "values": [
+              "$whirlpool_data.tick_spacing",
+              88
+            ]
+          },
+          {
+            "name": "direction_step",
+            "compute": "math.mul",
+            "values": [
+              "$ticks_per_array",
+              "$tick_array_direction"
+            ]
+          },
+          {
+            "name": "current_array_index",
+            "compute": "math.floor_div",
+            "dividend": "$whirlpool_data.tick_current_index",
+            "divisor": "$ticks_per_array"
+          },
+          {
+            "name": "current_start_index",
+            "compute": "math.mul",
+            "values": [
+              "$current_array_index",
+              "$ticks_per_array"
+            ]
+          },
+          {
+            "name": "tick_array_starts",
+            "compute": "list.range_map",
+            "base": "$current_start_index",
+            "step": "$direction_step",
+            "count": 3
+          },
+          {
+            "name": "tick_arrays",
+            "compute": "pda(seed_spec)",
+            "program_id": "$protocol.programId",
+            "map_over": "$tick_array_starts",
+            "seeds": [
+              {
+                "kind": "utf8",
+                "value": "tick_array"
+              },
+              {
+                "kind": "pubkey",
+                "value": "$input.whirlpool"
+              },
+              {
+                "kind": "item_utf8"
+              }
+            ]
+          },
+          {
+            "name": "spot_price_numerator",
+            "compute": "math.mul",
+            "values": [
+              "$whirlpool_data.sqrt_price",
+              "$whirlpool_data.sqrt_price"
+            ]
+          },
+          {
+            "name": "estimated_out_a_to_b_numerator",
+            "compute": "math.mul",
+            "values": [
+              "$param.amount_in",
+              "$spot_price_numerator"
+            ]
+          },
+          {
+            "name": "estimated_out_a_to_b",
+            "compute": "math.floor_div",
+            "dividend": "$estimated_out_a_to_b_numerator",
+            "divisor": "340282366920938463463374607431768211456"
+          },
+          {
+            "name": "estimated_out_b_to_a_numerator",
+            "compute": "math.mul",
+            "values": [
+              "$param.amount_in",
+              "340282366920938463463374607431768211456"
+            ]
+          },
+          {
+            "name": "estimated_out_b_to_a",
+            "compute": "math.floor_div",
+            "dividend": "$estimated_out_b_to_a_numerator",
+            "divisor": "$spot_price_numerator"
+          },
+          {
+            "name": "estimated_out_spot",
+            "compute": "logic.if",
+            "condition": "$a_to_b",
+            "then": "$estimated_out_a_to_b",
+            "else": "$estimated_out_b_to_a"
+          },
+          {
+            "name": "estimated_out_auto",
+            "compute": "coalesce",
+            "values": [
+              "$estimated_out_spot"
+            ]
+          },
+          {
+            "name": "slippage_keep_bps",
+            "compute": "math.sub",
+            "values": [
+              "10000",
+              "$param.slippage_bps"
+            ]
+          },
+          {
+            "name": "estimated_out_override_provided",
+            "compute": "compare.gt",
+            "left": "$param.estimated_out",
+            "right": "0"
+          },
+          {
+            "name": "estimated_out_effective",
+            "compute": "logic.if",
+            "condition": "$estimated_out_override_provided",
+            "then": "$param.estimated_out",
+            "else": "$estimated_out_auto"
+          },
+          {
+            "name": "other_amount_threshold_numerator",
+            "compute": "math.mul",
+            "values": [
+              "$estimated_out_effective",
+              "$slippage_keep_bps"
+            ]
+          },
+          {
+            "name": "other_amount_threshold",
+            "compute": "math.floor_div",
+            "dividend": "$other_amount_threshold_numerator",
+            "divisor": "10000"
+          }
+        ]
+      }
+    },
+    "orca.list_pools.v1": {
+      "params": {
+        "token_in_mint": {
+          "type": "token_mint"
+        },
+        "token_out_mint": {
+          "type": "token_mint"
+        }
+      },
+      "expand": {
+        "discover": [
+          {
+            "name": "pool_candidates",
+            "discover": "discover.query",
+            "source": "rpc.getProgramAccounts",
+            "program_id": "$protocol.programId",
+            "account_type": "Whirlpool",
+            "commitment": "confirmed",
+            "or_filters": [
+              [
+                {
+                  "memcmp": {
+                    "offset": 101,
+                    "bytesFrom": "$param.token_in_mint"
+                  }
+                },
+                {
+                  "memcmp": {
+                    "offset": 181,
+                    "bytesFrom": "$param.token_out_mint"
+                  }
+                }
+              ],
+              [
+                {
+                  "memcmp": {
+                    "offset": 101,
+                    "bytesFrom": "$param.token_out_mint"
+                  }
+                },
+                {
+                  "memcmp": {
+                    "offset": 181,
+                    "bytesFrom": "$param.token_in_mint"
+                  }
+                }
+              ]
+            ],
+            "where": [],
+            "sort": [
+              {
+                "path": "decoded.liquidity",
+                "dir": "desc"
+              }
+            ],
+            "limit": 20,
+            "select": {
+              "whirlpool": "$account.pubkey",
+              "tokenMintA": "$decoded.token_mint_a",
+              "tokenMintB": "$decoded.token_mint_b",
+              "tickSpacing": "$decoded.tick_spacing",
+              "liquidity": "$decoded.liquidity"
+            }
+          }
+        ],
+        "derive": [],
+        "compute": [],
+        "args": {},
+        "accounts": {}
+      }
+    }
   }
 }
