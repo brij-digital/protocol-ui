@@ -80,6 +80,38 @@ function resolvePublicAssetPath(assetPath, label) {
   return normalized;
 }
 
+async function resolveCodecIdlPath(manifest, protocolId) {
+  if (manifest.idlPath !== undefined) {
+    return resolvePublicAssetPath(manifest.idlPath, `${protocolId}.idlPath`);
+  }
+  if (manifest.runtimeSpecPath === undefined) {
+    return null;
+  }
+
+  const runtimePath = resolvePublicAssetPath(manifest.runtimeSpecPath, `${protocolId}.runtimeSpecPath`);
+  const runtime = asObject(await readJson(runtimePath, `${protocolId} runtime spec`), `${protocolId} runtime spec`);
+  const decoderArtifacts = asObject(runtime.decoderArtifacts, `${protocolId}.runtime.decoderArtifacts`);
+  const candidates = new Set();
+  for (const [artifactName, artifactRaw] of Object.entries(decoderArtifacts)) {
+    const artifact = asObject(artifactRaw, `${protocolId}.runtime.decoderArtifacts.${artifactName}`);
+    if (typeof artifact.codecIdlPath === 'string' && artifact.codecIdlPath.length > 0) {
+      candidates.add(resolvePublicAssetPath(artifact.codecIdlPath, `${protocolId}.runtime.decoderArtifacts.${artifactName}.codecIdlPath`));
+      continue;
+    }
+    if (typeof artifact.idlPath === 'string' && artifact.idlPath.length > 0) {
+      candidates.add(resolvePublicAssetPath(artifact.idlPath, `${protocolId}.runtime.decoderArtifacts.${artifactName}.idlPath`));
+    }
+  }
+
+  if (candidates.size === 0) {
+    return null;
+  }
+  if (candidates.size > 1) {
+    throw new Error(`${protocolId}: runtime decoderArtifacts declare multiple codec IDL paths.`);
+  }
+  return Array.from(candidates)[0] ?? null;
+}
+
 function checkPubkey(value, label) {
   try {
     return new PublicKey(asString(value, label)).toBase58();
@@ -156,7 +188,7 @@ async function main() {
     const programId = checkPubkey(manifest.programId, `${id}.programId`);
 
     const codamaPath = resolvePublicAssetPath(manifest.codamaIdlPath, `${id}.codamaIdlPath`);
-    const idlPath = manifest.idlPath ? resolvePublicAssetPath(manifest.idlPath, `${id}.idlPath`) : null;
+    const idlPath = await resolveCodecIdlPath(manifest, id);
     const appPath = resolvePublicAssetPath(manifest.appPath, `${id}.appPath`);
 
     const protocolErrors = [];

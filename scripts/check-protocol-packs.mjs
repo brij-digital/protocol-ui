@@ -112,6 +112,38 @@ function resolvePublicAssetPath(assetPath, label) {
   return normalized;
 }
 
+async function resolveCodecIdlPath(manifest, protocolId) {
+  if (manifest.idlPath !== undefined) {
+    return resolvePublicAssetPath(manifest.idlPath, `${protocolId}.idlPath`);
+  }
+  if (manifest.runtimeSpecPath === undefined) {
+    return null;
+  }
+
+  const runtimePath = resolvePublicAssetPath(manifest.runtimeSpecPath, `${protocolId}.runtimeSpecPath`);
+  const runtime = asObject(await readJsonFile(runtimePath, `${protocolId} runtime spec`), `${protocolId} runtime spec`);
+  const decoderArtifacts = asObject(runtime.decoderArtifacts, `${protocolId}.runtime.decoderArtifacts`);
+  const candidates = new Set();
+  for (const [artifactName, artifactRaw] of Object.entries(decoderArtifacts)) {
+    const artifact = asObject(artifactRaw, `${protocolId}.runtime.decoderArtifacts.${artifactName}`);
+    if (typeof artifact.codecIdlPath === 'string' && artifact.codecIdlPath.length > 0) {
+      candidates.add(resolvePublicAssetPath(artifact.codecIdlPath, `${protocolId}.runtime.decoderArtifacts.${artifactName}.codecIdlPath`));
+      continue;
+    }
+    if (typeof artifact.idlPath === 'string' && artifact.idlPath.length > 0) {
+      candidates.add(resolvePublicAssetPath(artifact.idlPath, `${protocolId}.runtime.decoderArtifacts.${artifactName}.idlPath`));
+    }
+  }
+
+  if (candidates.size === 0) {
+    return null;
+  }
+  if (candidates.size > 1) {
+    fail(`${protocolId}: runtime decoderArtifacts declare multiple codec IDL paths.`);
+  }
+  return Array.from(candidates)[0] ?? null;
+}
+
 function readPathFromValue(value, dottedPath) {
   const cleaned = dottedPath.startsWith('$') ? dottedPath.slice(1) : dottedPath;
   const parts = cleaned.split('.').filter(Boolean);
@@ -474,9 +506,7 @@ async function run() {
     const protocolId = manifest.id;
     const appPath = resolvePublicAssetPath(manifest.appPath, `${protocolId}.appPath`);
     const codamaPath = resolvePublicAssetPath(manifest.codamaIdlPath, `${protocolId}.codamaIdlPath`);
-    const idlPath = manifest.idlPath
-      ? resolvePublicAssetPath(manifest.idlPath, `${protocolId}.idlPath`)
-      : null;
+    const idlPath = await resolveCodecIdlPath(manifest, protocolId);
 
     const app = asObject(await readJsonFile(appPath, `${protocolId} App pack`), `${protocolId} App pack`);
     const codama = asObject(await readJsonFile(codamaPath, `${protocolId} Codama IDL`), `${protocolId} Codama IDL`);

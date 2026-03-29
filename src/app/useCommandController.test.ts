@@ -3,7 +3,7 @@ import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { useCommandController } from './useCommandController';
 
-vi.mock('@brij-digital/apppack-runtime/idlDeclarativeRuntime', async () => {
+vi.mock('./runtimeIdlCompat', async () => {
   return {
     listIdlProtocols: vi.fn(),
     getInstructionTemplate: vi.fn(),

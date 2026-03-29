@@ -45,6 +45,7 @@ Current ownership model:
 - `*.runtime.json` are wallet-owned declarative indexing specs
 - `*.app.json` are wallet-owned execution + product/app specs
 - downstream repos must sync these files instead of editing their own copies
+- `registry.json` may omit `idlPath` for migrated protocols; when a codec IDL is still needed, it should be resolved from `*.runtime.json` decoder artifacts, not treated as primary registry truth
 
 Target architecture:
 - `Codama` = protocol truth
