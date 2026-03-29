@@ -3,7 +3,10 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useBuilderController } from './useBuilderController';
 import { listIdlProtocols } from '@brij-digital/apppack-runtime/idlDeclarativeRuntime';
-import { listMetaApps, listMetaOperations } from '@brij-digital/apppack-runtime/metaIdlRuntime';
+import {
+  listApps as listMetaApps,
+  listAppOperations as listMetaOperations,
+} from '@brij-digital/apppack-runtime/appSpecRuntime';
 
 vi.mock('@brij-digital/apppack-runtime/idlDeclarativeRuntime', async () => {
   return {
@@ -13,9 +16,9 @@ vi.mock('@brij-digital/apppack-runtime/idlDeclarativeRuntime', async () => {
   };
 });
 
-vi.mock('@brij-digital/apppack-runtime/metaIdlRuntime', async () => {
+vi.mock('@brij-digital/apppack-runtime/appSpecRuntime', async () => {
   return {
-    listMetaOperations: vi.fn(async () => ({
+    listAppOperations: vi.fn(async () => ({
       operations: [
         {
           operationId: 'list_pools',
@@ -36,7 +39,7 @@ vi.mock('@brij-digital/apppack-runtime/metaIdlRuntime', async () => {
         },
       ],
     })),
-    listMetaApps: vi.fn(async () => ({
+    listApps: vi.fn(async () => ({
       apps: [
         {
           appId: 'discover_then_swap',
@@ -85,8 +88,8 @@ vi.mock('@brij-digital/apppack-runtime/metaIdlRuntime', async () => {
         },
       ],
     })),
-    explainMetaOperation: vi.fn(),
-    prepareMetaOperation: vi.fn(),
+    explainAppOperation: vi.fn(),
+    prepareAppOperation: vi.fn(),
   };
 });
 

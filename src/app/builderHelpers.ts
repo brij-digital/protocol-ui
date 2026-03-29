@@ -1,4 +1,8 @@
-import type { MetaAppSummary, MetaOperationExplain, MetaOperationSummary } from '@brij-digital/apppack-runtime/metaIdlRuntime';
+import type {
+  AppSummary as MetaAppSummary,
+  AppOperationExplain as MetaOperationExplain,
+  AppOperationSummary as MetaOperationSummary,
+} from '@brij-digital/apppack-runtime/appSpecRuntime';
 import { resolveToken } from '../constants/tokens';
 
 export type BuilderAppStepContext = {

@@ -13,11 +13,11 @@ vi.mock('@brij-digital/apppack-runtime/idlDeclarativeRuntime', async () => {
   };
 });
 
-vi.mock('@brij-digital/apppack-runtime/metaIdlRuntime', async () => {
+vi.mock('@brij-digital/apppack-runtime/appSpecRuntime', async () => {
   return {
-    explainMetaOperation: vi.fn(),
-    listMetaOperations: vi.fn(),
-    prepareMetaOperation: vi.fn(),
+    explainAppOperation: vi.fn(),
+    listAppOperations: vi.fn(),
+    prepareAppOperation: vi.fn(),
   };
 });
 

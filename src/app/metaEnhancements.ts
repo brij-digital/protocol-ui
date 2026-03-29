@@ -1,4 +1,4 @@
-import type { MetaOperationSummary } from '@brij-digital/apppack-runtime/metaIdlRuntime';
+import type { AppOperationSummary as MetaOperationSummary } from '@brij-digital/apppack-runtime/appSpecRuntime';
 import { readBuilderPath } from './builderHelpers';
 
 type JsonRecord = Record<string, unknown>;

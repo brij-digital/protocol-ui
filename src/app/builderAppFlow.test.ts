@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { MetaAppSummary } from '@brij-digital/apppack-runtime/metaIdlRuntime';
+import type { AppSummary as MetaAppSummary } from '@brij-digital/apppack-runtime/appSpecRuntime';
 import {
   isBuilderAppStepUnlocked,
   type BuilderAppStepContext,

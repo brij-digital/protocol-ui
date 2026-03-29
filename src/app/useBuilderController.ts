@@ -2,11 +2,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { listIdlProtocols } from '@brij-digital/apppack-runtime/idlDeclarativeRuntime';
 import {
-  listMetaApps,
-  listMetaOperations,
-  type MetaAppSummary,
-  type MetaOperationSummary,
-} from '@brij-digital/apppack-runtime/metaIdlRuntime';
+  listApps as listMetaApps,
+  listAppOperations as listMetaOperations,
+  type AppSummary as MetaAppSummary,
+  type AppOperationSummary as MetaOperationSummary,
+} from '@brij-digital/apppack-runtime/appSpecRuntime';
 import {
   asPrettyJson,
   buildExampleInputsForOperation,

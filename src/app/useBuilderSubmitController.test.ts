@@ -9,10 +9,10 @@ import {
   simulateIdlInstruction,
 } from '@brij-digital/apppack-runtime/idlDeclarativeRuntime';
 import {
-  listMetaApps,
-  listMetaOperations,
-  prepareMetaOperation,
-} from '@brij-digital/apppack-runtime/metaIdlRuntime';
+  listApps as listMetaApps,
+  listAppOperations as listMetaOperations,
+  prepareAppOperation as prepareMetaOperation,
+} from '@brij-digital/apppack-runtime/appSpecRuntime';
 
 vi.mock('@brij-digital/apppack-runtime/idlDeclarativeRuntime', async () => {
   return {
@@ -22,11 +22,11 @@ vi.mock('@brij-digital/apppack-runtime/idlDeclarativeRuntime', async () => {
   };
 });
 
-vi.mock('@brij-digital/apppack-runtime/metaIdlRuntime', async () => {
+vi.mock('@brij-digital/apppack-runtime/appSpecRuntime', async () => {
   return {
-    listMetaOperations: vi.fn(),
-    listMetaApps: vi.fn(),
-    prepareMetaOperation: vi.fn(),
+    listAppOperations: vi.fn(),
+    listApps: vi.fn(),
+    prepareAppOperation: vi.fn(),
   };
 });
 

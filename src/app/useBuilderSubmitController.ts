@@ -12,7 +12,10 @@ import {
   sendIdlInstruction,
   simulateIdlInstruction,
 } from '@brij-digital/apppack-runtime/idlDeclarativeRuntime';
-import { prepareMetaOperation, type MetaOperationSummary } from '@brij-digital/apppack-runtime/metaIdlRuntime';
+import {
+  prepareAppOperation as prepareMetaOperation,
+  type AppOperationSummary as MetaOperationSummary,
+} from '@brij-digital/apppack-runtime/appSpecRuntime';
 import {
   buildDerivedFromReadOutputSource,
   buildReadOnlyHighlightsFromSpec,
