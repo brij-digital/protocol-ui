@@ -113,6 +113,9 @@ function resolvePublicAssetPath(assetPath, label) {
 }
 
 async function resolveCodecIdlPath(manifest, protocolId) {
+  if (manifest.runtimeSpecPath !== undefined && manifest.idlPath !== undefined) {
+    fail(`${protocolId}: registry idlPath is no longer allowed alongside runtimeSpecPath.`);
+  }
   if (manifest.idlPath !== undefined) {
     return resolvePublicAssetPath(manifest.idlPath, `${protocolId}.idlPath`);
   }
@@ -434,6 +437,9 @@ function validateManifest(manifest, seenIds) {
   asString(manifest.status, `${id}.status`);
   resolvePublicAssetPath(manifest.codamaIdlPath, `${id}.codamaIdlPath`);
   resolvePublicAssetPath(manifest.appPath, `${id}.appPath`);
+  if (manifest.runtimeSpecPath !== undefined && manifest.idlPath !== undefined) {
+    fail(`${id}: registry idlPath is no longer allowed alongside runtimeSpecPath.`);
+  }
   if (manifest.idlPath !== undefined) {
     resolvePublicAssetPath(manifest.idlPath, `${id}.idlPath`);
   }
