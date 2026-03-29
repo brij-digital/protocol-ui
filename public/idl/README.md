@@ -43,4 +43,11 @@ Current ownership model:
 - `*.codama.json` are the protocol source of truth
 - `*.json` IDLs are compatibility artifacts while some tooling still needs Anchor-style codecs
 - `*.runtime.json` are wallet-owned declarative indexing specs
+- `*.app.json` are wallet-owned product/app specs
+- `*.meta.json` and `*.meta.core.json` are legacy transitional artifacts during migration
 - downstream repos must sync these files instead of editing their own copies
+
+Target architecture:
+- `Codama` = protocol truth
+- `runtime` = indexing / compute / projections
+- `app` = UX / agent flow
