@@ -46,7 +46,7 @@ describe('useBuilderSubmitController', () => {
 
   it('runs list_pools -> select item -> swap simulate in end-user app flow', async () => {
     vi.mocked(listIdlProtocols).mockResolvedValue({
-      protocols: [{ id: 'orca-whirlpool-mainnet', name: 'Orca', status: 'active', metaPath: '/idl/orca.meta.json' }],
+      protocols: [{ id: 'orca-whirlpool-mainnet', name: 'Orca', status: 'active', appPath: '/idl/orca_whirlpool.app.json' }],
     } as never);
 
     vi.mocked(listMetaOperations).mockResolvedValue({
@@ -151,7 +151,7 @@ describe('useBuilderSubmitController', () => {
 
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input.toString();
-      if (url.includes('/idl/orca.meta.core.json')) {
+      if (url.includes('/idl/orca_whirlpool.app.json')) {
         return {
           ok: true,
           json: async () => ({
@@ -169,29 +169,6 @@ describe('useBuilderSubmitController', () => {
                 inputs: {
                   amount_in: { type: 'u64', label: 'Amount In' },
                 },
-              },
-            },
-          }),
-        } as Response;
-      }
-      if (url.includes('/idl/orca.app.json')) {
-        return {
-          ok: true,
-          json: async () => ({
-            apps: {
-              discover_then_swap: {
-                label: 'Discover & Swap',
-                steps: [
-                  {
-                    id: 'discover',
-                    label: 'Discover',
-                    next_on_success: 'swap',
-                  },
-                  {
-                    id: 'swap',
-                    label: 'Swap',
-                  },
-                ],
               },
             },
           }),
@@ -426,7 +403,7 @@ describe('useBuilderSubmitController', () => {
 
   it('updates pump-core readonly preview input from derived compute', async () => {
       vi.mocked(listIdlProtocols).mockResolvedValue({
-        protocols: [{ id: 'pump-core-mainnet', name: 'Pump Core', status: 'active', metaPath: '/idl/pump_core.meta.json' }],
+        protocols: [{ id: 'pump-core-mainnet', name: 'Pump Core', status: 'active', appPath: '/idl/pump_core.app.json' }],
       } as never);
 
       vi.mocked(listMetaOperations).mockResolvedValue({

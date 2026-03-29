@@ -2,9 +2,9 @@
   "kind": "aidl.v0.1",
   "label": "Orca Whirlpool",
   "target": {
-    "output": "public/idl/orca_whirlpool.meta.json",
-    "schema": "meta-idl.v0.6",
-    "schemaPath": "/idl/meta_idl.schema.v0.6.json",
+    "output": "public/idl/orca_whirlpool.app.json",
+    "schema": "meta-app.v0.1",
+    "schemaPath": "/idl/meta_app.schema.v0.1.json",
     "version": "0.2.0",
     "protocolId": "orca-whirlpool-mainnet"
   },

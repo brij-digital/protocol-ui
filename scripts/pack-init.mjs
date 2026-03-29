@@ -96,9 +96,9 @@ function createAidlSkeleton({ protocolId, slug }) {
   return {
     kind: 'aidl.v0.1',
     target: {
-      output: `public/idl/${slug}.meta.json`,
-      schema: 'meta-idl.v0.6',
-      schemaPath: '/idl/meta_idl.schema.v0.6.json',
+      output: `public/idl/${slug}.app.json`,
+      schema: 'meta-app.v0.1',
+      schemaPath: '/idl/meta_app.schema.v0.1.json',
       version: '0.1.0',
       protocolId,
     },

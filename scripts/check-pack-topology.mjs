@@ -105,13 +105,17 @@ async function main() {
       fail(`${protocolId}: app.protocolId mismatch (${appProtocolId}).`);
     }
 
-    if (protocol.runtimeSpecPath) {
+    const hasRuntime = Boolean(protocol.runtimeSpecPath);
+    if (hasRuntime) {
       const runtimePath = resolveIdlPath(protocol.runtimeSpecPath, `${protocolId}.runtimeSpecPath`);
       const runtime = asObject(await readJson(runtimePath, `${protocolId} runtime spec`), `${protocolId} runtime spec`);
       requireSchema(runtime, 'declarative-decoder-runtime.v1', `${protocolId}.runtime`);
       const runtimeProtocolId = asString(runtime.protocolId, `${protocolId}.runtime.protocolId`);
       if (runtimeProtocolId !== protocolId) {
         fail(`${protocolId}: runtime.protocolId mismatch (${runtimeProtocolId}).`);
+      }
+      if (protocol.metaPath != null || protocol.metaCorePath != null) {
+        fail(`${protocolId}: migrated protocols must not keep metaPath/metaCorePath once runtimeSpecPath is present.`);
       }
       migratedCount += 1;
     }

@@ -64,11 +64,10 @@ Each protocol pack is now split into 4 layers:
   - [public/idl/orca_whirlpool.runtime.json](public/idl/orca_whirlpool.runtime.json)
   - [public/idl/pump_core.runtime.json](public/idl/pump_core.runtime.json)
 
-4. `MetaIDL + AppSpec`
-- `MetaIDL` = declarative execution/read surface
-- `AppSpec` = end-user flow
+4. `App Spec`
+- declarative execution/read surface + end-user flow
 - examples:
-  - [public/idl/orca_whirlpool.meta.core.json](public/idl/orca_whirlpool.meta.core.json)
+  - [public/idl/orca_whirlpool.app.json](public/idl/orca_whirlpool.app.json)
   - [public/idl/pump_amm.app.json](public/idl/pump_amm.app.json)
 
 Registry:
@@ -82,7 +81,7 @@ Schemas:
 ## Runtime + View Architecture
 
 This web app depends on:
-- `@brij-digital/apppack-runtime` (external package): deterministic IDL/MetaIDL execution runtime
+- `@brij-digital/apppack-runtime` (external package): deterministic IDL/App execution runtime
 - `apppack-view-service` (separate repo/service): read/view execution and indexed data endpoint (`/view-run`)
 
 Important behavior:

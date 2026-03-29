@@ -1,6 +1,6 @@
 # AIDL Authoring Guide (Current)
 
-AIDL is the authoring format for MetaIDL packs in this repo.
+AIDL is the authoring format for app packs in this repo.
 
 Goal:
 - keep authoring concise for humans
@@ -15,14 +15,12 @@ AIDL shared compute libraries:
 - `aidl/*.compute.json`
 
 Generated outputs:
-- `public/idl/*.meta.json`
-- `public/idl/*.meta.core.json`
 - `public/idl/*.app.json`
 - `public/compute/*.compute.json` (copied source libraries for inspection)
 
 ## Compile Commands
 
-Compile + split packs:
+Compile packs:
 
 ```bash
 npm run aidl:compile
@@ -40,9 +38,9 @@ npm run aidl:check
 {
   "kind": "aidl.v0.1",
   "target": {
-    "output": "public/idl/my_protocol.meta.json",
-    "schema": "meta-idl.v0.6",
-    "schemaPath": "/idl/meta_idl.schema.v0.6.json",
+    "output": "public/idl/my_protocol.app.json",
+    "schema": "meta-app.v0.1",
+    "schemaPath": "/idl/meta_app.schema.v0.1.json",
     "version": "0.1.0",
     "protocolId": "my-protocol-mainnet"
   },
@@ -99,7 +97,7 @@ AIDL-first packs today:
 - `orca_whirlpool`
 - `pump_amm`
 
-Other packs can still be maintained directly in `public/idl/*.meta.json` and are split by `split-meta-packs`.
+Unmigrated packs can still be maintained directly in `public/idl/*.meta.json` and are split by `split-meta-packs`.
 
 ## Recommended Workflow
 

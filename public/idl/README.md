@@ -37,14 +37,15 @@ Generated protocol artifacts in this directory now include:
 - canonical protocol specs: `*.codama.json`
 - codec compatibility IDLs: `*.json`
 - declarative indexing/runtime specs: `*.runtime.json`
-- MetaIDL/AppSpec outputs: `*.meta.json`, `*.meta.core.json`, `*.app.json`
+- app specs: `*.app.json`
+- legacy transitional artifacts for unmigrated packs only: `*.meta.json`, `*.meta.core.json`
 
 Current ownership model:
 - `*.codama.json` are the protocol source of truth
 - `*.json` IDLs are compatibility artifacts while some tooling still needs Anchor-style codecs
 - `*.runtime.json` are wallet-owned declarative indexing specs
-- `*.app.json` are wallet-owned product/app specs
-- `*.meta.json` and `*.meta.core.json` are legacy transitional artifacts during migration
+- `*.app.json` are wallet-owned execution + product/app specs
+- `*.meta.json` and `*.meta.core.json` are legacy transitional artifacts only for unmigrated packs
 - downstream repos must sync these files instead of editing their own copies
 
 Target architecture:
@@ -52,7 +53,6 @@ Target architecture:
 - `runtime` = indexing / compute / projections
 - `app` = UX / agent flow
 
-Current migration rule for `*.meta.core.json`:
-- keep only action-facing material such as `templates`, `operations`, and optional app lookup sources
-- do not carry runtime ingest sources like `rpc_transaction_crawler` there
-- runtime indexing logic belongs in `*.runtime.json`
+Current migration rule:
+- migrated packs should expose only `codama + runtime + app`
+- only unmigrated packs should still carry `*.meta.json` / `*.meta.core.json`
