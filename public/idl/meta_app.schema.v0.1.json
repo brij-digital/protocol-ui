@@ -16,6 +16,24 @@
     "label": {
       "type": "string"
     },
+    "sources": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/sourceSpec"
+      }
+    },
+    "templates": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/templateSpec"
+      }
+    },
+    "operations": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/actionSpec"
+      }
+    },
     "apps": {
       "type": "object",
       "additionalProperties": {
@@ -31,6 +49,201 @@
     "apps"
   ],
   "$defs": {
+    "sourceSpec": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "items"
+          ],
+          "properties": {
+            "kind": {
+              "const": "inline"
+            },
+            "items": {
+              "type": "array",
+              "items": {}
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "url"
+          ],
+          "properties": {
+            "kind": {
+              "const": "http_json"
+            },
+            "url": {
+              "type": "string"
+            },
+            "items_path": {
+              "type": "string"
+            },
+            "ttl_ms": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "actionInputSpec": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "placeholder": {
+          "type": "string"
+        },
+        "help": {
+          "type": "string"
+        },
+        "group": {
+          "type": "string"
+        },
+        "display_order": {
+          "type": "number"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "default": {},
+        "read_from": {
+          "type": "string",
+          "minLength": 1
+        },
+        "validate": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "ui_mode": {
+          "type": "string",
+          "enum": [
+            "edit",
+            "readonly",
+            "hidden"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "actionSpec": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "instruction": {
+          "type": "string"
+        },
+        "inputs": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/actionInputSpec"
+          }
+        },
+        "discover": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "derive": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "compute": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "args": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "accounts": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "remaining_accounts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "read_output": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "view": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "pre": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "post": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "use": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "validate": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "templateSpec": {
+      "type": "object",
+      "properties": {
+        "params": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "expand": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "expand"
+      ],
+      "additionalProperties": false
+    },
     "userAppActionSpec": {
       "type": "object",
       "required": [

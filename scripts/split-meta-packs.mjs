@@ -59,6 +59,21 @@ function buildAppPack(meta, sourceFile) {
   const protocolId = asString(meta.protocolId, `${sourceFile}.protocolId`);
   const label = asString(meta.label, `${sourceFile}.label`);
   const apps = asObject(meta.apps, `${sourceFile}.apps`);
+  const templates =
+    meta.templates && typeof meta.templates === 'object' && !Array.isArray(meta.templates)
+      ? meta.templates
+      : {};
+  const operations = asObject(meta.operations, `${sourceFile}.operations`);
+  const sourceEntries =
+    meta.sources && typeof meta.sources === 'object' && !Array.isArray(meta.sources)
+      ? Object.entries(meta.sources).filter(([, value]) => {
+          if (!value || typeof value !== 'object' || Array.isArray(value)) {
+            return false;
+          }
+          const kind = value.kind;
+          return kind === 'inline' || kind === 'http_json';
+        })
+      : [];
 
   return {
     $schema: '/idl/meta_app.schema.v0.1.json',
@@ -66,6 +81,9 @@ function buildAppPack(meta, sourceFile) {
     version,
     protocolId,
     label,
+    ...(sourceEntries.length > 0 ? { sources: Object.fromEntries(sourceEntries) } : {}),
+    templates,
+    operations,
     apps,
   };
 }
