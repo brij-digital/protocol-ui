@@ -211,11 +211,15 @@ type ComputeLibraryFile = {
   libraries: Record<string, Record<string, unknown>[]>;
 };
 
-function computePathFromMetaPath(metaPath: string | undefined): string | null {
-  if (!metaPath || !metaPath.endsWith('.meta.json')) {
+function computePathFromPackPath(packPath: string | undefined): string | null {
+  if (!packPath || !packPath.startsWith('/idl/')) {
     return null;
   }
-  return metaPath.replace(/^\/idl\//, '/compute/').replace(/\.meta\.json$/, '.compute.json');
+  const match = packPath.match(/^\/idl\/([^/]+?)\.(?:app|meta|runtime|codama|meta\.core)\.json$/);
+  if (!match) {
+    return null;
+  }
+  return `/compute/${match[1]}.compute.json`;
 }
 
 export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
@@ -241,9 +245,11 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
           id: protocol.id,
           name: protocol.name,
           status: protocol.status,
-          computePath: computePathFromMetaPath(
-            typeof (protocol as unknown as Record<string, unknown>).metaPath === 'string'
-              ? ((protocol as unknown as Record<string, unknown>).metaPath as string)
+          computePath: computePathFromPackPath(
+            typeof (protocol as unknown as Record<string, unknown>).appPath === 'string'
+              ? ((protocol as unknown as Record<string, unknown>).appPath as string)
+              : typeof (protocol as unknown as Record<string, unknown>).metaPath === 'string'
+                ? ((protocol as unknown as Record<string, unknown>).metaPath as string)
               : undefined,
           ),
         }));

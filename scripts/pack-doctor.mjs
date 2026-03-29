@@ -157,7 +157,8 @@ async function main() {
 
     const codamaPath = resolvePublicAssetPath(manifest.codamaIdlPath, `${id}.codamaIdlPath`);
     const idlPath = manifest.idlPath ? resolvePublicAssetPath(manifest.idlPath, `${id}.idlPath`) : null;
-    const metaPath = resolvePublicAssetPath(manifest.metaPath, `${id}.metaPath`);
+    const appPath = resolvePublicAssetPath(manifest.appPath, `${id}.appPath`);
+    const metaPath = manifest.metaPath ? resolvePublicAssetPath(manifest.metaPath, `${id}.metaPath`) : null;
 
     const protocolErrors = [];
     const protocolWarnings = [];
@@ -172,13 +173,15 @@ async function main() {
       protocolWarnings.push(idlPath ? `Missing codec IDL file: ${path.relative(ROOT, idlPath)}` : 'No codec IDL path declared.');
     }
 
-    const metaExists = await pathExists(metaPath);
-    if (!metaExists) {
-      protocolErrors.push(`Missing Meta IDL file: ${path.relative(ROOT, metaPath)}`);
+    const appExists = await pathExists(appPath);
+    if (!appExists) {
+      protocolErrors.push(`Missing app spec file: ${path.relative(ROOT, appPath)}`);
     }
+    const metaExists = metaPath ? await pathExists(metaPath) : false;
 
     let codama = null;
     let idl = null;
+    let app = null;
     let meta = null;
 
     if (codamaExists) {
@@ -209,34 +212,42 @@ async function main() {
       }
     }
 
-    if (metaExists) {
+    if (appExists) {
       try {
-        meta = asObject(await readJson(metaPath, `${id} Meta IDL`), `${id} Meta IDL`);
-        const schema = asString(meta.schema, `${id}.meta.schema`);
-        if (schema !== 'meta-idl.v0.6') {
-          protocolErrors.push(`Unsupported meta schema: ${schema} (expected meta-idl.v0.6)`);
+        app = asObject(await readJson(appPath, `${id} app spec`), `${id} app spec`);
+        const schema = asString(app.schema, `${id}.app.schema`);
+        if (schema !== 'meta-app.v0.1') {
+          protocolErrors.push(`Unsupported app schema: ${schema} (expected meta-app.v0.1)`);
         }
-        const metaProtocolId = asString(meta.protocolId, `${id}.meta.protocolId`);
-        if (metaProtocolId !== id) {
-          protocolErrors.push(`meta.protocolId mismatch: ${metaProtocolId} != ${id}`);
+        const appProtocolId = asString(app.protocolId, `${id}.app.protocolId`);
+        if (appProtocolId !== id) {
+          protocolErrors.push(`app.protocolId mismatch: ${appProtocolId} != ${id}`);
         }
 
-        const operations = asObject(meta.operations, `${id}.meta.operations`);
+        const operations = asObject(app.operations, `${id}.app.operations`);
         const operationIds = Object.keys(operations);
         if (operationIds.length === 0) {
-          protocolWarnings.push('No operations declared in meta.operations.');
+          protocolWarnings.push('No operations declared in app.operations.');
         }
 
-        const appsRaw = meta.apps;
+        const appsRaw = app.apps;
         if (appsRaw === undefined) {
-          protocolErrors.push('No apps declared (required by app-first schema).');
+          protocolErrors.push('No apps declared in app spec.');
         } else {
-          const apps = asObject(appsRaw, `${id}.meta.apps`);
+          const apps = asObject(appsRaw, `${id}.app.apps`);
           const appIds = Object.keys(apps);
           if (appIds.length === 0) {
-            protocolErrors.push('apps exists but is empty.');
+            protocolErrors.push('app.apps exists but is empty.');
           }
         }
+      } catch (error) {
+        protocolErrors.push(error instanceof Error ? error.message : String(error));
+      }
+    }
+
+    if (metaExists && metaPath) {
+      try {
+        meta = asObject(await readJson(metaPath, `${id} legacy meta`), `${id} legacy meta`);
       } catch (error) {
         protocolErrors.push(error instanceof Error ? error.message : String(error));
       }
@@ -246,14 +257,16 @@ async function main() {
     if (matchingAidl.length === 0) {
       protocolWarnings.push('No AIDL source found targeting this protocolId.');
     }
-    const expectedOutput = asString(manifest.metaPath, `${id}.metaPath`);
-    const outputMatches = aidlTargets.filter((target) => normalizeAidlTargetOutput(target.output) === expectedOutput);
-    if (outputMatches.length === 0) {
+    const expectedOutput = metaPath ? asString(manifest.metaPath, `${id}.metaPath`) : null;
+    const outputMatches = expectedOutput
+      ? aidlTargets.filter((target) => normalizeAidlTargetOutput(target.output) === expectedOutput)
+      : [];
+    if (expectedOutput && outputMatches.length === 0) {
       protocolWarnings.push(`No AIDL target.output matches ${expectedOutput}.`);
     }
 
     const status = asString(manifest.status, `${id}.status`);
-    if (status === 'active' && (meta?.apps === undefined || Object.keys(meta.apps ?? {}).length === 0)) {
+    if (status === 'active' && (app?.apps === undefined || Object.keys(app.apps ?? {}).length === 0)) {
       protocolErrors.push('Protocol is active but has no apps for End User mode.');
     }
 
@@ -272,10 +285,13 @@ async function main() {
     if (idlPath) {
       console.log(`- codec idl: ${path.relative(ROOT, idlPath)} ${idlExists ? 'OK' : 'MISSING'}`);
     }
-    console.log(`- meta: ${path.relative(ROOT, metaPath)} ${metaExists ? 'OK' : 'MISSING'}`);
-    if (meta && typeof meta === 'object' && meta.operations && typeof meta.operations === 'object') {
-      console.log(`- operations: ${Object.keys(meta.operations).length}`);
-      console.log(`- apps: ${meta.apps && typeof meta.apps === 'object' ? Object.keys(meta.apps).length : 0}`);
+    console.log(`- app: ${path.relative(ROOT, appPath)} ${appExists ? 'OK' : 'MISSING'}`);
+    if (metaPath) {
+      console.log(`- legacy meta: ${path.relative(ROOT, metaPath)} ${metaExists ? 'OK' : 'MISSING'}`);
+    }
+    if (app && typeof app === 'object' && app.operations && typeof app.operations === 'object') {
+      console.log(`- operations: ${Object.keys(app.operations).length}`);
+      console.log(`- apps: ${app.apps && typeof app.apps === 'object' ? Object.keys(app.apps).length : 0}`);
     }
 
     for (const warn of protocolWarnings) {

@@ -110,35 +110,9 @@ async function main() {
   for (const protocolRaw of protocols) {
     const protocol = asObject(protocolRaw, 'registry.protocol');
     const protocolId = asNonEmptyString(protocol.id, 'registry.protocol.id');
-    const metaCorePath = protocol.metaCorePath ?? protocol.metaPath;
     const appPath = protocol.appPath;
-    if (!metaCorePath || !appPath) {
+    if (!appPath) {
       continue;
-    }
-
-    const metaCore = asObject(
-      await readJson(toLocalPublicPath(metaCorePath, `${protocolId}.metaCorePath`), `${protocolId} meta core`),
-      `${protocolId}.metaCore`,
-    );
-    const operations = asObject(metaCore.operations, `${protocolId}.metaCore.operations`);
-    for (const [operationId, operationRaw] of Object.entries(operations)) {
-      const operation = asObject(operationRaw, `${protocolId}.metaCore.operations.${operationId}`);
-      const inputs = asObject(
-        operation.inputs ?? {},
-        `${protocolId}.metaCore.operations.${operationId}.inputs`,
-      );
-      for (const [inputName, inputRaw] of Object.entries(inputs)) {
-        const input = asObject(
-          inputRaw,
-          `${protocolId}.metaCore.operations.${operationId}.inputs.${inputName}`,
-        );
-        if (input.read_from !== undefined) {
-          asNonEmptyString(
-            input.read_from,
-            `${protocolId}.metaCore.operations.${operationId}.inputs.${inputName}.read_from`,
-          );
-        }
-      }
     }
 
     const appPack = asObject(
@@ -147,6 +121,27 @@ async function main() {
     );
     if (appPack.schema !== 'meta-app.v0.1') {
       fail(`${protocolId}.app.schema must be meta-app.v0.1.`);
+    }
+
+    const operations = asObject(appPack.operations ?? {}, `${protocolId}.app.operations`);
+    for (const [operationId, operationRaw] of Object.entries(operations)) {
+      const operation = asObject(operationRaw, `${protocolId}.app.operations.${operationId}`);
+      const inputs = asObject(
+        operation.inputs ?? {},
+        `${protocolId}.app.operations.${operationId}.inputs`,
+      );
+      for (const [inputName, inputRaw] of Object.entries(inputs)) {
+        const input = asObject(
+          inputRaw,
+          `${protocolId}.app.operations.${operationId}.inputs.${inputName}`,
+        );
+        if (input.read_from !== undefined) {
+          asNonEmptyString(
+            input.read_from,
+            `${protocolId}.app.operations.${operationId}.inputs.${inputName}.read_from`,
+          );
+        }
+      }
     }
     const apps = asObject(appPack.apps, `${protocolId}.app.apps`);
 

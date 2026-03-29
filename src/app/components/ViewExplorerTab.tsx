@@ -10,6 +10,7 @@ type RegistryProtocol = {
   name?: string;
   network?: string;
   programId?: string;
+  appPath?: string;
   metaPath?: string;
   metaCorePath?: string;
   status?: string;
@@ -587,7 +588,7 @@ export function ViewExplorerTab({ viewApiBaseUrl }: ViewExplorerTabProps) {
           if (!INDEXED_PROTOCOL_IDS.has(protocol.id)) {
             continue;
           }
-          const metaPath = protocol.metaCorePath ?? protocol.metaPath;
+          const metaPath = protocol.appPath ?? protocol.metaCorePath ?? protocol.metaPath;
           if (!metaPath) {
             continue;
           }

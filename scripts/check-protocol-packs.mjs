@@ -11,6 +11,7 @@ const RPC_SIM_FIXTURE_DIR = path.join(ROOT, 'protocol-packs', 'rpc', 'simulation
 const RPC_PARITY_FIXTURE_DIR = path.join(ROOT, 'protocol-packs', 'rpc', 'parity');
 
 const REQUIRED_META_IDL_SCHEMA = 'meta-idl.v0.6';
+const REQUIRED_APP_SCHEMA = 'meta-app.v0.1';
 
 function fail(message) {
   throw new Error(message);
@@ -334,6 +335,21 @@ function validateMetaSchema(meta, manifest) {
   }
 }
 
+function validateAppSchema(app, manifest) {
+  const schema = asString(app.schema, `${manifest.id}.app.schema`);
+  if (schema !== REQUIRED_APP_SCHEMA) {
+    fail(`${manifest.id}: unsupported app schema ${schema}. Required: ${REQUIRED_APP_SCHEMA}.`);
+  }
+
+  const version = asString(app.version, `${manifest.id}.app.version`);
+  assert(version.length > 0, `${manifest.id}: app version must not be empty.`);
+
+  const protocolId = asString(app.protocolId, `${manifest.id}.app.protocolId`);
+  if (protocolId !== manifest.id) {
+    fail(`${manifest.id}: app protocolId mismatch (${protocolId}).`);
+  }
+}
+
 function validateApps(meta, protocolId, operations) {
   const apps = asObject(meta.apps, `${protocolId}.apps`);
   const appEntries = Object.entries(apps);
@@ -401,19 +417,22 @@ function validateManifest(manifest, seenIds) {
   asStringArray(manifest.supportedCommands, `${id}.supportedCommands`);
   asString(manifest.status, `${id}.status`);
   resolvePublicAssetPath(manifest.codamaIdlPath, `${id}.codamaIdlPath`);
+  resolvePublicAssetPath(manifest.appPath, `${id}.appPath`);
   if (manifest.idlPath !== undefined) {
     resolvePublicAssetPath(manifest.idlPath, `${id}.idlPath`);
   }
   if (manifest.runtimeSpecPath !== undefined) {
     resolvePublicAssetPath(manifest.runtimeSpecPath, `${id}.runtimeSpecPath`);
   }
-  resolvePublicAssetPath(manifest.metaPath, `${id}.metaPath`);
+  if (manifest.metaPath !== undefined) {
+    resolvePublicAssetPath(manifest.metaPath, `${id}.metaPath`);
+  }
 }
 
-function loadOperations(meta, protocolId) {
-  const operations = meta.operations;
+function loadOperations(pack, protocolId, label = 'app') {
+  const operations = pack.operations;
   if (!operations || typeof operations !== 'object' || Array.isArray(operations)) {
-    fail(`${protocolId}: meta operations are missing.`);
+    fail(`${protocolId}: ${label} operations are missing.`);
   }
   return operations;
 }
@@ -469,24 +488,33 @@ async function run() {
     validateManifest(manifest, seenIds);
 
     const protocolId = manifest.id;
-    const metaPath = resolvePublicAssetPath(manifest.metaPath, `${protocolId}.metaPath`);
+    const appPath = resolvePublicAssetPath(manifest.appPath, `${protocolId}.appPath`);
     const codamaPath = resolvePublicAssetPath(manifest.codamaIdlPath, `${protocolId}.codamaIdlPath`);
+    const metaPath = manifest.metaPath
+      ? resolvePublicAssetPath(manifest.metaPath, `${protocolId}.metaPath`)
+      : null;
     const idlPath = manifest.idlPath
       ? resolvePublicAssetPath(manifest.idlPath, `${protocolId}.idlPath`)
       : null;
 
-    const meta = asObject(await readJsonFile(metaPath, `${protocolId} Meta IDL`), `${protocolId} Meta IDL`);
+    const app = asObject(await readJsonFile(appPath, `${protocolId} App pack`), `${protocolId} App pack`);
+    const meta = metaPath
+      ? asObject(await readJsonFile(metaPath, `${protocolId} Meta IDL`), `${protocolId} Meta IDL`)
+      : null;
     const codama = asObject(await readJsonFile(codamaPath, `${protocolId} Codama IDL`), `${protocolId} Codama IDL`);
     if (codama.standard !== 'codama') {
       fail(`${protocolId}: ${manifest.codamaIdlPath} is not a Codama IDL.`);
     }
 
-    validateMetaSchema(meta, manifest);
+    validateAppSchema(app, manifest);
+    if (meta) {
+      validateMetaSchema(meta, manifest);
+    }
 
-    if (typeof meta.$schema === 'string' && meta.$schema.startsWith('/idl/')) {
-      const schemaFile = resolvePublicAssetPath(meta.$schema, `${protocolId}.$schema`);
+    if (typeof app.$schema === 'string' && app.$schema.startsWith('/idl/')) {
+      const schemaFile = resolvePublicAssetPath(app.$schema, `${protocolId}.$schema`);
       if (!(await pathExists(schemaFile))) {
-        fail(`${protocolId}: declared $schema file not found: ${meta.$schema}`);
+        fail(`${protocolId}: declared $schema file not found: ${app.$schema}`);
       }
     }
 
@@ -515,14 +543,14 @@ async function run() {
     } else {
       idlInstructionNames = collectCodamaInstructionNames(codama, protocolId);
     }
-    const operations = loadOperations(meta, protocolId);
-    validateApps(meta, protocolId, operations);
+    const operations = loadOperations(app, protocolId, 'app');
+    validateApps(app, protocolId, operations);
     const materializedByOperation = {};
 
     for (const [operationId, operationRaw] of Object.entries(operations)) {
       const operation = asObject(operationRaw, `${protocolId}.operations.${operationId}`);
-      const first = materializeOperation(operationId, operation, meta);
-      const second = materializeOperation(operationId, operation, meta);
+      const first = materializeOperation(operationId, operation, app);
+      const second = materializeOperation(operationId, operation, app);
 
       if (stableStringify(first) !== stableStringify(second)) {
         fail(`${protocolId}.${operationId}: non-deterministic materialization.`);

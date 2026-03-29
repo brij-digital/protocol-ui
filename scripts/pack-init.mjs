@@ -161,6 +161,21 @@ function createAidlSkeleton({ protocolId, slug }) {
   };
 }
 
+function createRuntimeSkeleton({ protocolId, programId }) {
+  return {
+    schema: 'declarative-decoder-runtime.v1',
+    protocolId,
+    version: '0.1.0',
+    decoderArtifacts: [],
+    sources: [],
+    projectionSpecs: {},
+    notes: [
+      `Starter runtime spec for ${protocolId}.`,
+      `Add sources/matchRules/pipelines/compute/emit for program ${programId}.`,
+    ],
+  };
+}
+
 function normalizeCommands(raw) {
   if (!raw || raw === true) {
     return [];
@@ -198,6 +213,7 @@ async function main() {
   const aidlPath = path.join(AIDL_DIR, `${slug}.aidl.json`);
   const idlPath = path.join(PUBLIC_IDL_DIR, `${slug}.json`);
   const codamaPath = path.join(PUBLIC_IDL_DIR, `${slug}.codama.json`);
+  const runtimePath = path.join(PUBLIC_IDL_DIR, `${slug}.runtime.json`);
 
   if (!overwrite) {
     if (await pathExists(aidlPath)) {
@@ -209,6 +225,9 @@ async function main() {
     if (await pathExists(codamaPath)) {
       fail(`Codama file already exists: ${path.relative(ROOT, codamaPath)} (use --overwrite to replace)`);
     }
+    if (await pathExists(runtimePath)) {
+      fail(`Runtime spec already exists: ${path.relative(ROOT, runtimePath)} (use --overwrite to replace)`);
+    }
   }
 
   await fs.mkdir(AIDL_DIR, { recursive: true });
@@ -216,9 +235,11 @@ async function main() {
 
   const idlJson = createIdlSkeleton(programId, slug);
   const aidlJson = createAidlSkeleton({ protocolId, slug });
+  const runtimeJson = createRuntimeSkeleton({ protocolId, programId });
 
   await fs.writeFile(idlPath, `${JSON.stringify(idlJson, null, 2)}\n`, 'utf8');
   await fs.writeFile(aidlPath, `${JSON.stringify(aidlJson, null, 2)}\n`, 'utf8');
+  await fs.writeFile(runtimePath, `${JSON.stringify(runtimeJson, null, 2)}\n`, 'utf8');
 
   const registry = await readJson(REGISTRY_PATH, 'Registry');
   if (!registry || typeof registry !== 'object' || !Array.isArray(registry.protocols)) {
@@ -232,7 +253,8 @@ async function main() {
     programId,
     idlPath: `/idl/${slug}.json`,
     codamaIdlPath: `/idl/${slug}.codama.json`,
-    metaPath: `/idl/${slug}.meta.json`,
+    runtimeSpecPath: `/idl/${slug}.runtime.json`,
+    appPath: `/idl/${slug}.app.json`,
     transport,
     supportedCommands: commands,
     status,
@@ -283,16 +305,18 @@ async function main() {
   console.log(`- ${path.relative(ROOT, aidlPath)}`);
   console.log(`- ${path.relative(ROOT, idlPath)}`);
   console.log(`- ${path.relative(ROOT, codamaPath)}`);
+  console.log(`- ${path.relative(ROOT, runtimePath)}`);
   console.log(`- ${path.relative(ROOT, REGISTRY_PATH)} updated`);
   console.log('');
   console.log('Next steps:');
   console.log('1. Make public/idl/<slug>.codama.json the protocol source of truth.');
   console.log('2. Keep public/idl/<slug>.json only as codec/compatibility IDL while needed.');
   console.log('3. Replace health_read in aidl/<slug>.aidl.json with real operations/templates/apps.');
-  console.log('4. Run: npm run aidl:compile');
-  console.log('5. Run: npm run codama:check');
-  console.log('6. Run: npm run pack:doctor -- --protocol <protocol-id>');
-  console.log('7. Run: npm run pack:check');
+  console.log('4. Fill public/idl/<slug>.runtime.json with sources/matchRules/pipelines/projections.');
+  console.log('5. Run: npm run aidl:compile');
+  console.log('6. Run: npm run codama:check');
+  console.log('7. Run: npm run pack:doctor -- --protocol <protocol-id>');
+  console.log('8. Run: npm run pack:check');
 }
 
 main().catch((error) => {

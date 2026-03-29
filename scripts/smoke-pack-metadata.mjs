@@ -20,14 +20,19 @@ async function main() {
     fail(`Invalid registry: ${REGISTRY_PATH}`);
   }
 
-  let loadedMetaFiles = 0;
+  let loadedPackFiles = 0;
   for (const protocol of registry.protocols) {
     if (!protocol || typeof protocol !== 'object') {
       fail('Registry contains an invalid protocol entry.');
     }
-    const metaPath = typeof protocol.metaCorePath === 'string' ? protocol.metaCorePath : protocol.metaPath;
+    const metaPath =
+      typeof protocol.appPath === 'string'
+        ? protocol.appPath
+        : typeof protocol.metaCorePath === 'string'
+          ? protocol.metaCorePath
+          : protocol.metaPath;
     if (!metaPath || !metaPath.startsWith('/idl/')) {
-      fail(`Protocol ${protocol.id ?? 'unknown'} is missing a valid meta path.`);
+      fail(`Protocol ${protocol.id ?? 'unknown'} is missing a valid app/meta path.`);
     }
     const filePath = path.join(IDL_DIR, metaPath.slice('/idl/'.length));
     const parsed = await loadJson(filePath);
@@ -37,10 +42,10 @@ async function main() {
     if (!parsed.operations || typeof parsed.operations !== 'object' || Array.isArray(parsed.operations)) {
       fail(`${filePath} is missing operations.`);
     }
-    loadedMetaFiles += 1;
+    loadedPackFiles += 1;
   }
 
-  console.log(`Wallet pack metadata smoke succeeded for ${loadedMetaFiles} protocol meta file(s).`);
+  console.log(`Wallet pack metadata smoke succeeded for ${loadedPackFiles} protocol pack file(s).`);
 }
 
 main().catch((error) => {

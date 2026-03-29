@@ -107,17 +107,16 @@ async function main() {
       continue;
     }
     const protocolId = asNonEmptyString(protocol.id, 'registry.protocol.id');
-    const metaCorePath = protocol.metaCorePath ?? protocol.metaPath;
     const appPath = protocol.appPath;
-    if (!metaCorePath || !appPath) {
+    if (!appPath) {
       continue;
     }
 
-    const metaCore = asObject(
-      await readJson(toLocalPublicPath(metaCorePath, `${protocolId}.metaCorePath`), `${protocolId} meta core`),
-      `${protocolId}.metaCore`,
+    const appPack = asObject(
+      await readJson(toLocalPublicPath(appPath, `${protocolId}.appPath`), `${protocolId} app spec`),
+      `${protocolId}.app`,
     );
-    const operations = asObject(metaCore.operations, `${protocolId}.metaCore.operations`);
+    const operations = asObject(appPack.operations ?? {}, `${protocolId}.app.operations`);
     const opEntries = Object.entries(operations);
     const opCount = opEntries.length;
     let maxDerive = 0;
@@ -134,10 +133,6 @@ async function main() {
       }
     }
 
-    const appPack = asObject(
-      await readJson(toLocalPublicPath(appPath, `${protocolId}.appPath`), `${protocolId} app spec`),
-      `${protocolId}.app`,
-    );
     const apps = asObject(appPack.apps, `${protocolId}.app.apps`);
     const appEntries = Object.entries(apps);
     let stepCount = 0;
