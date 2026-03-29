@@ -57,8 +57,6 @@
       "programId": "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD",
       "idlPath": "/idl/kamino_klend.json",
       "codamaIdlPath": "/idl/kamino_klend.codama.json",
-      "metaPath": "/idl/kamino_klend.meta.json",
-      "metaCorePath": "/idl/kamino_klend.meta.core.json",
       "appPath": "/idl/kamino_klend.app.json",
       "transport": "local-kamino-klend",
       "supportedCommands": ["/kamino-deposit", "/kamino-withdraw", "/kamino-view-position"],
