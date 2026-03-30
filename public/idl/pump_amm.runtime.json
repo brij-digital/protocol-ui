@@ -510,6 +510,7 @@
         "entity_type": "pump_pool",
         "title": "List tokens",
         "description": "List Pump AMM pools for a quote mint.",
+        "sync_disabled": true,
         "bootstrap": {
           "kind": "scan_accounts",
           "source": "rpc.getProgramAccounts",
@@ -638,6 +639,7 @@
         "entity_type": "pump_pool",
         "title": "View pool",
         "description": "Find a Pump AMM pool for a base/quote pair.",
+        "sync_disabled": true,
         "bootstrap": {
           "kind": "scan_accounts",
           "source": "rpc.getProgramAccounts",
