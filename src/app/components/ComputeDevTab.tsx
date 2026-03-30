@@ -1,24 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import { listIdlProtocols } from '@brij-digital/apppack-runtime/idlDeclarativeRuntime';
 import {
-  explainAppOperation as explainMetaOperation,
-  listAppOperations as listMetaOperations,
-  type AppOperationExplain as MetaOperationExplain,
-  type AppOperationSummary as MetaOperationSummary,
-} from '@brij-digital/apppack-runtime/appSpecRuntime';
+  explainRuntimeOperation,
+  listRuntimeOperations,
+  type RuntimeOperationExplain as MetaOperationExplain,
+  type RuntimeOperationSummary as MetaOperationSummary,
+} from '@brij-digital/apppack-runtime/runtimeOperationRuntime';
 
 type ProtocolSummary = {
   id: string;
   name: string;
   status: 'active' | 'inactive';
-  computePath: string | null;
 };
 
 type ComputeDevTabProps = {
   isWorking: boolean;
 };
-
-const ALL_LIBRARIES_KEY = '__all_libraries__';
 
 function formatValue(value: unknown): string {
   if (typeof value === 'string') {
@@ -193,35 +190,6 @@ function renderPseudoFunction(functionName: string, instruction: string | null, 
   return lines.join('\n');
 }
 
-function renderAllLibrariesPseudo(libraries: Record<string, Record<string, unknown>[]>): string {
-  const names = Object.keys(libraries);
-  if (names.length === 0) {
-    return '// no compute libraries';
-  }
-  return names
-    .map((libraryName) => {
-      const functionName = libraryName.replace(/[^a-zA-Z0-9]+/g, '_');
-      return renderPseudoFunction(functionName, null, libraries[libraryName] ?? []);
-    })
-    .join('\n\n');
-}
-
-type ComputeLibraryFile = {
-  kind: string;
-  libraries: Record<string, Record<string, unknown>[]>;
-};
-
-function computePathFromPackPath(packPath: string | undefined): string | null {
-  if (!packPath || !packPath.startsWith('/idl/')) {
-    return null;
-  }
-  const match = packPath.match(/^\/idl\/([^/]+?)\.(?:app|meta|runtime|codama|meta\.core)\.json$/);
-  if (!match) {
-    return null;
-  }
-  return `/compute/${match[1]}.compute.json`;
-}
-
 export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
   const [protocols, setProtocols] = useState<ProtocolSummary[]>([]);
   const [protocolId, setProtocolId] = useState('');
@@ -229,12 +197,8 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
   const [operationComputeCounts, setOperationComputeCounts] = useState<Record<string, number>>({});
   const [operationId, setOperationId] = useState('');
   const [explain, setExplain] = useState<MetaOperationExplain | null>(null);
-  const [computeLibraries, setComputeLibraries] = useState<Record<string, Record<string, unknown>[]>>({});
-  const [selectedLibrary, setSelectedLibrary] = useState('');
-  const [libraryError, setLibraryError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [libraryLoading, setLibraryLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -245,11 +209,6 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
           id: protocol.id,
           name: protocol.name,
           status: protocol.status,
-          computePath: computePathFromPackPath(
-            typeof (protocol as unknown as Record<string, unknown>).appPath === 'string'
-              ? ((protocol as unknown as Record<string, unknown>).appPath as string)
-              : undefined,
-          ),
         }));
         if (cancelled) {
           return;
@@ -286,14 +245,14 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
     setError(null);
     void (async () => {
       try {
-        const listed = await listMetaOperations({ protocolId });
+        const listed = await listRuntimeOperations({ protocolId });
         if (cancelled) {
           return;
         }
         setOperations(listed.operations);
         const countEntries = await Promise.all(
           listed.operations.map(async (operation) => {
-            const details = await explainMetaOperation({ protocolId, operationId: operation.operationId });
+            const details = await explainRuntimeOperation({ protocolId, operationId: operation.operationId });
             return [operation.operationId, Array.isArray(details.compute) ? details.compute.length : 0] as const;
           }),
         );
@@ -327,56 +286,6 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
   }, [protocolId]);
 
   useEffect(() => {
-    if (!selectedProtocol || !selectedProtocol.computePath) {
-      setComputeLibraries({});
-      setSelectedLibrary('');
-      setLibraryError(null);
-      return;
-    }
-    const computePath = selectedProtocol.computePath;
-    let cancelled = false;
-    setLibraryLoading(true);
-    setLibraryError(null);
-    void (async () => {
-      try {
-        const response = await fetch(computePath);
-        if (!response.ok) {
-          throw new Error(`Failed to fetch ${computePath} (${response.status})`);
-        }
-        const raw = (await response.json()) as unknown;
-        const parsed = raw && typeof raw === 'object' && !Array.isArray(raw)
-          ? (raw as ComputeLibraryFile)
-          : null;
-        const libraries =
-          parsed && parsed.libraries && typeof parsed.libraries === 'object' && !Array.isArray(parsed.libraries)
-            ? parsed.libraries
-            : {};
-
-        if (cancelled) {
-          return;
-        }
-        setComputeLibraries(libraries);
-        const hasLibraries = Object.keys(libraries).length > 0;
-        setSelectedLibrary(hasLibraries ? ALL_LIBRARIES_KEY : '');
-      } catch (caught) {
-        if (!cancelled) {
-          const message = caught instanceof Error ? caught.message : String(caught);
-          setLibraryError(message);
-          setComputeLibraries({});
-          setSelectedLibrary('');
-        }
-      } finally {
-        if (!cancelled) {
-          setLibraryLoading(false);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedProtocol]);
-
-  useEffect(() => {
     if (!protocolId || !operationId) {
       setExplain(null);
       return;
@@ -386,7 +295,7 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
     setError(null);
     void (async () => {
       try {
-        const nextExplain = await explainMetaOperation({ protocolId, operationId });
+        const nextExplain = await explainRuntimeOperation({ protocolId, operationId });
         if (!cancelled) {
           setExplain(nextExplain);
         }
@@ -418,34 +327,6 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
     return renderPseudoFunction(functionName, explain.instruction ?? null, compute);
   }, [explain]);
 
-  const libraryNames = useMemo(() => Object.keys(computeLibraries), [computeLibraries]);
-  const selectedLibrarySteps = useMemo(
-    () =>
-      selectedLibrary && selectedLibrary !== ALL_LIBRARIES_KEY
-        ? computeLibraries[selectedLibrary] ?? []
-        : [],
-    [computeLibraries, selectedLibrary],
-  );
-  const libraryPseudoFunction = useMemo(() => {
-    if (!selectedLibrary) {
-      return '';
-    }
-    if (selectedLibrary === ALL_LIBRARIES_KEY) {
-      return renderAllLibrariesPseudo(computeLibraries);
-    }
-    const functionName = selectedLibrary.replace(/[^a-zA-Z0-9]+/g, '_');
-    return renderPseudoFunction(functionName, null, selectedLibrarySteps);
-  }, [selectedLibrary, selectedLibrarySteps, computeLibraries]);
-  const libraryRawCompute = useMemo(() => {
-    if (!selectedLibrary) {
-      return null;
-    }
-    if (selectedLibrary === ALL_LIBRARIES_KEY) {
-      return computeLibraries;
-    }
-    return selectedLibrarySteps;
-  }, [selectedLibrary, selectedLibrarySteps, computeLibraries]);
-
   return (
     <section className="compute-shell" aria-live="polite">
       <div className="compute-controls">
@@ -469,65 +350,27 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
             ))}
           </select>
         </label>
-        <label>
-          Library
-          <select
-            value={selectedLibrary}
-            onChange={(event) => setSelectedLibrary(event.target.value)}
-            disabled={isWorking || libraryLoading || libraryNames.length === 0}
-          >
-            {libraryNames.length === 0 ? (
-              <option value="">No compute libraries</option>
-            ) : (
-              <>
-                <option value={ALL_LIBRARIES_KEY}>
-                  All libraries (
-                  {libraryNames.reduce((sum, libraryName) => sum + (computeLibraries[libraryName]?.length ?? 0), 0)}
-                  {' '}steps)
-                </option>
-                {libraryNames.map((libraryName) => (
-                  <option key={libraryName} value={libraryName}>
-                    {libraryName} ({computeLibraries[libraryName]?.length ?? 0} steps)
-                  </option>
-                ))}
-              </>
-            )}
-          </select>
-        </label>
       </div>
 
       {error ? <p className="compute-error">Error: {error}</p> : null}
-      {libraryError ? <p className="compute-error">Library error: {libraryError}</p> : null}
-
-      {explain || selectedLibrary ? (
+      {selectedProtocol ? (
+        <p className="compute-empty">
+          Runtime compute is loaded directly from `{selectedProtocol.id}.runtime.json`. Legacy compute library files stay disabled.
+        </p>
+      ) : null}
+      {explain ? (
         <div className="compute-panels">
-          {explain ? (
-            <>
-              <article className="compute-panel">
-                <h3>Operation Pseudo JS</h3>
-                <pre>{operationPseudoFunction}</pre>
-              </article>
-              <article className="compute-panel">
-                <h3>Operation Raw Compute</h3>
-                <pre>{JSON.stringify(explain.compute, null, 2)}</pre>
-              </article>
-            </>
-          ) : null}
-          {selectedLibrary ? (
-            <>
-              <article className="compute-panel">
-                <h3>Library Pseudo JS</h3>
-                <pre>{libraryPseudoFunction}</pre>
-              </article>
-              <article className="compute-panel">
-                <h3>Library Raw Compute</h3>
-                <pre>{JSON.stringify(libraryRawCompute, null, 2)}</pre>
-              </article>
-            </>
-          ) : null}
+          <article className="compute-panel">
+            <h3>Operation Pseudo JS</h3>
+            <pre>{operationPseudoFunction}</pre>
+          </article>
+          <article className="compute-panel">
+            <h3>Operation Raw Compute</h3>
+            <pre>{JSON.stringify(explain.compute, null, 2)}</pre>
+          </article>
         </div>
       ) : (
-        <p className="compute-empty">{loading || libraryLoading ? 'Loading compute spec...' : 'Select a protocol and operation.'}</p>
+        <p className="compute-empty">{loading ? 'Loading compute spec...' : 'Select a protocol and operation.'}</p>
       )}
     </section>
   );

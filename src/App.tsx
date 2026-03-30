@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import './App.css';
 import { PumpWorkspaceTab } from './app/components/PumpWorkspaceTab';
+import { ComputeDevTab } from './app/components/ComputeDevTab';
 import { RawOperationsTab } from './app/components/RawOperationsTab';
 import { TradingViewTestTab } from './app/components/TradingViewTestTab';
 import { ViewPlaygroundTab } from './app/components/ViewPlaygroundTab';
@@ -11,8 +12,8 @@ const VIEW_API_BASE_URL = String(import.meta.env.VITE_VIEW_API_BASE_URL ?? DEFAU
   .trim()
   .replace(/\/+$/, '');
 
-type AppTab = 'views' | 'pump' | 'raw' | 'tv';
-const DISABLED_TABS = ['Apps', 'Command', 'Compute', 'Explorer'] as const;
+type AppTab = 'views' | 'pump' | 'raw' | 'compute' | 'tv';
+const DISABLED_TABS = ['Apps', 'Command', 'Explorer'] as const;
 
 function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('pump');
@@ -59,6 +60,15 @@ function App() {
           <button
             type="button"
             role="tab"
+            aria-selected={activeTab === 'compute'}
+            className={activeTab === 'compute' ? 'active' : ''}
+            onClick={() => setActiveTab('compute')}
+          >
+            Compute
+          </button>
+          <button
+            type="button"
+            role="tab"
             aria-selected={activeTab === 'tv'}
             className={activeTab === 'tv' ? 'active' : ''}
             onClick={() => setActiveTab('tv')}
@@ -88,6 +98,8 @@ function App() {
           <PumpWorkspaceTab viewApiBaseUrl={VIEW_API_BASE_URL} />
         ) : activeTab === 'raw' ? (
           <RawOperationsTab viewApiBaseUrl={VIEW_API_BASE_URL} />
+        ) : activeTab === 'compute' ? (
+          <ComputeDevTab isWorking={false} />
         ) : activeTab === 'tv' ? (
           <TradingViewTestTab viewApiBaseUrl={VIEW_API_BASE_URL} />
         ) : activeTab === 'views' ? (
