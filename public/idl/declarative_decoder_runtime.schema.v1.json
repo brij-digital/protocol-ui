@@ -132,7 +132,6 @@
             "rpc_program_subscribe",
             "rpc_account_snapshot",
             "yellowstone_grpc",
-            "helius_ws",
             "custom"
           ]
         },

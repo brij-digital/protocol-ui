@@ -76,9 +76,8 @@ This web app depends on:
 Important behavior:
 - no local view fallback in app command mode
 - `/meta-run` requires explicit mode: `--simulate` or `--send`
-- search-view bootstrap/sync is expected to come from the view service cache layer, currently built around `getProgramAccountsV2` + local temporal metadata (`first_seen_slot`, `last_seen_slot`)
-- high-cardinality search views can now declare `bootstrap.lookback_seconds` to bootstrap a recent hot window instead of the full account universe
-- very hot search views can also declare `bootstrap.max_pages` to force convergence and `bootstrap.retention_seconds` to prune stale cache rows
+- search-view bootstrap/sync is expected to come from the view service cache layer, built around owned RPC snapshots + local temporal metadata (`first_seen_slot`, `last_seen_slot`)
+- search views may declare `bootstrap.retention_seconds` to prune stale cache rows
 - the current search-view backend model is: `cached_program_accounts` + `view_sync_state`, not a separate entity table
 
 Conceptual split:
