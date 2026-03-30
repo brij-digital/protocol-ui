@@ -201,9 +201,8 @@ async function main() {
   console.log('1. Make public/idl/<slug>.codama.json the protocol source of truth.');
   console.log('2. Fill public/idl/<slug>.runtime.json with operations, sources, matchRules, pipelines, and projections.');
   console.log('3. Run: npm run codama:check');
-  console.log('4. Run: npm run codec:plan:sync');
-  console.log('5. Run: npm run pack:doctor -- --protocol <protocol-id>');
-  console.log('6. Run: npm run pack:check');
+  console.log('4. Run: npm run pack:doctor -- --protocol <protocol-id>');
+  console.log('5. Run: npm run pack:check');
 }
 
 main().catch((error) => {

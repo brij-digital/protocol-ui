@@ -7,7 +7,6 @@ This doc covers the practical workflow to add or evolve protocol packs in this r
 A protocol pack is represented by files under `public/idl`:
 - `<slug>.codama.json` (protocol source of truth)
 - `<slug>.runtime.json` (runtime/indexing/read contract)
-- `runtime-codec-plan.json` (generated execution artifact)
 
 Registry entry:
 - `public/idl/registry.json`

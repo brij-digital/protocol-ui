@@ -33,12 +33,10 @@ Protocol pack ownership rule:
 Generated protocol artifacts in this directory now include:
 - canonical protocol specs: `*.codama.json`
 - declarative indexing/runtime specs: `*.runtime.json`
-- compiled runtime codec plan: `runtime-codec-plan.json`
 
 Current ownership model:
 - `*.codama.json` are the protocol source of truth
 - `*.runtime.json` are wallet-owned declarative indexing specs
-- `runtime-codec-plan.json` is a generated execution artifact derived from `Codama + runtime`
 - downstream repos must sync these files instead of editing their own copies
 
 Target architecture:

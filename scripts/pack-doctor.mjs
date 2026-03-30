@@ -116,7 +116,6 @@ async function main() {
     const programId = checkPubkey(manifest.programId, `${id}.programId`);
     const codamaPath = resolvePublicAssetPath(manifest.codamaIdlPath, `${id}.codamaIdlPath`);
     const runtimePath = manifest.runtimeSpecPath ? resolvePublicAssetPath(manifest.runtimeSpecPath, `${id}.runtimeSpecPath`) : null;
-    const codecPlanPath = path.join(ROOT, 'public', 'idl', 'runtime-codec-plan.json');
 
     const protocolErrors = [];
     const protocolWarnings = [];
@@ -131,11 +130,6 @@ async function main() {
     const codamaExists = await pathExists(codamaPath);
     if (!codamaExists) {
       protocolErrors.push(`Missing Codama IDL file: ${path.relative(ROOT, codamaPath)}`);
-    }
-
-    const codecPlanExists = await pathExists(codecPlanPath);
-    if (!codecPlanExists) {
-      protocolErrors.push(`Missing runtime codec plan file: ${path.relative(ROOT, codecPlanPath)}`);
     }
 
     const runtimeExists = runtimePath ? await pathExists(runtimePath) : false;
@@ -190,7 +184,6 @@ async function main() {
     console.log(`- network: ${asString(manifest.network, `${id}.network`)}`);
     console.log(`- programId: ${programId}`);
     console.log(`- codama: ${path.relative(ROOT, codamaPath)} ${codamaExists ? 'OK' : 'MISSING'}`);
-    console.log(`- runtime codec plan: ${path.relative(ROOT, codecPlanPath)} ${codecPlanExists ? 'OK' : 'MISSING'}`);
     if (runtimePath) {
       console.log(`- runtime: ${path.relative(ROOT, runtimePath)} ${runtimeExists ? 'OK' : 'MISSING'}`);
     } else {
