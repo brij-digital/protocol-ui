@@ -421,15 +421,15 @@
           "display_order": 5,
           "ui_mode": "readonly"
         },
-        "whirlpool": {
-          "type": "pubkey",
-          "required": true,
-          "label": "Whirlpool Account",
-          "placeholder": "Whirlpool pubkey",
-          "group": "market",
-          "display_order": 6,
-          "ui_mode": "readonly"
-        },
+    "whirlpool": {
+      "type": "pubkey",
+      "required": true,
+      "label": "Whirlpool Account",
+      "placeholder": "Whirlpool pubkey",
+      "group": "market",
+      "display_order": 6,
+      "ui_mode": "edit"
+    },
         "unwrap_sol_output": {
           "type": "bool",
           "required": false,
