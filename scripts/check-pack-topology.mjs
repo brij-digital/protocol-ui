@@ -55,6 +55,7 @@ async function main() {
   for (const manifest of protocols) {
     const protocol = asObject(manifest, 'registry.protocol');
     const protocolId = asString(protocol.id, 'registry.protocol.id');
+    const isActive = protocol.status !== 'inactive';
 
     if (protocol.appPath !== undefined) {
       fail(`${protocolId}: appPath is no longer allowed.`);
@@ -72,6 +73,9 @@ async function main() {
     }
 
     if (!protocol.runtimeSpecPath) {
+      if (isActive) {
+        fail(`${protocolId}: active protocols must declare runtimeSpecPath.`);
+      }
       continue;
     }
 

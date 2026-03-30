@@ -53,7 +53,7 @@
       "codamaIdlPath": "/idl/kamino_klend.codama.json",
       "transport": "local-kamino-klend",
       "supportedCommands": ["/kamino-deposit", "/kamino-withdraw", "/kamino-view-position"],
-      "status": "active"
+      "status": "inactive"
     }
   ]
 }

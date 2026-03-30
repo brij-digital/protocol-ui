@@ -80,7 +80,7 @@
     },
     "decoderArtifactSpec": {
       "type": "object",
-      "required": ["kind", "artifact"],
+      "required": ["kind", "artifact", "codecIdlPath"],
       "properties": {
         "kind": {
           "type": "string",
@@ -89,9 +89,6 @@
         "family": {
           "type": "string",
           "enum": ["anchor", "codama", "custom"]
-        },
-        "idlPath": {
-          "type": "string"
         },
         "codamaPath": {
           "type": "string"
@@ -111,19 +108,6 @@
       },
       "additionalProperties": false,
       "allOf": [
-        {
-          "if": {
-            "properties": {
-              "family": {
-                "const": "anchor"
-              }
-            },
-            "required": ["family"]
-          },
-          "then": {
-            "required": ["idlPath"]
-          }
-        },
         {
           "if": {
             "properties": {

@@ -181,6 +181,7 @@ async function main() {
     asString(manifest.status, `${protocolId}.status`);
     const programId = normalizePubkey(manifest.programId, `${protocolId}.programId`);
 
+    const isActive = manifest.status !== 'inactive';
     if (manifest.appPath !== undefined) {
       fail(`${protocolId}: appPath is no longer allowed.`);
     }
@@ -207,7 +208,14 @@ async function main() {
         )
       : collectInstructionNamesFromCodama(codama, `${protocolId}.codama`);
 
+    if (isActive && manifest.idlPath !== undefined) {
+      fail(`${protocolId}: active protocols must not declare legacy idlPath.`);
+    }
+
     if (manifest.runtimeSpecPath === undefined) {
+      if (isActive) {
+        fail(`${protocolId}: active protocols must declare runtimeSpecPath.`);
+      }
       continue;
     }
 
