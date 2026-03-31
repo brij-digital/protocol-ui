@@ -43,6 +43,7 @@ type AgentTranscriptEntry =
 
 type AgentRunResponse = {
   ok: boolean;
+  session_id?: string;
   final_text?: string;
   transcript?: AgentTranscriptEntry[];
   error?: string;
@@ -53,6 +54,11 @@ type AgentRunResponse = {
 };
 
 type AgentStreamEvent =
+  | {
+      type: 'session';
+      session_id: string;
+      resumed: boolean;
+    }
   | {
       type: 'status';
       message: string;
@@ -77,6 +83,7 @@ type AgentStreamEvent =
     }
   | {
       type: 'final';
+      session_id: string;
       final_text: string;
       transcript: AgentTranscriptEntry[];
       usage: AgentRunResponse['usage'] | null;
@@ -103,6 +110,7 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
   const [transcript, setTranscript] = useState<AgentTranscriptEntry[]>([]);
   const [usageText, setUsageText] = useState<string | null>(null);
   const [statusText, setStatusText] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
   const trimmedBaseUrl = useMemo(() => viewApiBaseUrl.trim().replace(/\/+$/, ''), [viewApiBaseUrl]);
   const walletPublicKey = publicKey?.toBase58() ?? null;
@@ -134,10 +142,14 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
     event.preventDefault();
     setIsLoading(true);
     setErrorText(null);
-    setFinalText(null);
-    setUsageText(null);
-    setTranscript([]);
-    setStatusText('Starting agent run...');
+    if (!sessionId) {
+      setFinalText(null);
+      setUsageText(null);
+      setTranscript([]);
+      setStatusText('Starting new session...');
+    } else {
+      setStatusText('Continuing session...');
+    }
 
     try {
       const response = await fetch(`${trimmedBaseUrl}/agent/run/stream`, {
@@ -149,6 +161,7 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
           provider: 'anthropic',
           model,
           apiKey,
+          sessionId,
           protocolId: protocolId || null,
           walletPublicKey,
           prompt,
@@ -175,6 +188,11 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
             continue;
           }
           const event = JSON.parse(line) as AgentStreamEvent;
+          if (event.type === 'session') {
+            setSessionId(event.session_id);
+            setStatusText(event.resumed ? 'Session resumed.' : 'Session created.');
+            continue;
+          }
           if (event.type === 'status') {
             setStatusText(event.message);
             continue;
@@ -221,6 +239,7 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
             continue;
           }
           if (event.type === 'final') {
+            setSessionId(event.session_id);
             setFinalText(event.final_text ?? null);
             setTranscript(Array.isArray(event.transcript) ? event.transcript : []);
             if (event.usage) {
@@ -246,12 +265,22 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
     }
   };
 
+  const handleNewSession = () => {
+    setSessionId(null);
+    setErrorText(null);
+    setFinalText(null);
+    setTranscript([]);
+    setUsageText(null);
+    setStatusText(null);
+  };
+
   return (
     <section className="agent-shell">
       <div className="agent-header">
         <div>
           <h2>Agent</h2>
           <p>Bring your own Claude token and test the declarative runtime directly. The agent only gets spec-backed tools.</p>
+          <p>{sessionId ? `Session: ${sessionId}` : 'Session: new'}</p>
         </div>
         <div className="agent-target">
           <span>Target</span>
@@ -305,7 +334,10 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
         </label>
         <div className="agent-actions">
           <button type="submit" disabled={isLoading || apiKey.trim().length === 0 || prompt.trim().length === 0}>
-            {isLoading ? 'Running...' : 'Run Agent'}
+            {isLoading ? 'Running...' : sessionId ? 'Send' : 'Start Session'}
+          </button>
+          <button type="button" onClick={handleNewSession} disabled={isLoading}>
+            New Session
           </button>
           <p>Your key is used only for this request. Nothing is stored for now. Use an exact Anthropic model id.</p>
         </div>
