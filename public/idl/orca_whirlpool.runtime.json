@@ -26,8 +26,8 @@
       }
     },
     "entrypoints": {
-      "discover_pool_for_pair": "reads.index.list_pools",
-      "inspect_pool": "reads.index.pool_snapshot",
+      "discover_pool_for_pair": "reads.index.pools_index",
+      "inspect_pool": "reads.index.pools_get",
       "quote_swap_exact_in": "computes.quote_exact_in",
       "swap_exact_in": "executions.swap_exact_in"
     },
@@ -35,18 +35,18 @@
       {
         "from": "token_pair",
         "to": "pool",
-        "via": "reads.index.list_pools"
+        "via": "reads.index.pools_index"
       },
       {
         "from": "pool",
-        "to": "pool_snapshot",
-        "via": "reads.index.pool_snapshot"
+        "to": "pools_get",
+        "via": "reads.index.pools_get"
       }
     ],
     "recipes": {
       "swap_token_pair": [
-        "reads.index.list_pools",
-        "reads.index.pool_snapshot",
+        "reads.index.pools_index",
+        "reads.index.pools_get",
         "computes.quote_exact_in",
         "executions.swap_exact_in"
       ]
@@ -54,74 +54,6 @@
   },
   "reads": {
     "index": {
-      "resolve_pool": {
-        "inputs": {
-          "pool": {
-            "type": "pubkey",
-            "required": true
-          }
-        },
-        "read": {
-          "kind": "account",
-          "freshness": {
-            "class": "near_realtime",
-            "target_ms": 5000,
-            "max_staleness_ms": 20000
-          },
-          "entity_type": "orca_whirlpool",
-          "title": "Resolve pool",
-          "description": "Resolve a known Orca Whirlpool address into the latest projected state.",
-          "canonical": {
-            "source": "indexed_idl_state",
-            "protocol_id": "orca-whirlpool-mainnet",
-            "record_kind": "account",
-            "record_name": "Whirlpool",
-            "resource_input": "pool",
-            "resource_field": "resource_id",
-            "notes": "Resolve a known Whirlpool address into its latest canonical state row."
-          },
-          "projection": {
-            "projection_kind": "snapshot",
-            "group_by": [
-              "resource_id"
-            ]
-          }
-        }
-      },
-      "pool_snapshot": {
-        "inputs": {
-          "pool": {
-            "type": "pubkey",
-            "required": true
-          }
-        },
-        "read": {
-          "kind": "account",
-          "freshness": {
-            "class": "near_realtime",
-            "target_ms": 5000,
-            "max_staleness_ms": 20000
-          },
-          "entity_type": "orca_whirlpool",
-          "title": "Pool snapshot",
-          "description": "Read the current Orca Whirlpool snapshot for a known pool address.",
-          "canonical": {
-            "source": "indexed_idl_state",
-            "protocol_id": "orca-whirlpool-mainnet",
-            "record_kind": "account",
-            "record_name": "Whirlpool",
-            "resource_input": "pool",
-            "resource_field": "resource_id",
-            "notes": "Read the latest canonical Whirlpool state by pool address."
-          },
-          "projection": {
-            "projection_kind": "snapshot",
-            "group_by": [
-              "resource_id"
-            ]
-          }
-        }
-      },
       "trade_feed": {
         "inputs": {
           "pool": {
@@ -261,7 +193,41 @@
           }
         }
       },
-      "list_pools": {
+      "pools_get": {
+        "inputs": {
+          "pool": {
+            "type": "pubkey",
+            "required": true
+          }
+        },
+        "read": {
+          "kind": "account",
+          "freshness": {
+            "class": "near_realtime",
+            "target_ms": 5000,
+            "max_staleness_ms": 20000
+          },
+          "entity_type": "orca_whirlpool",
+          "title": "Pools get",
+          "description": "Read the current Orca Whirlpool state for a known pool address.",
+          "canonical": {
+            "source": "indexed_idl_state",
+            "protocol_id": "orca-whirlpool-mainnet",
+            "record_kind": "account",
+            "record_name": "Whirlpool",
+            "resource_input": "pool",
+            "resource_field": "resource_id",
+            "notes": "Read the latest canonical Whirlpool state by pool address."
+          },
+          "projection": {
+            "projection_kind": "snapshot",
+            "group_by": [
+              "resource_id"
+            ]
+          }
+        }
+      },
+      "pools_index": {
         "inputs": {
           "token_in_mint": {
             "type": "token_mint",
@@ -302,7 +268,7 @@
             "max_staleness_ms": 60000
           },
           "entity_type": "whirlpool_pool",
-          "title": "List pools",
+          "title": "Pools index",
           "description": "Find indexed Whirlpool pools for a token pair.",
           "canonical": {
             "source": "indexed_idl_state",

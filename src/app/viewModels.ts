@@ -157,9 +157,9 @@ export const VIEW_PLAYGROUND_PRESETS: ViewExample[] = [
   },
   {
     label: 'Orca pool search',
-    viewKind: 'contract',
+    viewKind: 'index',
     protocolId: 'orca-whirlpool-mainnet',
-    operationId: 'list_pools',
+    operationId: 'pools_index',
     input: JSON.stringify(
       {
         token_in_mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
@@ -279,7 +279,7 @@ export const ORCA_VIEW_SCENARIO: ViewScenarioDefinition = {
     placeholder: 'Enter an Orca Whirlpool address',
   },
   resolve: {
-    operationId: 'resolve_pool',
+    operationId: 'pools_get',
     input: (pool) => ({ pool }),
     resultField: 'pool',
     statusText: 'Resolving Whirlpool pool...',
@@ -290,7 +290,7 @@ export const ORCA_VIEW_SCENARIO: ViewScenarioDefinition = {
     pendingLabel: 'Whirlpool pending',
   },
   views: {
-    snapshot: 'pool_snapshot',
+    snapshot: 'pools_get',
     stats: 'stat_cards',
     series: 'market_cap_series',
     feed: 'trade_feed',

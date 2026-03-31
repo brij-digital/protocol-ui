@@ -32,13 +32,13 @@ describe('command parser', () => {
   });
 
   it('parses /view-run with JSON input', () => {
-    const parsed = parseCommand('/view-run orca-whirlpool-mainnet list_pools {"token_in_mint":"A","token_out_mint":"B"}');
+    const parsed = parseCommand('/view-run orca-whirlpool-mainnet pools_index {"token_in_mint":"A","token_out_mint":"B"}');
     expect(parsed.kind).toBe('view-run');
     if (parsed.kind !== 'view-run') {
       return;
     }
     expect(parsed.value.protocolId).toBe('orca-whirlpool-mainnet');
-    expect(parsed.value.operationId).toBe('list_pools');
+    expect(parsed.value.operationId).toBe('pools_index');
     expect(parsed.value.input).toEqual({ token_in_mint: 'A', token_out_mint: 'B' });
   });
 
@@ -49,7 +49,7 @@ describe('command parser', () => {
   });
 
   it('rejects malformed /view-run JSON', () => {
-    expect(() => parseCommand('/view-run orca-whirlpool-mainnet list_pools {bad-json}')).toThrow(
+    expect(() => parseCommand('/view-run orca-whirlpool-mainnet pools_index {bad-json}')).toThrow(
       'Invalid input JSON.',
     );
   });
