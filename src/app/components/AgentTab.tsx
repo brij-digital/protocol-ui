@@ -59,6 +59,24 @@ type AgentRunResponse = {
   };
 };
 
+function parsePreparedExecutionDraft(result: unknown): PreparedExecutionDraft | null {
+  if (!result || typeof result !== 'object' || Array.isArray(result)) {
+    return null;
+  }
+  const candidate = result as Record<string, unknown>;
+  if (
+    typeof candidate.protocolId === 'string'
+    && typeof candidate.operationId === 'string'
+    && typeof candidate.args === 'object'
+    && candidate.args !== null
+    && typeof candidate.accounts === 'object'
+    && candidate.accounts !== null
+  ) {
+    return candidate as unknown as PreparedExecutionDraft;
+  }
+  return null;
+}
+
 type AgentStreamEvent =
   | {
       type: 'session';
@@ -151,31 +169,28 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
 
   const trimmedBaseUrl = useMemo(() => viewApiBaseUrl.trim().replace(/\/+$/, ''), [viewApiBaseUrl]);
   const walletPublicKey = publicKey?.toBase58() ?? null;
-  const latestDraft = useMemo<PreparedExecutionDraft | null>(() => {
+  const latestDraftIndex = useMemo(() => {
     for (let index = transcript.length - 1; index >= 0; index -= 1) {
       const entry = transcript[index];
       if (!entry || entry.role !== 'tool' || entry.kind !== 'tool_result' || entry.toolName !== 'draft_execution') {
         continue;
       }
-      const result = entry.result;
-      if (!result || typeof result !== 'object' || Array.isArray(result)) {
-        continue;
-      }
-      const candidate = result as Record<string, unknown>;
-      if (
-        typeof candidate.protocolId === 'string'
-        && typeof candidate.operationId === 'string'
-        && typeof candidate.args === 'object'
-        && candidate.args !== null
-        && typeof candidate.accounts === 'object'
-        && candidate.accounts !== null
-      ) {
-        return candidate as unknown as PreparedExecutionDraft;
+      if (parsePreparedExecutionDraft(entry.result)) {
+        return index;
       }
     }
-    return null;
+    return -1;
   }, [transcript]);
-  const submitApprovalRequested = useMemo(() => {
+  const latestDraft = useMemo<PreparedExecutionDraft | null>(() => {
+    if (latestDraftIndex < 0) {
+      return null;
+    }
+    const entry = transcript[latestDraftIndex];
+    return entry && entry.role === 'tool' && entry.kind === 'tool_result'
+      ? parsePreparedExecutionDraft(entry.result)
+      : null;
+  }, [latestDraftIndex, transcript]);
+  const latestSubmitApprovalIndex = useMemo(() => {
     for (let index = transcript.length - 1; index >= 0; index -= 1) {
       const entry = transcript[index];
       if (!entry || entry.role !== 'tool' || entry.kind !== 'tool_result' || entry.toolName !== 'submit_execution') {
@@ -185,25 +200,27 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
       if (!result || typeof result !== 'object' || Array.isArray(result)) {
         continue;
       }
-      return (result as Record<string, unknown>).requires_wallet_approval === true;
+      if ((result as Record<string, unknown>).requires_wallet_approval === true) {
+        return index;
+      }
     }
-    return false;
+    return -1;
   }, [transcript]);
   const submitApprovalMessage = useMemo(() => {
-    for (let index = transcript.length - 1; index >= 0; index -= 1) {
-      const entry = transcript[index];
-      if (!entry || entry.role !== 'tool' || entry.kind !== 'tool_result' || entry.toolName !== 'submit_execution') {
-        continue;
-      }
-      const result = entry.result;
-      if (!result || typeof result !== 'object' || Array.isArray(result)) {
-        continue;
-      }
-      const message = (result as Record<string, unknown>).message;
-      return typeof message === 'string' ? message : null;
+    if (latestSubmitApprovalIndex < 0) {
+      return null;
     }
-    return null;
-  }, [transcript]);
+    const entry = transcript[latestSubmitApprovalIndex];
+    if (!entry || entry.role !== 'tool' || entry.kind !== 'tool_result') {
+      return null;
+    }
+    const result = entry.result;
+    if (!result || typeof result !== 'object' || Array.isArray(result)) {
+      return null;
+    }
+    const message = (result as Record<string, unknown>).message;
+    return typeof message === 'string' ? message : null;
+  }, [latestSubmitApprovalIndex, transcript]);
 
   useEffect(() => {
     setApiKey(readCookie(AGENT_API_KEY_COOKIE));
@@ -388,8 +405,8 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
     setFinalText(text);
   };
 
-  const handleSimulateDraft = async () => {
-    if (!latestDraft) {
+  const handleSimulateDraft = async (draft = latestDraft) => {
+    if (!draft) {
       return;
     }
     setIsDraftActionLoading(true);
@@ -397,7 +414,7 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
     setStatusText('Simulating latest draft...');
     try {
       const simulation = await simulatePreparedExecutionDraft({
-        draft: latestDraft,
+        draft,
         connection,
         wallet,
       });
@@ -414,8 +431,8 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
     }
   };
 
-  const handleSendDraft = async () => {
-    if (!latestDraft) {
+  const handleSendDraft = async (draft = latestDraft) => {
+    if (!draft) {
       return;
     }
     setIsDraftActionLoading(true);
@@ -423,7 +440,7 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
     setStatusText('Sending latest draft...');
     try {
       const sent = await sendPreparedExecutionDraft({
-        draft: latestDraft,
+        draft,
         connection,
         wallet,
       });
@@ -515,37 +532,6 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
       {errorText ? <p className="view-playground-error">{errorText}</p> : null}
       {statusText ? <p className="view-playground-info">{statusText}</p> : null}
       {usageText ? <p className="view-playground-info">{usageText}</p> : null}
-      {submitApprovalRequested && latestDraft ? (
-        <div className="agent-panel">
-          <h3>Wallet Approval Required</h3>
-          <p>{submitApprovalMessage ?? 'Claude requested submission of the latest draft. Approve it below to open your wallet and sign.'}</p>
-          <div className="agent-actions">
-            <button type="button" onClick={handleSendDraft} disabled={isLoading || isDraftActionLoading || !wallet.publicKey}>
-              {isDraftActionLoading ? 'Opening Wallet...' : 'Approve Submit'}
-            </button>
-            <p>
-              This will open your connected wallet and ask it to sign and submit
-              {' '}
-              {latestDraft.operationId}
-              .
-            </p>
-          </div>
-        </div>
-      ) : null}
-      {latestDraft ? (
-        <div className="agent-actions">
-          <button type="button" onClick={handleSimulateDraft} disabled={isLoading || isDraftActionLoading || !wallet.publicKey}>
-            {isDraftActionLoading ? 'Working...' : 'Simulate Draft'}
-          </button>
-          <button type="button" onClick={handleSendDraft} disabled={isLoading || isDraftActionLoading || !wallet.publicKey}>
-            {isDraftActionLoading ? 'Working...' : submitApprovalRequested ? 'Approve Submit' : 'Send Draft'}
-          </button>
-          <p>
-            Latest draft: {latestDraft.operationId} / {latestDraft.instructionName ?? 'no instruction'}
-            {submitApprovalRequested ? ' | Claude requested wallet approval' : ''}
-          </p>
-        </div>
-      ) : null}
 
       <div className="agent-results">
         <section className="agent-panel">
@@ -558,17 +544,64 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
             {transcript.length === 0 ? (
               <p className="view-playground-empty">Run the agent to inspect its tool calls and responses.</p>
             ) : (
-              transcript.map((entry, index) => (
-                <article key={index} className="agent-entry">
-                  <strong>
-                    {entry.role} / {entry.kind}
-                    {'toolName' in entry ? ` / ${entry.toolName}` : ''}
-                  </strong>
-                  {'text' in entry ? <pre>{entry.text}</pre> : null}
-                  {'input' in entry ? <pre>{formatJson(entry.input)}</pre> : null}
-                  {'result' in entry ? <pre>{formatJson(entry.result)}</pre> : null}
-                </article>
-              ))
+              transcript.map((entry, index) => {
+                const entryDraft = entry.role === 'tool' && entry.kind === 'tool_result' && entry.toolName === 'draft_execution'
+                  ? parsePreparedExecutionDraft(entry.result)
+                  : null;
+                const showDraftActions = entryDraft !== null && index === latestDraftIndex;
+                const showSubmitApproval = entry.role === 'tool'
+                  && entry.kind === 'tool_result'
+                  && entry.toolName === 'submit_execution'
+                  && index === latestSubmitApprovalIndex
+                  && latestDraft !== null;
+
+                return (
+                  <article key={index} className="agent-entry">
+                    <strong>
+                      {entry.role} / {entry.kind}
+                      {'toolName' in entry ? ` / ${entry.toolName}` : ''}
+                    </strong>
+                    {'text' in entry ? <pre>{entry.text}</pre> : null}
+                    {'input' in entry ? <pre>{formatJson(entry.input)}</pre> : null}
+                    {'result' in entry ? <pre>{formatJson(entry.result)}</pre> : null}
+                    {showDraftActions ? (
+                      <div className="agent-actions">
+                        <button
+                          type="button"
+                          onClick={() => void handleSimulateDraft(entryDraft)}
+                          disabled={isLoading || isDraftActionLoading || !wallet.publicKey}
+                        >
+                          {isDraftActionLoading ? 'Working...' : 'Simulate Draft'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleSendDraft(entryDraft)}
+                          disabled={isLoading || isDraftActionLoading || !wallet.publicKey}
+                        >
+                          {isDraftActionLoading ? 'Working...' : 'Send Draft'}
+                        </button>
+                        <p>
+                          Draft ready: {entryDraft.operationId} / {entryDraft.instructionName ?? 'no instruction'}
+                        </p>
+                      </div>
+                    ) : null}
+                    {showSubmitApproval ? (
+                      <div className="agent-actions">
+                        <button
+                          type="button"
+                          onClick={() => void handleSendDraft(latestDraft)}
+                          disabled={isLoading || isDraftActionLoading || !wallet.publicKey}
+                        >
+                          {isDraftActionLoading ? 'Opening Wallet...' : 'Approve Submit'}
+                        </button>
+                        <p>
+                          {submitApprovalMessage ?? 'Claude requested wallet approval for the latest draft.'}
+                        </p>
+                      </div>
+                    ) : null}
+                  </article>
+                );
+              })
             )}
           </div>
         </section>
