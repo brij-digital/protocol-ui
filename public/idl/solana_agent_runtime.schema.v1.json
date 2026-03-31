@@ -148,7 +148,18 @@
         }
       },
       "required": ["read"],
-      "additionalProperties": true
+      "additionalProperties": true,
+      "allOf": [
+        {
+          "properties": {
+            "read": {
+              "not": {
+                "required": ["bootstrap"]
+              }
+            }
+          }
+        }
+      ]
     },
     "indexReadSpec": {
       "type": "object",
@@ -179,7 +190,31 @@
         }
       },
       "required": ["read"],
-      "additionalProperties": true
+      "additionalProperties": true,
+      "allOf": [
+        {
+          "properties": {
+            "read": {
+              "not": {
+                "required": ["bootstrap"]
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "read": {
+              "properties": {
+                "source_kind": {
+                  "not": {
+                    "const": "account_changes"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
     },
     "readsSpec": {
       "type": "object",
