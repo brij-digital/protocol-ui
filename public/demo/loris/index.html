@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Codama Boundary Demo</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f5f7fb;
+        --panel: #ffffff;
+        --panel-alt: #fbfcfe;
+        --line: #d9dfeb;
+        --text: #14213d;
+        --muted: #43536f;
+        --accent: #1f4cc4;
+        --warm: #fff6e1;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background:
+          radial-gradient(circle at top left, #fff2d7 0, transparent 34%),
+          radial-gradient(circle at bottom right, #dbe6ff 0, transparent 38%),
+          var(--bg);
+        color: var(--text);
+      }
+
+      .page {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 32px 16px 56px;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.6fr) minmax(260px, 0.8fr);
+        gap: 16px;
+        background: linear-gradient(135deg, rgba(255,243,214,.75), rgba(232,240,255,.88)), var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 22px;
+        box-shadow: 0 16px 50px rgba(26, 42, 72, 0.10);
+      }
+
+      .eyebrow {
+        margin: 0 0 8px;
+        color: #7b5d08;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 30px;
+        line-height: 1.15;
+      }
+
+      .hero p {
+        margin: 12px 0 0;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      .actions {
+        display: grid;
+        gap: 10px;
+        align-content: start;
+      }
+
+      .btn, .ghost {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 46px;
+        border-radius: 12px;
+        text-decoration: none;
+        font-weight: 700;
+      }
+
+      .btn {
+        background: var(--accent);
+        color: white;
+      }
+
+      .ghost {
+        border: 1px solid #cad5eb;
+        background: white;
+        color: #19315c;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 16px;
+        margin-top: 16px;
+      }
+
+      .card {
+        border: 1px solid var(--line);
+        background: var(--panel-alt);
+        border-radius: 16px;
+        padding: 18px;
+      }
+
+      .card h2 {
+        margin: 0 0 10px;
+        font-size: 18px;
+      }
+
+      .card p, .card li {
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      ol {
+        margin: 0;
+        padding-left: 20px;
+      }
+
+      .boundary {
+        display: grid;
+        gap: 10px;
+      }
+
+      .row {
+        display: grid;
+        gap: 4px;
+        background: white;
+        border: 1px solid #dde5f2;
+        border-radius: 12px;
+        padding: 12px 14px;
+      }
+
+      .row strong {
+        font-size: 15px;
+      }
+
+      .row code {
+        width: fit-content;
+        padding: 3px 8px;
+        border-radius: 999px;
+        border: 1px solid #f0ddb1;
+        background: var(--warm);
+        color: #6a4c00;
+        font-size: 12px;
+      }
+
+      .specs {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+      }
+
+      .spec {
+        display: grid;
+        gap: 6px;
+        border: 1px solid #dde5f2;
+        border-radius: 14px;
+        background: white;
+        padding: 14px;
+        text-decoration: none;
+      }
+
+      .spec strong { color: var(--text); }
+      .spec span {
+        color: #2e4f8d;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        word-break: break-all;
+      }
+      .spec p {
+        margin: 0;
+        font-size: 14px;
+      }
+
+      .footer-note {
+        margin-top: 16px;
+        padding: 16px 18px;
+        border-radius: 16px;
+        border: 1px solid var(--line);
+        background: linear-gradient(180deg, #fffaf0, #f9fbff);
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      @media (max-width: 820px) {
+        .hero {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Codama Boundary Demo</p>
+          <h1>What Codama already replaces, and what remains outside</h1>
+          <p>
+            This is the smallest concrete walkthrough of the architecture we ended up with.
+            Codama carries instruction execution truth. The indexing spec owns read semantics.
+            The runtime is reduced to compute and write prep. The runner only composes steps linearly.
+          </p>
+        </div>
+        <div class="actions">
+          <a class="btn" href="/#runner">Open live runner flow</a>
+          <a class="ghost" href="/idl/action_runners.json" target="_blank" rel="noreferrer">Open runner registry</a>
+        </div>
+      </section>
+
+      <section class="grid">
+        <article class="card">
+          <h2>Live flow</h2>
+          <ol>
+            <li>Resolve pair inputs like <code>USDC -&gt; SOL</code> from indexed token and pool data.</li>
+            <li>Run a deterministic quote compute.</li>
+            <li>Draft the Orca swap from Codama-backed instruction metadata.</li>
+            <li>Optionally submit in wallet from the Runner view.</li>
+          </ol>
+          <p>Recommended demo in the app: <code>Draft Swap on Orca</code>.</p>
+        </article>
+
+        <article class="card">
+          <h2>Boundary</h2>
+          <div class="boundary">
+            <div class="row">
+              <strong>Codama</strong>
+              <span>Instruction-level source of truth</span>
+              <code>accounts, signers, PDA/default accounts</code>
+            </div>
+            <div class="row">
+              <strong>Indexing spec</strong>
+              <span>Off-chain read and discovery contract</span>
+              <code>pool search, feeds, market series</code>
+            </div>
+            <div class="row">
+              <strong>Runtime spec</strong>
+              <span>Deterministic compute and write prep</span>
+              <code>quote math, draft construction</code>
+            </div>
+            <div class="row">
+              <strong>Runner</strong>
+              <span>Tiny linear orchestration</span>
+              <code>index_view -&gt; compute -&gt; contract_write</code>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="card" style="margin-top: 16px;">
+        <h2>Specs to inspect</h2>
+        <div class="specs">
+          <a class="spec" href="/idl/orca_whirlpool.codama.json" target="_blank" rel="noreferrer">
+            <strong>Codama IDL</strong>
+            <span>/idl/orca_whirlpool.codama.json</span>
+            <p>Instruction truth: accounts, defaults, PDA metadata.</p>
+          </a>
+          <a class="spec" href="/idl/orca_whirlpool.indexing.json" target="_blank" rel="noreferrer">
+            <strong>Indexing Spec</strong>
+            <span>/idl/orca_whirlpool.indexing.json</span>
+            <p>Indexed reads, projections, and canonical search/feed semantics.</p>
+          </a>
+          <a class="spec" href="/idl/orca_whirlpool.runtime.json" target="_blank" rel="noreferrer">
+            <strong>Runtime Spec</strong>
+            <span>/idl/orca_whirlpool.runtime.json</span>
+            <p>Compute and contract-write capabilities only.</p>
+          </a>
+          <a class="spec" href="/idl/draft_swap_orca.runner.json" target="_blank" rel="noreferrer">
+            <strong>Runner Spec</strong>
+            <span>/idl/draft_swap_orca.runner.json</span>
+            <p>Linear composition: token resolve, quote, then draft.</p>
+          </a>
+        </div>
+      </section>
+
+      <section class="footer-note">
+        The interesting leftover after pushing work into Codama is no longer account resolution.
+        It is mostly transaction-envelope logic and any flow that needs a fresh read between steps.
+        That is why Codama instruction plans look like the natural next place to shrink the custom runtime even further.
+      </section>
+    </main>
+  </body>
+  </html>

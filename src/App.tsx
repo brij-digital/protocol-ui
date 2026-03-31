@@ -8,19 +8,17 @@ import { TradingViewTestTab } from './app/components/TradingViewTestTab';
 import { ViewPlaygroundTab } from './app/components/ViewPlaygroundTab';
 import { AgentTab } from './app/components/AgentTab';
 import { RunnerTab } from './app/components/RunnerTab';
-import { LorisDemoTab } from './app/components/LorisDemoTab';
 
 const VIEW_API_BASE_URL = '';
 const RUNNER_VIEW_API_BASE_URL = '';
 
-type AppTab = 'indexViews' | 'pump' | 'raw' | 'compute' | 'tv' | 'agent' | 'runner' | 'loris';
+type AppTab = 'indexViews' | 'pump' | 'raw' | 'compute' | 'tv' | 'agent' | 'runner';
 const DISABLED_TABS = ['Apps', 'Command', 'Explorer'] as const;
 
 const TAB_HASHES: Record<AppTab, string> = {
   agent: 'agent',
   pump: 'pump',
   runner: 'runner',
-  loris: 'loris',
   indexViews: 'index-views',
   raw: 'raw',
   compute: 'compute',
@@ -99,15 +97,6 @@ function App() {
           <button
             type="button"
             role="tab"
-            aria-selected={activeTab === 'loris'}
-            className={activeTab === 'loris' ? 'active' : ''}
-            onClick={() => switchTab('loris')}
-          >
-            Loris Demo
-          </button>
-          <button
-            type="button"
-            role="tab"
             aria-selected={activeTab === 'indexViews'}
             className={activeTab === 'indexViews' ? 'active' : ''}
             onClick={() => switchTab('indexViews')}
@@ -168,8 +157,6 @@ function App() {
           <AgentTab viewApiBaseUrl={VIEW_API_BASE_URL} />
         ) : activeTab === 'runner' ? (
           <RunnerTab viewApiBaseUrl={RUNNER_VIEW_API_BASE_URL} />
-        ) : activeTab === 'loris' ? (
-          <LorisDemoTab onOpenRunner={() => switchTab('runner')} />
         ) : activeTab === 'tv' ? (
           <TradingViewTestTab viewApiBaseUrl={VIEW_API_BASE_URL} />
         ) : activeTab === 'indexViews' ? (
