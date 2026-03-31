@@ -20,35 +20,16 @@
         },
         "amount_in": {
           "type": "u64",
-          "required": true,
-          "validate": {
-            "min": "1",
-            "message": "amount_in must be greater than 0."
-          }
+          "required": true
         },
         "slippage_bps": {
           "type": "u16",
-          "required": true,
-          "validate": {
-            "min": 0,
-            "max": 5000,
-            "message": "slippage_bps must be between 0 and 5000."
-          }
+          "required": true
         },
         "whirlpool": {
           "type": "pubkey",
           "required": true
         }
-      },
-      "validate": {
-        "cross": [
-          {
-            "kind": "not_equal",
-            "left": "$input.token_in_mint",
-            "right": "$input.token_out_mint",
-            "message": "token_in_mint and token_out_mint must be different."
-          }
-        ]
       },
       "resolve": [
         {
@@ -513,16 +494,6 @@
           "type": "token_mint",
           "required": true
         }
-      },
-      "validate": {
-        "cross": [
-          {
-            "kind": "not_equal",
-            "left": "$input.token_in_mint",
-            "right": "$input.token_out_mint",
-            "message": "token_in_mint and token_out_mint must be different."
-          }
-        ]
       },
       "read_output": {
         "type": "object",
@@ -1068,16 +1039,6 @@
           "required": true
         }
       },
-      "validate": {
-        "cross": [
-          {
-            "kind": "not_equal",
-            "left": "$input.token_in_mint",
-            "right": "$input.token_out_mint",
-            "message": "token_in_mint and token_out_mint must be different."
-          }
-        ]
-      },
       "read_output": {
         "type": "array",
         "source": "$items",
@@ -1257,20 +1218,11 @@
         },
         "amount_in": {
           "type": "u64",
-          "required": true,
-          "validate": {
-            "min": "1",
-            "message": "amount_in must be greater than 0."
-          }
+          "required": true
         },
         "slippage_bps": {
           "type": "u16",
-          "required": true,
-          "validate": {
-            "min": 0,
-            "max": 5000,
-            "message": "slippage_bps must be between 0 and 5000."
-          }
+          "required": true
         },
         "estimated_out": {
           "type": "u64",
@@ -1286,16 +1238,6 @@
           "required": false,
           "default": true
         }
-      },
-      "validate": {
-        "cross": [
-          {
-            "kind": "not_equal",
-            "left": "$input.token_in_mint",
-            "right": "$input.token_out_mint",
-            "message": "token_in_mint and token_out_mint must be different."
-          }
-        ]
       },
       "resolve": [
         {

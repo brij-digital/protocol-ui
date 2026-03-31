@@ -157,49 +157,15 @@ function buildOperationEnhancementFromSummary(operation: MetaOperationSummary): 
         ? { displayOrder: specRecord.display_order }
         : {}),
     };
-    const validate =
-      specRecord.validate && typeof specRecord.validate === 'object' && !Array.isArray(specRecord.validate)
-        ? (specRecord.validate as Record<string, unknown>)
-        : null;
     inputValidation[inputName] = {
-      ...(validate && typeof validate.required === 'boolean' ? { required: validate.required } : {}),
-      ...(validate && (typeof validate.min === 'string' || typeof validate.min === 'number')
-        ? { min: validate.min }
-        : {}),
-      ...(validate && (typeof validate.max === 'string' || typeof validate.max === 'number')
-        ? { max: validate.max }
-        : {}),
-      ...(validate && typeof validate.pattern === 'string' && validate.pattern.trim().length > 0
-        ? { pattern: validate.pattern.trim() }
-        : {}),
-      ...(validate && typeof validate.message === 'string' && validate.message.trim().length > 0
-        ? { message: validate.message.trim() }
-        : {}),
+      ...(typeof inputSpec.required === 'boolean' ? { required: inputSpec.required } : {}),
     };
   }
-
-  const crossValidationRaw = Array.isArray(operationRecord.crossValidation)
-    ? operationRecord.crossValidation
-    : [];
-  const crossValidation = crossValidationRaw
-    .map((rule) => (rule && typeof rule === 'object' && !Array.isArray(rule) ? (rule as Record<string, unknown>) : null))
-    .filter((rule): rule is Record<string, unknown> => rule !== null)
-    .filter((rule) => rule.kind === 'not_equal')
-    .map((rule) => ({
-      kind: 'not_equal' as const,
-      left: String(rule.left ?? ''),
-      right: String(rule.right ?? ''),
-      ...(typeof rule.message === 'string' && rule.message.trim().length > 0
-        ? { message: rule.message.trim() }
-        : {}),
-    }))
-    .filter((rule) => rule.left.length > 0 && rule.right.length > 0);
 
   return {
     label: operationLabel,
     inputUi,
     inputValidation,
-    crossValidation,
   };
 }
 
