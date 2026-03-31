@@ -8,10 +8,7 @@ import { TradingViewTestTab } from './app/components/TradingViewTestTab';
 import { ViewPlaygroundTab } from './app/components/ViewPlaygroundTab';
 import { AgentTab } from './app/components/AgentTab';
 
-const DEFAULT_VIEW_API_BASE_URL = 'https://apppack-view-service.onrender.com';
-const VIEW_API_BASE_URL = String(import.meta.env.VITE_VIEW_API_BASE_URL ?? DEFAULT_VIEW_API_BASE_URL)
-  .trim()
-  .replace(/\/+$/, '');
+const VIEW_API_BASE_URL = 'https://api.brijmail.com';
 
 type AppTab = 'contractViews' | 'indexViews' | 'pump' | 'raw' | 'compute' | 'tv' | 'agent';
 const DISABLED_TABS = ['Apps', 'Command', 'Explorer'] as const;
