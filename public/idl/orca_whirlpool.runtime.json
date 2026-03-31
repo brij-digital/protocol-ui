@@ -138,18 +138,6 @@
             "resolver": "decode_account",
             "address": "$input.whirlpool",
             "account_type": "Whirlpool"
-          },
-          {
-            "name": "token_owner_account_a",
-            "resolver": "ata",
-            "owner": "$wallet",
-            "mint": "$whirlpool_data.token_mint_a"
-          },
-          {
-            "name": "token_owner_account_b",
-            "resolver": "ata",
-            "owner": "$wallet",
-            "mint": "$whirlpool_data.token_mint_b"
           }
         ],
         "args": {
@@ -167,9 +155,7 @@
           "whirlpool": "$input.whirlpool",
           "token_mint_a": "$whirlpool_data.token_mint_a",
           "token_mint_b": "$whirlpool_data.token_mint_b",
-          "token_owner_account_a": "$token_owner_account_a",
           "token_vault_a": "$whirlpool_data.token_vault_a",
-          "token_owner_account_b": "$token_owner_account_b",
           "token_vault_b": "$whirlpool_data.token_vault_b",
           "tick_array0": "$tick_arrays.0",
           "tick_array1": "$tick_arrays.1",
@@ -179,21 +165,21 @@
           {
             "kind": "spl_ata_create_idempotent",
             "payer": "$wallet",
-            "ata": "$token_owner_account_a",
+            "ata": "$instruction_accounts.token_owner_account_a",
             "owner": "$wallet",
             "mint": "$whirlpool_data.token_mint_a"
           },
           {
             "kind": "spl_ata_create_idempotent",
             "payer": "$wallet",
-            "ata": "$token_owner_account_b",
+            "ata": "$instruction_accounts.token_owner_account_b",
             "owner": "$wallet",
             "mint": "$whirlpool_data.token_mint_b"
           },
           {
             "kind": "system_transfer",
             "from": "$wallet",
-            "to": "$token_owner_account_a",
+            "to": "$instruction_accounts.token_owner_account_a",
             "lamports": "$param.amount_in",
             "when": {
               "all": [
@@ -214,7 +200,7 @@
           },
           {
             "kind": "spl_token_sync_native",
-            "account": "$token_owner_account_a",
+            "account": "$instruction_accounts.token_owner_account_a",
             "when": {
               "all": [
                 {
@@ -235,7 +221,7 @@
           {
             "kind": "system_transfer",
             "from": "$wallet",
-            "to": "$token_owner_account_b",
+            "to": "$instruction_accounts.token_owner_account_b",
             "lamports": "$param.amount_in",
             "when": {
               "all": [
@@ -256,7 +242,7 @@
           },
           {
             "kind": "spl_token_sync_native",
-            "account": "$token_owner_account_b",
+            "account": "$instruction_accounts.token_owner_account_b",
             "when": {
               "all": [
                 {
@@ -278,7 +264,7 @@
         "post": [
           {
             "kind": "spl_token_close_account",
-            "account": "$token_owner_account_a",
+            "account": "$instruction_accounts.token_owner_account_a",
             "destination": "$wallet",
             "owner": "$wallet",
             "when": {
@@ -306,7 +292,7 @@
           },
           {
             "kind": "spl_token_close_account",
-            "account": "$token_owner_account_b",
+            "account": "$instruction_accounts.token_owner_account_b",
             "destination": "$wallet",
             "owner": "$wallet",
             "when": {

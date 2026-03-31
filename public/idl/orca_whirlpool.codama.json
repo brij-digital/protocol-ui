@@ -9760,7 +9760,15 @@
             "isWritable": true,
             "isSigner": false,
             "isOptional": false,
-            "docs": []
+            "docs": [],
+            "defaultValue": {
+              "kind": "pdaValueNode",
+              "pda": {
+                "kind": "pdaLinkNode",
+                "name": "tokenOwnerAccountA"
+              },
+              "seeds": []
+            }
           },
           {
             "kind": "instructionAccountNode",
@@ -9776,7 +9784,15 @@
             "isWritable": true,
             "isSigner": false,
             "isOptional": false,
-            "docs": []
+            "docs": [],
+            "defaultValue": {
+              "kind": "pdaValueNode",
+              "pda": {
+                "kind": "pdaLinkNode",
+                "name": "tokenOwnerAccountB"
+              },
+              "seeds": []
+            }
           },
           {
             "kind": "instructionAccountNode",
@@ -12765,6 +12781,74 @@
           {
             "kind": "variablePdaSeedNode",
             "name": "whirlpoolTwo",
+            "docs": [],
+            "type": {
+              "kind": "publicKeyTypeNode"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "pdaNode",
+        "name": "tokenOwnerAccountA",
+        "programId": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+        "docs": [],
+        "seeds": [
+          {
+            "kind": "variablePdaSeedNode",
+            "name": "tokenAuthority",
+            "docs": [],
+            "type": {
+              "kind": "publicKeyTypeNode"
+            }
+          },
+          {
+            "kind": "constantPdaSeedNode",
+            "type": {
+              "kind": "publicKeyTypeNode"
+            },
+            "value": {
+              "kind": "publicKeyValueNode",
+              "publicKey": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            }
+          },
+          {
+            "kind": "variablePdaSeedNode",
+            "name": "tokenMintA",
+            "docs": [],
+            "type": {
+              "kind": "publicKeyTypeNode"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "pdaNode",
+        "name": "tokenOwnerAccountB",
+        "programId": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+        "docs": [],
+        "seeds": [
+          {
+            "kind": "variablePdaSeedNode",
+            "name": "tokenAuthority",
+            "docs": [],
+            "type": {
+              "kind": "publicKeyTypeNode"
+            }
+          },
+          {
+            "kind": "constantPdaSeedNode",
+            "type": {
+              "kind": "publicKeyTypeNode"
+            },
+            "value": {
+              "kind": "publicKeyValueNode",
+              "publicKey": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            }
+          },
+          {
+            "kind": "variablePdaSeedNode",
+            "name": "tokenMintB",
             "docs": [],
             "type": {
               "kind": "publicKeyTypeNode"
