@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Codama Boundary Demo</title>
+    <title>Codama Runtime Demo</title>
     <style>
       :root {
         color-scheme: light;
@@ -200,17 +200,17 @@
     <main class="page">
       <section class="hero">
         <div>
-          <p class="eyebrow">Codama Boundary Demo</p>
-          <h1>What Codama already replaces, and what remains outside</h1>
+          <p class="eyebrow">Codama Runtime Demo</p>
+          <h1>How we use Codama as the instruction source of truth</h1>
           <p>
-            This is the smallest concrete walkthrough of the architecture we ended up with.
-            Codama carries instruction execution truth. The indexing spec owns read semantics.
-            The runtime is reduced to compute and write prep. The runner only composes steps linearly.
+            This is the smallest concrete walkthrough of the boundary we ended up with.
+            Codama carries instruction execution truth. Our runtime keeps only deterministic compute
+            and write preparation on top of that.
           </p>
         </div>
         <div class="actions">
           <a class="btn" href="/#runner">Open live runner flow</a>
-          <a class="ghost" href="/idl/action_runners.json" target="_blank" rel="noreferrer">Open runner registry</a>
+          <a class="ghost" href="/#raw">Open raw operations</a>
         </div>
       </section>
 
@@ -235,54 +235,34 @@
               <code>accounts, signers, PDA/default accounts</code>
             </div>
             <div class="row">
-              <strong>Indexing spec</strong>
-              <span>Off-chain read and discovery contract</span>
-              <code>pool search, feeds, market series</code>
-            </div>
-            <div class="row">
               <strong>Runtime spec</strong>
               <span>Deterministic compute and write prep</span>
               <code>quote math, draft construction</code>
-            </div>
-            <div class="row">
-              <strong>Runner</strong>
-              <span>Tiny linear orchestration</span>
-              <code>index_view -&gt; compute -&gt; contract_write</code>
             </div>
           </div>
         </article>
       </section>
 
       <section class="card" style="margin-top: 16px;">
-        <h2>Specs to inspect</h2>
+        <h2>Two files to inspect</h2>
         <div class="specs">
           <a class="spec" href="/idl/orca_whirlpool.codama.json" target="_blank" rel="noreferrer">
             <strong>Codama IDL</strong>
             <span>/idl/orca_whirlpool.codama.json</span>
             <p>Instruction truth: accounts, defaults, PDA metadata.</p>
           </a>
-          <a class="spec" href="/idl/orca_whirlpool.indexing.json" target="_blank" rel="noreferrer">
-            <strong>Indexing Spec</strong>
-            <span>/idl/orca_whirlpool.indexing.json</span>
-            <p>Indexed reads, projections, and canonical search/feed semantics.</p>
-          </a>
           <a class="spec" href="/idl/orca_whirlpool.runtime.json" target="_blank" rel="noreferrer">
             <strong>Runtime Spec</strong>
             <span>/idl/orca_whirlpool.runtime.json</span>
             <p>Compute and contract-write capabilities only.</p>
           </a>
-          <a class="spec" href="/idl/draft_swap_orca.runner.json" target="_blank" rel="noreferrer">
-            <strong>Runner Spec</strong>
-            <span>/idl/draft_swap_orca.runner.json</span>
-            <p>Linear composition: token resolve, quote, then draft.</p>
-          </a>
         </div>
       </section>
 
       <section class="footer-note">
-        The interesting leftover after pushing work into Codama is no longer account resolution.
-        It is mostly transaction-envelope logic and any flow that needs a fresh read between steps.
-        That is why Codama instruction plans look like the natural next place to shrink the custom runtime even further.
+        The remaining custom layer on our side is mostly quote/preview logic and transaction-envelope
+        logic. That is why Codama instruction plans feel like the natural next place to reduce our
+        runtime surface even further.
       </section>
     </main>
   </body>
