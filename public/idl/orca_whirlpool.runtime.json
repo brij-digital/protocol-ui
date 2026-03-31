@@ -498,6 +498,62 @@
             "compute": "math.floor_div",
             "dividend": "$other_amount_threshold_numerator",
             "divisor": "10000"
+          },
+          {
+            "name": "whirlpool",
+            "compute": "coalesce",
+            "values": [
+              "$input.whirlpool"
+            ]
+          },
+          {
+            "name": "token_in_mint",
+            "compute": "coalesce",
+            "values": [
+              "$input.token_in_mint"
+            ]
+          },
+          {
+            "name": "token_out_mint",
+            "compute": "coalesce",
+            "values": [
+              "$input.token_out_mint"
+            ]
+          },
+          {
+            "name": "amount_in",
+            "compute": "coalesce",
+            "values": [
+              "$input.amount_in"
+            ]
+          },
+          {
+            "name": "slippage_bps",
+            "compute": "coalesce",
+            "values": [
+              "$input.slippage_bps"
+            ]
+          },
+          {
+            "name": "estimated_out",
+            "compute": "coalesce",
+            "values": [
+              "$estimated_out_effective"
+            ]
+          },
+          {
+            "name": "minimum_out",
+            "compute": "coalesce",
+            "values": [
+              "$other_amount_threshold"
+            ]
+          },
+          {
+            "name": "pool_fee_bps",
+            "compute": "coalesce",
+            "values": [
+              "$whirlpool_data.fee_rate"
+            ]
           }
         ]
       }
