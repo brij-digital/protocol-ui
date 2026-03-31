@@ -151,7 +151,6 @@
         "accounts": {
           "token_program_a": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
           "token_program_b": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
-          "token_authority": "$wallet",
           "whirlpool": "$input.whirlpool",
           "token_mint_a": "$whirlpool_data.token_mint_a",
           "token_mint_b": "$whirlpool_data.token_mint_b",

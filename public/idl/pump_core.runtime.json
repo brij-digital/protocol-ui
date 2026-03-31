@@ -526,23 +526,11 @@
         "track_volume": "$input.track_volume"
       },
       "accounts": {
-        "global": "$global",
         "fee_recipient": "$global_data.fee_recipient",
         "mint": "$input.base_mint",
-        "bonding_curve": "$bonding_curve",
-        "bonding_curve_v2": "$bonding_curve_v2",
-        "associated_bonding_curve": "$associated_bonding_curve",
         "associated_user": "$associated_user",
-        "user": "$wallet",
-        "system_program": "11111111111111111111111111111111",
         "token_program": "$token_program",
-        "creator_vault": "$creator_vault",
-        "event_authority": "$event_authority",
-        "program": "$protocol.programId",
-        "global_volume_accumulator": "$global_volume_accumulator",
-        "user_volume_accumulator": "$user_volume_accumulator",
-        "fee_config": "$fee_config",
-        "fee_program": "pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ"
+        "creator_vault": "$creator_vault"
       },
       "pre": [
         {

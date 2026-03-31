@@ -389,7 +389,6 @@
         ],
         "accounts": {
           "pool": "$input.pool",
-          "user": "$wallet",
           "global_config": "$global_config",
           "base_mint": "$pool_data.base_mint",
           "quote_mint": "$pool_data.quote_mint",
@@ -398,19 +397,9 @@
           "pool_base_token_account": "$pool_data.pool_base_token_account",
           "pool_quote_token_account": "$pool_data.pool_quote_token_account",
           "protocol_fee_recipient": "$protocol_fee_recipient",
-          "protocol_fee_recipient_token_account": "$protocol_fee_recipient_token_account",
           "base_token_program": "$base_token_program",
           "quote_token_program": "$quote_token_program",
-          "system_program": "11111111111111111111111111111111",
-          "associated_token_program": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
-          "event_authority": "$event_authority",
-          "program": "$protocol.programId",
-          "coin_creator_vault_ata": "$coin_creator_vault_ata",
-          "coin_creator_vault_authority": "$coin_creator_vault_authority",
-          "global_volume_accumulator": "$global_volume_accumulator",
-          "user_volume_accumulator": "$user_volume_accumulator",
-          "fee_config": "$fee_config",
-          "fee_program": "pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ"
+          "coin_creator_vault_authority": "$coin_creator_vault_authority"
         },
         "remaining_accounts": "$remaining_accounts",
         "compute": [
@@ -744,7 +733,6 @@
         },
         "accounts": {
           "pool": "$input.pool",
-          "user": "$wallet",
           "global_config": "$global_config",
           "base_mint": "$pool_data.base_mint",
           "quote_mint": "$pool_data.quote_mint",
@@ -753,17 +741,9 @@
           "pool_base_token_account": "$pool_data.pool_base_token_account",
           "pool_quote_token_account": "$pool_data.pool_quote_token_account",
           "protocol_fee_recipient": "$protocol_fee_recipient",
-          "protocol_fee_recipient_token_account": "$protocol_fee_recipient_token_account",
           "base_token_program": "$base_token_program",
           "quote_token_program": "$quote_token_program",
-          "system_program": "11111111111111111111111111111111",
-          "associated_token_program": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
-          "event_authority": "$event_authority",
-          "program": "$protocol.programId",
-          "coin_creator_vault_ata": "$coin_creator_vault_ata",
-          "coin_creator_vault_authority": "$coin_creator_vault_authority",
-          "fee_config": "$fee_config",
-          "fee_program": "pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ"
+          "coin_creator_vault_authority": "$coin_creator_vault_authority"
         },
         "compute": [
           {
