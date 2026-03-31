@@ -157,10 +157,6 @@ type AgentStreamEvent =
       error: string;
     };
 
-function formatJson(value: unknown): string {
-  return JSON.stringify(value, null, 2);
-}
-
 function readCookie(name: string): string {
   if (typeof document === 'undefined') {
     return '';
@@ -210,6 +206,25 @@ function ExpandablePre({ text }: { text: string }) {
     </div>
   );
 }
+
+type VisibleTranscriptEntry =
+  | {
+      kind: 'assistant_text';
+      key: string;
+      text: string;
+    }
+  | {
+      kind: 'draft_card';
+      key: string;
+      draft: PreparedExecutionDraft;
+    }
+  | {
+      kind: 'interaction_card';
+      key: string;
+      interaction: Extract<AgentTranscriptEntry, { kind: 'interaction' }>;
+      draft: PreparedExecutionDraft | null;
+      result: Extract<AgentTranscriptEntry, { kind: 'interaction_result' }> | null;
+    };
 
 export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
   const wallet = useWallet();
@@ -263,6 +278,40 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
       )),
     );
   }, [transcript]);
+  const visibleTranscript = useMemo<VisibleTranscriptEntry[]>(() => transcript.reduce<VisibleTranscriptEntry[]>((items, entry, index) => {
+    if (entry.role === 'assistant' && entry.kind === 'text') {
+      items.push({
+        kind: 'assistant_text',
+        key: `assistant-${index}`,
+        text: entry.text,
+      });
+      return items;
+    }
+
+    if (entry.role === 'tool' && entry.kind === 'tool_result' && entry.toolName === 'draft_execution') {
+      const draft = parsePreparedExecutionDraft(entry.result);
+      if (draft && index === latestDraftIndex) {
+        items.push({
+          kind: 'draft_card',
+          key: `draft-${index}`,
+          draft,
+        });
+      }
+      return items;
+    }
+
+    if (entry.role === 'system' && entry.kind === 'interaction') {
+      items.push({
+        kind: 'interaction_card',
+        key: `interaction-${entry.interactionId}`,
+        interaction: entry,
+        draft: draftById.get(entry.draftId) ?? latestDraft,
+        result: interactionResultById.get(entry.interactionId) ?? null,
+      });
+    }
+
+    return items;
+  }, []), [draftById, interactionResultById, latestDraft, latestDraftIndex, transcript]);
 
   useEffect(() => {
     setApiKey(readCookie(AGENT_API_KEY_COOKIE));
@@ -584,87 +633,54 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
         <section className="agent-panel">
           <h3>Transcript</h3>
           <div className="agent-transcript">
-            {transcript.length === 0 ? (
+            {visibleTranscript.length === 0 ? (
               <p className="view-playground-empty">Run the agent to inspect its tool calls and responses.</p>
             ) : (
-              transcript.map((entry, index) => {
-                const entryDraft = entry.role === 'tool' && entry.kind === 'tool_result' && entry.toolName === 'draft_execution'
-                  ? parsePreparedExecutionDraft(entry.result)
-                  : null;
-                const showDraftActions = entryDraft !== null && index === latestDraftIndex;
-                const interactionResult = entry.role === 'system' && entry.kind === 'interaction'
-                  ? interactionResultById.get(entry.interactionId) ?? null
-                  : null;
-                const interactionDraft = entry.role === 'system' && entry.kind === 'interaction'
-                  ? draftById.get(entry.draftId) ?? latestDraft
-                  : null;
-
+              visibleTranscript.map((entry) => {
                 return (
-                  <article key={index} className="agent-entry">
-                    <strong>
-                      {entry.role} / {entry.kind}
-                      {'toolName' in entry ? ` / ${entry.toolName}` : ''}
-                      {'interactionType' in entry ? ` / ${entry.interactionType}` : ''}
-                    </strong>
-                    {'text' in entry ? <ExpandablePre text={entry.text} /> : null}
-                    {'input' in entry ? <ExpandablePre text={formatJson(entry.input)} /> : null}
-                    {'result' in entry ? <ExpandablePre text={formatJson(entry.result)} /> : null}
-                    {'message' in entry && entry.message ? <p>{entry.message}</p> : null}
-                    {showDraftActions ? (
+                  <article key={entry.key} className="agent-entry">
+                    {entry.kind === 'assistant_text' ? <ExpandablePre text={entry.text} /> : null}
+                    {entry.kind === 'draft_card' ? (
                       <div className="agent-actions">
                         <button
                           type="button"
-                          onClick={() => void handleSimulateDraft(entryDraft)}
+                          onClick={() => void handleSimulateDraft(entry.draft)}
                           disabled={isLoading || isDraftActionLoading || !wallet.publicKey}
                         >
                           {isDraftActionLoading ? 'Working...' : 'Simulate Draft'}
                         </button>
                         <button
                           type="button"
-                          onClick={() => void handleSendDraft(entryDraft)}
+                          onClick={() => void handleSendDraft(entry.draft)}
                           disabled={isLoading || isDraftActionLoading || !wallet.publicKey}
                         >
                           {isDraftActionLoading ? 'Working...' : 'Send Draft'}
                         </button>
                         <p>
-                          Draft ready: {entryDraft.operationId} / {entryDraft.instructionName ?? 'no instruction'}
+                          Draft ready: {entry.draft.operationId} / {entry.draft.instructionName ?? 'no instruction'}
                         </p>
                       </div>
                     ) : null}
-                    {entry.role === 'system' && entry.kind === 'interaction' && entry.interactionType === 'wallet_submit_draft' ? (
+                    {entry.kind === 'interaction_card' ? (
                       <div className="agent-actions">
-                        {interactionResult ? null : (
+                        {entry.result ? null : (
                           <button
                             type="button"
-                            onClick={() => void handleSendDraft(interactionDraft, entry.interactionId)}
-                            disabled={isLoading || isDraftActionLoading || !wallet.publicKey || !interactionDraft}
+                            onClick={() => void handleSendDraft(entry.draft, entry.interaction.interactionId)}
+                            disabled={isLoading || isDraftActionLoading || !wallet.publicKey || !entry.draft}
                           >
-                            {isDraftActionLoading ? 'Opening Wallet...' : entry.label}
+                            {isDraftActionLoading ? 'Opening Wallet...' : entry.interaction.label}
                           </button>
                         )}
                         <p>
-                          {interactionResult
-                            ? interactionResult.status === 'confirmed'
-                              ? `Confirmed${interactionResult.signature ? `: ${interactionResult.signature}` : ''}`
-                              : `Failed: ${interactionResult.error ?? 'unknown'}`
-                            : entry.message ?? 'Wallet approval is required.'}
+                          {entry.result
+                            ? entry.result.status === 'confirmed'
+                              ? `Confirmed${entry.result.signature ? `: ${entry.result.signature}` : ''}`
+                              : `Failed: ${entry.result.error ?? 'unknown'}`
+                            : entry.interaction.message ?? 'Wallet approval is required.'}
                         </p>
-                        {interactionResult?.status === 'confirmed' && interactionResult.explorerUrl ? (
-                          <a href={interactionResult.explorerUrl} target="_blank" rel="noreferrer">
-                            View Explorer
-                          </a>
-                        ) : null}
-                      </div>
-                    ) : null}
-                    {entry.role === 'system' && entry.kind === 'interaction_result' ? (
-                      <div className="agent-actions">
-                        <p>
-                          {entry.status === 'confirmed'
-                            ? `Wallet action confirmed${entry.signature ? `: ${entry.signature}` : ''}`
-                            : `Wallet action failed: ${entry.error ?? 'unknown'}`}
-                        </p>
-                        {entry.status === 'confirmed' && entry.explorerUrl ? (
-                          <a href={entry.explorerUrl} target="_blank" rel="noreferrer">
+                        {entry.result?.status === 'confirmed' && entry.result.explorerUrl ? (
+                          <a href={entry.result.explorerUrl} target="_blank" rel="noreferrer">
                             View Explorer
                           </a>
                         ) : null}
