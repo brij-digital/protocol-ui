@@ -14,7 +14,7 @@ type AppTab = 'indexViews' | 'pump' | 'raw' | 'compute' | 'tv' | 'agent';
 const DISABLED_TABS = ['Apps', 'Command', 'Explorer'] as const;
 
 function App() {
-  const [activeTab, setActiveTab] = useState<AppTab>('pump');
+  const [activeTab, setActiveTab] = useState<AppTab>('agent');
 
   return (
     <main className="page-shell">
@@ -28,6 +28,15 @@ function App() {
         </header>
 
         <div className="tab-switcher" role="tablist" aria-label="Mode">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'agent'}
+            className={activeTab === 'agent' ? 'active' : ''}
+            onClick={() => setActiveTab('agent')}
+          >
+            Agent
+          </button>
           <button
             type="button"
             role="tab"
@@ -63,15 +72,6 @@ function App() {
             onClick={() => setActiveTab('compute')}
           >
             Compute
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'agent'}
-            className={activeTab === 'agent' ? 'active' : ''}
-            onClick={() => setActiveTab('agent')}
-          >
-            Agent
           </button>
           <button
             type="button"
