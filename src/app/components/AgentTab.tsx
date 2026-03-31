@@ -488,60 +488,6 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
         </div>
       </div>
 
-      <form className="agent-form" onSubmit={handleRun}>
-        <label>
-          Provider
-          <select value="anthropic" disabled>
-            <option value="anthropic">Claude / Anthropic</option>
-          </select>
-        </label>
-        <label>
-          Model
-          <input
-            value={model}
-            onChange={(event) => setModel(event.target.value)}
-            placeholder={DEFAULT_ANTHROPIC_MODEL}
-            list="anthropic-model-presets"
-          />
-        </label>
-        <label>
-          Protocol
-          <select value={protocolId} onChange={(event) => setProtocolId(event.target.value)}>
-            {protocols.map((protocol) => (
-              <option key={protocol.id} value={protocol.id}>
-                {protocol.name ?? protocol.id}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Connected Wallet
-          <input value={walletPublicKey ?? 'not connected'} disabled />
-        </label>
-        <label className="agent-form-full">
-          Claude API Key
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(event) => setApiKey(event.target.value)}
-            placeholder="sk-ant-..."
-            autoComplete="off"
-          />
-        </label>
-        <label className="agent-form-full">
-          Prompt
-          <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} rows={8} />
-        </label>
-        <div className="agent-actions">
-          <button type="submit" disabled={isLoading || apiKey.trim().length === 0 || prompt.trim().length === 0}>
-            {isLoading ? 'Running...' : sessionId ? 'Send' : 'Start Session'}
-          </button>
-          <button type="button" onClick={handleNewSession} disabled={isLoading}>
-            New Session
-          </button>
-          <p>Your key is used only for this request. Nothing is stored for now. Use an exact Anthropic model id.</p>
-        </div>
-      </form>
       <datalist id="anthropic-model-presets">
         {ANTHROPIC_MODEL_PRESETS.map((preset) => (
           <option key={preset} value={preset} />
@@ -621,6 +567,61 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
           </div>
         </section>
       </div>
+
+      <form className="agent-form agent-composer" onSubmit={handleRun}>
+        <label>
+          Provider
+          <select value="anthropic" disabled>
+            <option value="anthropic">Claude / Anthropic</option>
+          </select>
+        </label>
+        <label>
+          Model
+          <input
+            value={model}
+            onChange={(event) => setModel(event.target.value)}
+            placeholder={DEFAULT_ANTHROPIC_MODEL}
+            list="anthropic-model-presets"
+          />
+        </label>
+        <label>
+          Protocol
+          <select value={protocolId} onChange={(event) => setProtocolId(event.target.value)}>
+            {protocols.map((protocol) => (
+              <option key={protocol.id} value={protocol.id}>
+                {protocol.name ?? protocol.id}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Connected Wallet
+          <input value={walletPublicKey ?? 'not connected'} disabled />
+        </label>
+        <label className="agent-form-full">
+          Claude API Key
+          <input
+            type="password"
+            value={apiKey}
+            onChange={(event) => setApiKey(event.target.value)}
+            placeholder="sk-ant-..."
+            autoComplete="off"
+          />
+        </label>
+        <label className="agent-form-full">
+          Prompt
+          <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} rows={6} />
+        </label>
+        <div className="agent-actions">
+          <button type="submit" disabled={isLoading || apiKey.trim().length === 0 || prompt.trim().length === 0}>
+            {isLoading ? 'Running...' : sessionId ? 'Send' : 'Start Session'}
+          </button>
+          <button type="button" onClick={handleNewSession} disabled={isLoading}>
+            New Session
+          </button>
+          <p>Your key is used only for this request. Nothing is stored for now. Use an exact Anthropic model id.</p>
+        </div>
+      </form>
     </section>
   );
 }
