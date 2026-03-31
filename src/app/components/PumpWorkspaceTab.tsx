@@ -180,7 +180,8 @@ async function runView(
 function buildHistoryUrl(baseUrl: string, mint: string): string {
   const now = Math.floor(Date.now() / 1000);
   const from = now - (24 * 60 * 60);
-  const url = new URL(`${baseUrl.replace(/\/+$/, '')}/tradingview/history`);
+  const root = baseUrl.replace(/\/+$/, '') || window.location.origin;
+  const url = new URL('/tradingview/history', root);
   url.searchParams.set('symbol', `pump:${mint}`);
   url.searchParams.set('resolution', '1');
   url.searchParams.set('from', String(from));

@@ -394,7 +394,8 @@ async function fetchWatchStatus(
   protocolId: string,
   input: Record<string, unknown>,
 ): Promise<WatchStatus | null> {
-  const url = new URL(`${baseUrl}/market/watch-status`);
+  const root = baseUrl.replace(/\/+$/, '') || window.location.origin;
+  const url = new URL('/market/watch-status', root);
   url.searchParams.set('protocol_id', protocolId);
   for (const [key, value] of Object.entries(input)) {
     if (typeof value === 'string') {

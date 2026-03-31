@@ -63,7 +63,8 @@ function formatPriceLabel(value: number): string {
 }
 
 function buildHistoryUrl(baseUrl: string, symbol: string, resolution: string, from: number, to: number): string {
-  const url = new URL(`${baseUrl.replace(/\/+$/, '')}/tradingview/history`);
+  const root = baseUrl.replace(/\/+$/, '') || window.location.origin;
+  const url = new URL('/tradingview/history', root);
   url.searchParams.set('symbol', symbol);
   url.searchParams.set('resolution', resolution);
   url.searchParams.set('from', String(from));
@@ -73,7 +74,8 @@ function buildHistoryUrl(baseUrl: string, symbol: string, resolution: string, fr
 }
 
 function buildSymbolUrl(baseUrl: string, symbol: string): string {
-  const url = new URL(`${baseUrl.replace(/\/+$/, '')}/tradingview/symbols`);
+  const root = baseUrl.replace(/\/+$/, '') || window.location.origin;
+  const url = new URL('/tradingview/symbols', root);
   url.searchParams.set('symbol', symbol);
   return url.toString();
 }
