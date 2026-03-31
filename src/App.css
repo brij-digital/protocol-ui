@@ -1753,15 +1753,31 @@
 }
 
 .agent-composer {
-  position: sticky;
-  bottom: 0;
-  z-index: 5;
   border: 1px solid #dce4f4;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.98);
-  backdrop-filter: blur(10px);
+  background: #fff;
   padding: 0.9rem;
-  box-shadow: 0 -10px 24px rgba(22, 40, 77, 0.08);
+}
+
+.agent-settings {
+  grid-column: 1 / -1;
+  border: 1px solid #dce4f4;
+  border-radius: 12px;
+  background: #f8fbff;
+  padding: 0.8rem 0.9rem;
+}
+
+.agent-settings summary {
+  cursor: pointer;
+  color: #183055;
+  font-weight: 700;
+}
+
+.agent-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.8rem;
 }
 
 .agent-form label {
