@@ -10,7 +10,7 @@ import { AgentTab } from './app/components/AgentTab';
 
 const VIEW_API_BASE_URL = 'https://api.brijmail.com';
 
-type AppTab = 'contractViews' | 'indexViews' | 'pump' | 'raw' | 'compute' | 'tv' | 'agent';
+type AppTab = 'indexViews' | 'pump' | 'raw' | 'compute' | 'tv' | 'agent';
 const DISABLED_TABS = ['Apps', 'Command', 'Explorer'] as const;
 
 function App() {
@@ -36,15 +36,6 @@ function App() {
             onClick={() => setActiveTab('pump')}
           >
             Pump
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'contractViews'}
-            className={activeTab === 'contractViews' ? 'active' : ''}
-            onClick={() => setActiveTab('contractViews')}
-          >
-            Contract Views
           </button>
           <button
             type="button"
@@ -118,8 +109,6 @@ function App() {
           <AgentTab viewApiBaseUrl={VIEW_API_BASE_URL} />
         ) : activeTab === 'tv' ? (
           <TradingViewTestTab viewApiBaseUrl={VIEW_API_BASE_URL} />
-        ) : activeTab === 'contractViews' ? (
-          <ViewPlaygroundTab viewApiBaseUrl={VIEW_API_BASE_URL} viewKind="contract" />
         ) : activeTab === 'indexViews' ? (
           <ViewPlaygroundTab viewApiBaseUrl={VIEW_API_BASE_URL} viewKind="index" />
         ) : null}

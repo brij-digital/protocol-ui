@@ -31,7 +31,6 @@
     }
   },
   "reads": {
-    "contract": {},
     "index": {}
   },
   "computes": {

@@ -62,7 +62,6 @@
     }
   },
   "reads": {
-    "contract": {},
     "index": {
       "list_tokens": {
         "inputs": {
@@ -305,7 +304,6 @@
         },
         "read": {
           "kind": "feed",
-          "source_kind": "materialized_feed",
           "freshness": {
             "class": "near_realtime",
             "target_ms": 1000,
@@ -376,7 +374,6 @@
         },
         "read": {
           "kind": "series",
-          "source_kind": "materialized_series",
           "freshness": {
             "class": "near_realtime",
             "target_ms": 5000,
@@ -488,7 +485,6 @@
         },
         "read": {
           "kind": "search",
-          "source_kind": "derived_sql",
           "freshness": {
             "class": "near_realtime",
             "target_ms": 10000,

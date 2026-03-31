@@ -208,10 +208,6 @@ export function renderMetaExplain(explanation: RuntimeOperationExplain): string 
     ([name, spec]) => `- ${name}: ${String(spec.type ?? 'unknown')} (${formatRequired(spec as Record<string, unknown>)})`,
   );
 
-  const discoverLines = explanation.discover.map((step, index) => {
-    const record = step && typeof step === 'object' && !Array.isArray(step) ? (step as Record<string, unknown>) : {};
-    return `${index + 1}. ${String(record.name ?? `step_${index + 1}`)} -> ${String(record.discover ?? 'unknown')}`;
-  });
   const deriveLines = explanation.derive.map((step, index) => {
     const record = step && typeof step === 'object' && !Array.isArray(step) ? (step as Record<string, unknown>) : {};
     return `${index + 1}. ${String(record.name ?? `step_${index + 1}`)} -> ${String(record.resolver ?? 'unknown')}`;
@@ -228,9 +224,6 @@ export function renderMetaExplain(explanation: RuntimeOperationExplain): string 
     '',
     'Inputs:',
     ...(inputLines.length > 0 ? inputLines : ['- none']),
-    '',
-    'Discover:',
-    ...(discoverLines.length > 0 ? discoverLines : ['- none']),
     '',
     'Derive:',
     ...(deriveLines.length > 0 ? deriveLines : ['- none']),

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 
 type ViewPlaygroundTabProps = {
   viewApiBaseUrl: string;
-  viewKind: 'contract' | 'index';
+  viewKind: 'index';
 };
 
 type RegistryProtocol = {
@@ -58,12 +58,6 @@ type CatalogEntry = {
 type HealthResponse = {
   ok?: boolean;
   service?: string;
-  sync?: {
-    total_jobs?: number;
-    bootstrap_pending?: number;
-    incremental_jobs?: number;
-    jobs_with_errors?: number;
-  };
 };
 
 type ViewRunResponse = {
@@ -120,11 +114,8 @@ export function ViewPlaygroundTab({ viewApiBaseUrl, viewKind }: ViewPlaygroundTa
   const [isRunLoading, setIsRunLoading] = useState(false);
 
   const trimmedBaseUrl = useMemo(() => viewApiBaseUrl.trim().replace(/\/+$/, ''), [viewApiBaseUrl]);
-  const title = viewKind === 'contract' ? 'Contract Views' : 'Index Views';
-  const description =
-    viewKind === 'contract'
-      ? 'Run targeted protocol-state reads declared in runtime. No canonical projection path involved.'
-      : 'Run indexed discovery, feeds, rankings, and canonical read contracts declared in runtime.';
+  const title = 'Index Views';
+  const description = 'Run indexed discovery, feeds, rankings, and canonical read contracts declared in runtime.';
 
   useEffect(() => {
     let cancelled = false;
@@ -149,7 +140,7 @@ export function ViewPlaygroundTab({ viewApiBaseUrl, viewKind }: ViewPlaygroundTa
             continue;
           }
           const runtime = (await runtimeResponse.json()) as RuntimeSpec;
-          const readOperations = viewKind === 'contract' ? (runtime.reads?.contract ?? {}) : (runtime.reads?.index ?? {});
+          const readOperations = runtime.reads?.index ?? {};
           for (const [opId, operation] of Object.entries(readOperations)) {
             const view = operation.read;
             if (!view) {
@@ -230,10 +221,7 @@ export function ViewPlaygroundTab({ viewApiBaseUrl, viewKind }: ViewPlaygroundTa
       setHealthText(
         [
           `service=${body.service ?? 'unknown'}`,
-          `jobs=${body.sync?.total_jobs ?? 0}`,
-          `bootstrap_pending=${body.sync?.bootstrap_pending ?? 0}`,
-          `incremental_jobs=${body.sync?.incremental_jobs ?? 0}`,
-          `jobs_with_errors=${body.sync?.jobs_with_errors ?? 0}`,
+          `index_only=true`,
         ].join(' | '),
       );
     } catch (error) {
