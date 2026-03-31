@@ -52,6 +52,40 @@ type AgentRunResponse = {
   };
 };
 
+type AgentStreamEvent =
+  | {
+      type: 'status';
+      message: string;
+    }
+  | {
+      type: 'assistant_text';
+      text: string;
+    }
+  | {
+      type: 'tool_use';
+      toolName: string;
+      input: Record<string, unknown>;
+    }
+  | {
+      type: 'tool_result';
+      toolName: string;
+      result: unknown;
+    }
+  | {
+      type: 'usage';
+      usage: AgentRunResponse['usage'] | null;
+    }
+  | {
+      type: 'final';
+      final_text: string;
+      transcript: AgentTranscriptEntry[];
+      usage: AgentRunResponse['usage'] | null;
+    }
+  | {
+      type: 'error';
+      error: string;
+    };
+
 function formatJson(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
@@ -68,6 +102,7 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
   const [finalText, setFinalText] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<AgentTranscriptEntry[]>([]);
   const [usageText, setUsageText] = useState<string | null>(null);
+  const [statusText, setStatusText] = useState<string | null>(null);
 
   const trimmedBaseUrl = useMemo(() => viewApiBaseUrl.trim().replace(/\/+$/, ''), [viewApiBaseUrl]);
   const walletPublicKey = publicKey?.toBase58() ?? null;
@@ -102,9 +137,10 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
     setFinalText(null);
     setUsageText(null);
     setTranscript([]);
+    setStatusText('Starting agent run...');
 
     try {
-      const response = await fetch(`${trimmedBaseUrl}/agent/run`, {
+      const response = await fetch(`${trimmedBaseUrl}/agent/run/stream`, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
@@ -118,17 +154,93 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
           prompt,
         }),
       });
-      const body = (await response.json()) as AgentRunResponse;
-      if (!response.ok || !body.ok) {
-        throw new Error(body.error ?? `Agent run failed with ${response.status}.`);
+      if (!response.ok || !response.body) {
+        const body = await response.json().catch(() => null) as AgentRunResponse | null;
+        throw new Error(body?.error ?? `Agent run failed with ${response.status}.`);
       }
-      setFinalText(body.final_text ?? null);
-      setTranscript(Array.isArray(body.transcript) ? body.transcript : []);
-      if (body.usage) {
-        setUsageText(`input_tokens=${body.usage.input_tokens ?? 0} | output_tokens=${body.usage.output_tokens ?? 0}`);
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (const rawLine of lines) {
+          const line = rawLine.trim();
+          if (!line) {
+            continue;
+          }
+          const event = JSON.parse(line) as AgentStreamEvent;
+          if (event.type === 'status') {
+            setStatusText(event.message);
+            continue;
+          }
+          if (event.type === 'assistant_text') {
+            setTranscript((current) => [
+              ...current,
+              {
+                role: 'assistant',
+                kind: 'text',
+                text: event.text,
+              },
+            ]);
+            continue;
+          }
+          if (event.type === 'tool_use') {
+            setTranscript((current) => [
+              ...current,
+              {
+                role: 'assistant',
+                kind: 'tool_use',
+                toolName: event.toolName,
+                input: event.input,
+              },
+            ]);
+            continue;
+          }
+          if (event.type === 'tool_result') {
+            setTranscript((current) => [
+              ...current,
+              {
+                role: 'tool',
+                kind: 'tool_result',
+                toolName: event.toolName,
+                result: event.result,
+              },
+            ]);
+            continue;
+          }
+          if (event.type === 'usage') {
+            if (event.usage) {
+              setUsageText(`input_tokens=${event.usage.input_tokens ?? 0} | output_tokens=${event.usage.output_tokens ?? 0}`);
+            }
+            continue;
+          }
+          if (event.type === 'final') {
+            setFinalText(event.final_text ?? null);
+            setTranscript(Array.isArray(event.transcript) ? event.transcript : []);
+            if (event.usage) {
+              setUsageText(`input_tokens=${event.usage.input_tokens ?? 0} | output_tokens=${event.usage.output_tokens ?? 0}`);
+            }
+            setStatusText('Completed.');
+            continue;
+          }
+          if (event.type === 'error') {
+            throw new Error(event.error);
+          }
+        }
+
+        if (done) {
+          break;
+        }
       }
     } catch (error) {
       setErrorText(error instanceof Error ? error.message : 'Agent run failed.');
+      setStatusText(null);
     } finally {
       setIsLoading(false);
     }
@@ -205,6 +317,7 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
       </datalist>
 
       {errorText ? <p className="view-playground-error">{errorText}</p> : null}
+      {statusText ? <p className="view-playground-info">{statusText}</p> : null}
       {usageText ? <p className="view-playground-info">{usageText}</p> : null}
 
       <div className="agent-results">
