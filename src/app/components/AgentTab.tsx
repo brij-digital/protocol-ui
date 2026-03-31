@@ -7,6 +7,7 @@ const ANTHROPIC_MODEL_PRESETS = [
   'claude-opus-4-20250514',
   'claude-3-5-haiku-20241022',
 ] as const;
+const AGENT_API_KEY_COOKIE = 'agent_anthropic_api_key';
 
 type AgentTabProps = {
   viewApiBaseUrl: string;
@@ -97,6 +98,34 @@ function formatJson(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
 
+function readCookie(name: string): string {
+  if (typeof document === 'undefined') {
+    return '';
+  }
+  const prefix = `${name}=`;
+  const part = document.cookie
+    .split('; ')
+    .find((entry) => entry.startsWith(prefix));
+  if (!part) {
+    return '';
+  }
+  return decodeURIComponent(part.slice(prefix.length));
+}
+
+function writeCookie(name: string, value: string): void {
+  if (typeof document === 'undefined') {
+    return;
+  }
+  document.cookie = `${name}=${encodeURIComponent(value)}; Max-Age=${60 * 60 * 24 * 30}; Path=/; SameSite=Lax; Secure`;
+}
+
+function clearCookie(name: string): void {
+  if (typeof document === 'undefined') {
+    return;
+  }
+  document.cookie = `${name}=; Max-Age=0; Path=/; SameSite=Lax; Secure`;
+}
+
 export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
   const { publicKey } = useWallet();
   const [protocols, setProtocols] = useState<RegistryProtocol[]>([]);
@@ -114,6 +143,18 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
 
   const trimmedBaseUrl = useMemo(() => viewApiBaseUrl.trim().replace(/\/+$/, ''), [viewApiBaseUrl]);
   const walletPublicKey = publicKey?.toBase58() ?? null;
+
+  useEffect(() => {
+    setApiKey(readCookie(AGENT_API_KEY_COOKIE));
+  }, []);
+
+  useEffect(() => {
+    if (apiKey.trim().length > 0) {
+      writeCookie(AGENT_API_KEY_COOKIE, apiKey);
+      return;
+    }
+    clearCookie(AGENT_API_KEY_COOKIE);
+  }, [apiKey]);
 
   useEffect(() => {
     let cancelled = false;
