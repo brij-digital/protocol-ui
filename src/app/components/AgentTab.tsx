@@ -47,6 +47,28 @@ type AgentTranscriptEntry =
       kind: 'tool_result';
       toolName: string;
       result: unknown;
+    }
+  | {
+      role: 'system';
+      kind: 'interaction';
+      interactionId: string;
+      interactionType: 'wallet_submit_draft';
+      status: 'pending';
+      label: string;
+      draftId: string;
+      operationId: string | null;
+      instructionName: string | null;
+      message: string | null;
+    }
+  | {
+      role: 'system';
+      kind: 'interaction_result';
+      interactionId: string;
+      interactionType: 'wallet_submit_draft';
+      status: 'confirmed' | 'failed';
+      signature: string | null;
+      explorerUrl: string | null;
+      error: string | null;
     };
 
 type AgentRunResponse = {
@@ -79,6 +101,14 @@ function parsePreparedExecutionDraft(result: unknown): PreparedExecutionDraft | 
   return null;
 }
 
+function getDraftId(result: unknown): string | null {
+  if (!result || typeof result !== 'object' || Array.isArray(result)) {
+    return null;
+  }
+  const draftId = (result as Record<string, unknown>).draft_id;
+  return typeof draftId === 'string' ? draftId : null;
+}
+
 type AgentStreamEvent =
   | {
       type: 'session';
@@ -102,6 +132,14 @@ type AgentStreamEvent =
       type: 'tool_result';
       toolName: string;
       result: unknown;
+    }
+  | {
+      type: 'interaction';
+      interaction: Extract<AgentTranscriptEntry, { kind: 'interaction' }>;
+    }
+  | {
+      type: 'interaction_result';
+      interaction_result: Extract<AgentTranscriptEntry, { kind: 'interaction_result' }>;
     }
   | {
       type: 'usage';
@@ -192,58 +230,39 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
 
   const trimmedBaseUrl = useMemo(() => viewApiBaseUrl.trim().replace(/\/+$/, ''), [viewApiBaseUrl]);
   const walletPublicKey = publicKey?.toBase58() ?? null;
+  const draftRecords = useMemo(() => transcript.flatMap((entry, index) => {
+    if (entry.role !== 'tool' || entry.kind !== 'tool_result' || entry.toolName !== 'draft_execution') {
+      return [];
+    }
+    const draft = parsePreparedExecutionDraft(entry.result);
+    if (!draft) {
+      return [];
+    }
+    return [{ index, draft, draftId: getDraftId(entry.result) }];
+  }), [transcript]);
   const latestDraftIndex = useMemo(() => {
-    for (let index = transcript.length - 1; index >= 0; index -= 1) {
-      const entry = transcript[index];
-      if (!entry || entry.role !== 'tool' || entry.kind !== 'tool_result' || entry.toolName !== 'draft_execution') {
-        continue;
-      }
-      if (parsePreparedExecutionDraft(entry.result)) {
-        return index;
-      }
-    }
-    return -1;
-  }, [transcript]);
+    const latest = draftRecords.at(-1);
+    return latest ? latest.index : -1;
+  }, [draftRecords]);
   const latestDraft = useMemo<PreparedExecutionDraft | null>(() => {
-    if (latestDraftIndex < 0) {
-      return null;
-    }
-    const entry = transcript[latestDraftIndex];
-    return entry && entry.role === 'tool' && entry.kind === 'tool_result'
-      ? parsePreparedExecutionDraft(entry.result)
-      : null;
-  }, [latestDraftIndex, transcript]);
-  const latestSubmitApprovalIndex = useMemo(() => {
-    for (let index = transcript.length - 1; index >= 0; index -= 1) {
-      const entry = transcript[index];
-      if (!entry || entry.role !== 'tool' || entry.kind !== 'tool_result' || entry.toolName !== 'submit_execution') {
-        continue;
-      }
-      const result = entry.result;
-      if (!result || typeof result !== 'object' || Array.isArray(result)) {
-        continue;
-      }
-      if ((result as Record<string, unknown>).requires_wallet_approval === true) {
-        return index;
-      }
-    }
-    return -1;
+    return draftRecords.at(-1)?.draft ?? null;
+  }, [draftRecords]);
+  const draftById = useMemo(() => {
+    return new Map(
+      draftRecords
+        .filter((record) => typeof record.draftId === 'string')
+        .map((record) => [record.draftId as string, record.draft]),
+    );
+  }, [draftRecords]);
+  const interactionResultById = useMemo(() => {
+    return new Map(
+      transcript.flatMap((entry) => (
+        entry.role === 'system' && entry.kind === 'interaction_result'
+          ? [[entry.interactionId, entry] as const]
+          : []
+      )),
+    );
   }, [transcript]);
-  const submitApprovalMessage = useMemo(() => {
-    if (latestSubmitApprovalIndex < 0) {
-      return null;
-    }
-    const entry = transcript[latestSubmitApprovalIndex];
-    if (!entry || entry.role !== 'tool' || entry.kind !== 'tool_result') {
-      return null;
-    }
-    const result = entry.result;
-    if (!result || typeof result !== 'object' || Array.isArray(result)) {
-      return null;
-    }
-    const message = (result as Record<string, unknown>).message;
-    return typeof message === 'string' ? message : null;
-  }, [latestSubmitApprovalIndex, transcript]);
 
   useEffect(() => {
     setApiKey(readCookie(AGENT_API_KEY_COOKIE));
@@ -373,6 +392,14 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
             ]);
             continue;
           }
+          if (event.type === 'interaction') {
+            setTranscript((current) => [...current, event.interaction]);
+            continue;
+          }
+          if (event.type === 'interaction_result') {
+            setTranscript((current) => [...current, event.interaction_result]);
+            continue;
+          }
           if (event.type === 'usage') {
             if (event.usage) {
               setUsageText(`input_tokens=${event.usage.input_tokens ?? 0} | output_tokens=${event.usage.output_tokens ?? 0}`);
@@ -424,6 +451,41 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
     ]);
   };
 
+  const reportInteractionResult = async (payload: {
+    interactionId: string;
+    status: 'confirmed' | 'failed';
+    signature?: string;
+    explorerUrl?: string;
+    error?: string;
+  }) => {
+    if (!sessionId) {
+      return;
+    }
+    const response = await fetch(`${trimmedBaseUrl}/agent/interaction-result`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        sessionId,
+        interactionId: payload.interactionId,
+        status: payload.status,
+        signature: payload.signature ?? null,
+        explorerUrl: payload.explorerUrl ?? null,
+        error: payload.error ?? null,
+      }),
+    });
+    const body = await response.json().catch(() => null) as {
+      ok?: boolean;
+      error?: string;
+      interaction_result?: Extract<AgentTranscriptEntry, { kind: 'interaction_result' }>;
+    } | null;
+    if (!response.ok || body?.ok === false || !body?.interaction_result) {
+      throw new Error(body?.error ?? `Failed to record interaction result (${response.status}).`);
+    }
+    setTranscript((current) => [...current, body.interaction_result as Extract<AgentTranscriptEntry, { kind: 'interaction_result' }>]);
+  };
+
   const handleSimulateDraft = async (draft = latestDraft) => {
     if (!draft) {
       return;
@@ -450,7 +512,7 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
     }
   };
 
-  const handleSendDraft = async (draft = latestDraft) => {
+  const handleSendDraft = async (draft = latestDraft, interactionId?: string | null) => {
     if (!draft) {
       return;
     }
@@ -463,10 +525,30 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
         connection,
         wallet,
       });
-      const text = `Draft submitted.\nsignature: ${sent.signature}\nexplorer: ${sent.explorerUrl}`;
-      appendAssistantText(text);
+      if (interactionId) {
+        await reportInteractionResult({
+          interactionId,
+          status: 'confirmed',
+          signature: sent.signature,
+          explorerUrl: sent.explorerUrl,
+        });
+      } else {
+        const text = `Draft submitted.\nsignature: ${sent.signature}\nexplorer: ${sent.explorerUrl}`;
+        appendAssistantText(text);
+      }
       setStatusText('Submission completed.');
     } catch (error) {
+      if (interactionId) {
+        try {
+          await reportInteractionResult({
+            interactionId,
+            status: 'failed',
+            error: error instanceof Error ? error.message : 'Submission failed.',
+          });
+        } catch (reportError) {
+          setErrorText(reportError instanceof Error ? reportError.message : 'Failed to record interaction failure.');
+        }
+      }
       setErrorText(error instanceof Error ? error.message : 'Submission failed.');
       setStatusText(null);
     } finally {
@@ -510,21 +592,24 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
                   ? parsePreparedExecutionDraft(entry.result)
                   : null;
                 const showDraftActions = entryDraft !== null && index === latestDraftIndex;
-                const showSubmitApproval = entry.role === 'tool'
-                  && entry.kind === 'tool_result'
-                  && entry.toolName === 'submit_execution'
-                  && index === latestSubmitApprovalIndex
-                  && latestDraft !== null;
+                const interactionResult = entry.role === 'system' && entry.kind === 'interaction'
+                  ? interactionResultById.get(entry.interactionId) ?? null
+                  : null;
+                const interactionDraft = entry.role === 'system' && entry.kind === 'interaction'
+                  ? draftById.get(entry.draftId) ?? latestDraft
+                  : null;
 
                 return (
                   <article key={index} className="agent-entry">
                     <strong>
                       {entry.role} / {entry.kind}
                       {'toolName' in entry ? ` / ${entry.toolName}` : ''}
+                      {'interactionType' in entry ? ` / ${entry.interactionType}` : ''}
                     </strong>
                     {'text' in entry ? <ExpandablePre text={entry.text} /> : null}
                     {'input' in entry ? <ExpandablePre text={formatJson(entry.input)} /> : null}
                     {'result' in entry ? <ExpandablePre text={formatJson(entry.result)} /> : null}
+                    {'message' in entry && entry.message ? <p>{entry.message}</p> : null}
                     {showDraftActions ? (
                       <div className="agent-actions">
                         <button
@@ -546,18 +631,43 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
                         </p>
                       </div>
                     ) : null}
-                    {showSubmitApproval ? (
+                    {entry.role === 'system' && entry.kind === 'interaction' && entry.interactionType === 'wallet_submit_draft' ? (
                       <div className="agent-actions">
-                        <button
-                          type="button"
-                          onClick={() => void handleSendDraft(latestDraft)}
-                          disabled={isLoading || isDraftActionLoading || !wallet.publicKey}
-                        >
-                          {isDraftActionLoading ? 'Opening Wallet...' : 'Approve Submit'}
-                        </button>
+                        {interactionResult ? null : (
+                          <button
+                            type="button"
+                            onClick={() => void handleSendDraft(interactionDraft, entry.interactionId)}
+                            disabled={isLoading || isDraftActionLoading || !wallet.publicKey || !interactionDraft}
+                          >
+                            {isDraftActionLoading ? 'Opening Wallet...' : entry.label}
+                          </button>
+                        )}
                         <p>
-                          {submitApprovalMessage ?? 'Claude requested wallet approval for the latest draft.'}
+                          {interactionResult
+                            ? interactionResult.status === 'confirmed'
+                              ? `Confirmed${interactionResult.signature ? `: ${interactionResult.signature}` : ''}`
+                              : `Failed: ${interactionResult.error ?? 'unknown'}`
+                            : entry.message ?? 'Wallet approval is required.'}
                         </p>
+                        {interactionResult?.status === 'confirmed' && interactionResult.explorerUrl ? (
+                          <a href={interactionResult.explorerUrl} target="_blank" rel="noreferrer">
+                            View Explorer
+                          </a>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    {entry.role === 'system' && entry.kind === 'interaction_result' ? (
+                      <div className="agent-actions">
+                        <p>
+                          {entry.status === 'confirmed'
+                            ? `Wallet action confirmed${entry.signature ? `: ${entry.signature}` : ''}`
+                            : `Wallet action failed: ${entry.error ?? 'unknown'}`}
+                        </p>
+                        {entry.status === 'confirmed' && entry.explorerUrl ? (
+                          <a href={entry.explorerUrl} target="_blank" rel="noreferrer">
+                            View Explorer
+                          </a>
+                        ) : null}
                       </div>
                     ) : null}
                   </article>
