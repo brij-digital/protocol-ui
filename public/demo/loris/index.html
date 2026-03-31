@@ -410,6 +410,37 @@ draft swap payload</code>
         </div>
       </section>
 
+      <section class="card" style="margin-top: 16px;">
+        <h2>How the runtime spec works</h2>
+        <p>
+          After pushing instruction-level execution into Codama, our runtime spec stays very small.
+          It does not redefine the Orca instruction. It only declares the deterministic work needed
+          around that instruction.
+        </p>
+        <div class="example-grid">
+          <div class="example-box">
+            <strong><code>computes</code></strong>
+            <code>quote_exact_in</code>
+            <p>Runs deterministic quote logic and produces values such as <code>estimated_out</code> and <code>minimum_out</code>.</p>
+          </div>
+          <div class="example-box">
+            <strong><code>contract_writes</code></strong>
+            <code>swap_exact_in</code>
+            <p>Uses Codama’s instruction metadata plus the computed values to prepare the final swap draft.</p>
+          </div>
+          <div class="example-box">
+            <strong><code>resolve</code></strong>
+            <code>decode_account, ata, pda</code>
+            <p>Loads only the extra runtime context that is still needed and not already implied by Codama.</p>
+          </div>
+          <div class="example-box">
+            <strong><code>preInstructions</code> / <code>postInstructions</code></strong>
+            <code>ATA create, cleanup</code>
+            <p>Handles the small transaction-envelope layer that still sits around the main instruction.</p>
+          </div>
+        </div>
+      </section>
+
       <section class="footer-note">
         For this Orca flow, Codama already covers the instruction shape and account model. The small
         layer left on our side is deterministic quote logic plus draft preparation around that
