@@ -3,12 +3,27 @@ import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import type { ActionRunnerSpec } from '@brij-digital/apppack-runtime';
 import { parseBuilderInputValue } from '../builderHelpers';
 import { loadActionRunnerSpecs, runActionRunnerSpec } from '../actionRunnerClient';
+import {
+  sendPreparedExecutionDraft,
+  simulatePreparedExecutionDraft,
+  type PreparedExecutionDraft,
+} from '../runtimeSubmit';
 
 type RunnerTabProps = {
   viewApiBaseUrl: string;
 };
 
 type RunnerResult = Awaited<ReturnType<typeof runActionRunnerSpec>>;
+
+type RunnerActionStatus =
+  | 'idle'
+  | 'simulating'
+  | 'preparing'
+  | 'awaiting_wallet_approval'
+  | 'submitting'
+  | 'submitted'
+  | 'confirmed'
+  | 'error';
 
 function formatJson(value: unknown): string {
   return JSON.stringify(value, null, 2);
@@ -33,6 +48,24 @@ function parseRunnerInput(rawValue: string, type: string, inputName: string): un
   return parseBuilderInputValue(rawValue, type, inputName);
 }
 
+function asDraft(value: unknown): PreparedExecutionDraft | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  const candidate = value as Record<string, unknown>;
+  if (
+    typeof candidate.protocolId !== 'string'
+    || typeof candidate.operationId !== 'string'
+    || typeof candidate.args !== 'object'
+    || !candidate.args
+    || typeof candidate.accounts !== 'object'
+    || !candidate.accounts
+  ) {
+    return null;
+  }
+  return candidate as unknown as PreparedExecutionDraft;
+}
+
 export function RunnerTab({ viewApiBaseUrl }: RunnerTabProps) {
   const { connection } = useConnection();
   const wallet = useWallet();
@@ -43,6 +76,10 @@ export function RunnerTab({ viewApiBaseUrl }: RunnerTabProps) {
   const [isRunning, setIsRunning] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [result, setResult] = useState<RunnerResult | null>(null);
+  const [actionStatus, setActionStatus] = useState<RunnerActionStatus>('idle');
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [actionExplorerUrl, setActionExplorerUrl] = useState<string | null>(null);
+  const [isActionWorking, setIsActionWorking] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,6 +119,9 @@ export function RunnerTab({ viewApiBaseUrl }: RunnerTabProps) {
     setRunnerInputValues(buildDefaultInputValues(nextRunner));
     setResult(null);
     setErrorText(null);
+    setActionStatus('idle');
+    setActionMessage(null);
+    setActionExplorerUrl(null);
   };
 
   const handleInputChange = (inputName: string, value: string) => {
@@ -100,6 +140,9 @@ export function RunnerTab({ viewApiBaseUrl }: RunnerTabProps) {
     setIsRunning(true);
     setErrorText(null);
     setResult(null);
+    setActionStatus('idle');
+    setActionMessage(null);
+    setActionExplorerUrl(null);
     try {
       const parsedInput: Record<string, unknown> = {};
       for (const [inputName, inputSpec] of Object.entries(selectedRunner.inputs)) {
@@ -125,6 +168,144 @@ export function RunnerTab({ viewApiBaseUrl }: RunnerTabProps) {
       setErrorText(error instanceof Error ? error.message : 'Runner failed.');
     } finally {
       setIsRunning(false);
+    }
+  };
+
+  const latestDraft = useMemo(() => asDraft(result?.output && typeof result.output === 'object' ? (result.output as Record<string, unknown>).draft : null), [result]);
+
+  const actionZone = useMemo(() => {
+    if (actionStatus === 'error') {
+      return {
+        tone: 'error' as const,
+        title: 'Runner action failed',
+        message: actionMessage ?? 'The wallet action failed.',
+      };
+    }
+    if (actionStatus === 'simulating') {
+      return {
+        tone: 'pending' as const,
+        title: 'Checking transaction',
+        message: 'A quick preflight check is running.',
+      };
+    }
+    if (actionStatus === 'preparing') {
+      return {
+        tone: 'pending' as const,
+        title: 'Preparing transaction',
+        message: 'The draft is being prepared for wallet submission.',
+      };
+    }
+    if (actionStatus === 'awaiting_wallet_approval') {
+      return {
+        tone: 'pending' as const,
+        title: 'Action from you needed',
+        message: 'Approve the transaction in your wallet to continue.',
+      };
+    }
+    if (actionStatus === 'submitting') {
+      return {
+        tone: 'pending' as const,
+        title: 'Submitting transaction',
+        message: 'Your signed transaction is being broadcast to Solana.',
+      };
+    }
+    if (actionStatus === 'submitted' || actionStatus === 'confirmed') {
+      return {
+        tone: 'success' as const,
+        title: 'Submitted',
+        message: actionMessage ?? 'The transaction was sent successfully.',
+      };
+    }
+    if (latestDraft) {
+      return {
+        tone: 'neutral' as const,
+        title: 'Action from you needed',
+        message: `This runner produced a draft for ${latestDraft.operationId}. You can simulate it or approve it in your wallet.`,
+      };
+    }
+    return null;
+  }, [actionMessage, actionStatus, latestDraft]);
+
+  const handleSimulateDraft = async () => {
+    if (!latestDraft) {
+      return;
+    }
+    setIsActionWorking(true);
+    setActionExplorerUrl(null);
+    setActionStatus('simulating');
+    setActionMessage(null);
+    setErrorText(null);
+    try {
+      const simulation = await simulatePreparedExecutionDraft({
+        draft: latestDraft,
+        connection,
+        wallet,
+      });
+      setActionStatus(simulation.ok ? 'idle' : 'error');
+      setActionMessage(
+        simulation.ok
+          ? `Simulation succeeded. Units: ${simulation.unitsConsumed ?? 'n/a'}.`
+          : (simulation.error ?? 'Simulation failed.'),
+      );
+    } catch (error) {
+      setActionStatus('error');
+      setActionMessage(error instanceof Error ? error.message : 'Simulation failed.');
+    } finally {
+      setIsActionWorking(false);
+    }
+  };
+
+  const handleSubmitDraft = async () => {
+    if (!latestDraft) {
+      return;
+    }
+    setIsActionWorking(true);
+    setActionExplorerUrl(null);
+    setActionStatus('preparing');
+    setActionMessage(null);
+    setErrorText(null);
+    try {
+      const sent = await sendPreparedExecutionDraft({
+        draft: latestDraft,
+        connection,
+        wallet,
+        onStatus: (status) => {
+          if (status === 'simulating') {
+            setActionStatus('simulating');
+            return;
+          }
+          if (status === 'preparing') {
+            setActionStatus('preparing');
+            return;
+          }
+          if (status === 'awaiting_wallet_approval') {
+            setActionStatus('awaiting_wallet_approval');
+            return;
+          }
+          if (status === 'submitting') {
+            setActionStatus('submitting');
+            return;
+          }
+          if (status === 'submitted' || status === 'confirming') {
+            setActionStatus('submitted');
+            return;
+          }
+          setActionStatus('confirmed');
+        },
+        onSubmitted: ({ explorerUrl, signature }) => {
+          setActionStatus('submitted');
+          setActionExplorerUrl(explorerUrl);
+          setActionMessage(`Transaction sent: ${signature}`);
+        },
+      });
+      setActionStatus('confirmed');
+      setActionExplorerUrl(sent.explorerUrl);
+      setActionMessage(`Transaction confirmed: ${sent.signature}`);
+    } catch (error) {
+      setActionStatus('error');
+      setActionMessage(error instanceof Error ? error.message : 'Submission failed.');
+    } finally {
+      setIsActionWorking(false);
     }
   };
 
@@ -180,6 +361,36 @@ export function RunnerTab({ viewApiBaseUrl }: RunnerTabProps) {
           </>
         ) : null}
       </form>
+
+      {actionZone ? (
+        <div className="agent-action-zone" data-tone={actionZone.tone}>
+          <div className="agent-action-zone-copy">
+            <strong>{actionZone.title}</strong>
+            <p>{actionZone.message}</p>
+          </div>
+          <div className="agent-actions">
+            {latestDraft ? (
+              <>
+                <button type="button" onClick={handleSimulateDraft} disabled={isRunning || isActionWorking || !wallet.publicKey}>
+                  {actionStatus === 'simulating' ? 'Simulating...' : 'Simulate Draft'}
+                </button>
+                <button type="button" onClick={handleSubmitDraft} disabled={isRunning || isActionWorking || !wallet.publicKey}>
+                  {actionStatus === 'awaiting_wallet_approval'
+                    ? 'Waiting for Wallet...'
+                    : actionStatus === 'submitting' || actionStatus === 'submitted' || actionStatus === 'confirmed'
+                      ? 'Submitted'
+                      : 'Approve in Wallet'}
+                </button>
+              </>
+            ) : null}
+            {actionExplorerUrl ? (
+              <a href={actionExplorerUrl} target="_blank" rel="noreferrer">
+                View Explorer
+              </a>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       {selectedRunner ? (
         <div className="view-playground-results">
