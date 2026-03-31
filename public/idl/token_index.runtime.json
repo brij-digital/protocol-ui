@@ -28,7 +28,7 @@
           "projection_kind": "search",
           "filters": {
             "field": "symbol",
-            "op": "=",
+            "op": "ieq",
             "value": "$input.symbol"
           },
           "sort_by": [
