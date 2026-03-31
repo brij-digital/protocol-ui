@@ -214,6 +214,14 @@ type VisibleTranscriptEntry =
       text: string;
     };
 
+type SubmitProgressStatus =
+  | 'preparing'
+  | 'simulating'
+  | 'awaiting_wallet_approval'
+  | 'submitting'
+  | 'confirming'
+  | 'confirmed';
+
 export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
   const wallet = useWallet();
   const { connection } = useConnection();
@@ -231,6 +239,7 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [isDraftActionLoading, setIsDraftActionLoading] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
+  const [submitProgress, setSubmitProgress] = useState<SubmitProgressStatus | null>(null);
 
   const trimmedBaseUrl = useMemo(() => viewApiBaseUrl.trim().replace(/\/+$/, ''), [viewApiBaseUrl]);
   const walletPublicKey = publicKey?.toBase58() ?? null;
@@ -295,6 +304,76 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
 
     return items;
   }, []), [transcript]);
+  const actionZone = useMemo(() => {
+    if (latestInteraction) {
+      if (latestInteractionResult?.status === 'confirmed') {
+        return {
+          tone: 'success',
+          title: 'Submitted',
+          message: latestInteractionResult.signature
+            ? `Transaction confirmed: ${latestInteractionResult.signature}`
+            : 'Transaction confirmed on-chain.',
+        } as const;
+      }
+      if (latestInteractionResult?.status === 'failed') {
+        return {
+          tone: 'error',
+          title: 'Submission failed',
+          message: latestInteractionResult.error ?? 'The wallet or network rejected the transaction.',
+        } as const;
+      }
+      if (submitProgress === 'preparing') {
+        return {
+          tone: 'pending',
+          title: 'Preparing transaction',
+          message: 'One wallet action is being prepared for you.',
+        } as const;
+      }
+      if (submitProgress === 'simulating') {
+        return {
+          tone: 'pending',
+          title: 'Checking transaction',
+          message: 'A quick preflight check is running before wallet approval.',
+        } as const;
+      }
+      if (submitProgress === 'awaiting_wallet_approval') {
+        return {
+          tone: 'pending',
+          title: 'Action from you needed',
+          message: 'Approve the transaction in your wallet to continue.',
+        } as const;
+      }
+      if (submitProgress === 'submitting') {
+        return {
+          tone: 'pending',
+          title: 'Submitting transaction',
+          message: 'Your signed transaction is being broadcast to Solana.',
+        } as const;
+      }
+      if (submitProgress === 'confirming' || submitProgress === 'confirmed') {
+        return {
+          tone: 'pending',
+          title: 'Confirming on-chain',
+          message: 'The network is finalizing your transaction.',
+        } as const;
+      }
+      return {
+        tone: 'pending',
+        title: 'Action from you needed',
+        message: latestInteraction.message ?? 'Approve the latest draft in your wallet.',
+      } as const;
+    }
+
+    if (latestDraft) {
+      return {
+        tone: 'neutral',
+        title: 'Next step available',
+        message: `You can simulate the latest draft for ${latestDraft.operationId}.`,
+      } as const;
+    }
+
+    return null;
+  }, [latestDraft, latestInteraction, latestInteractionResult, submitProgress]);
 
   useEffect(() => {
     setApiKey(readCookie(AGENT_API_KEY_COOKIE));
@@ -335,6 +414,7 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
     event.preventDefault();
     setIsLoading(true);
     setErrorText(null);
+    setSubmitProgress(null);
     if (!sessionId) {
       setUsageText(null);
       setTranscript([]);
@@ -470,6 +550,7 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
     setTranscript([]);
     setUsageText(null);
     setStatusText(null);
+    setSubmitProgress(null);
   };
 
   const appendAssistantText = (text: string) => {
@@ -550,12 +631,37 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
     }
     setIsDraftActionLoading(true);
     setErrorText(null);
-    setStatusText('Sending latest draft...');
+    setSubmitProgress('preparing');
+    setStatusText('Preparing transaction...');
     try {
       const sent = await sendPreparedExecutionDraft({
         draft,
         connection,
         wallet,
+        onStatus: (status) => {
+          setSubmitProgress(status);
+          if (status === 'preparing') {
+            setStatusText('Preparing transaction...');
+            return;
+          }
+          if (status === 'simulating') {
+            setStatusText('Checking transaction...');
+            return;
+          }
+          if (status === 'awaiting_wallet_approval') {
+            setStatusText('Waiting for wallet approval...');
+            return;
+          }
+          if (status === 'submitting') {
+            setStatusText('Submitting transaction...');
+            return;
+          }
+          if (status === 'confirming') {
+            setStatusText('Confirming on-chain...');
+            return;
+          }
+          setStatusText('Transaction confirmed.');
+        },
       });
       if (interactionId) {
         await reportInteractionResult({
@@ -568,8 +674,10 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
         const text = `Draft submitted.\nsignature: ${sent.signature}\nexplorer: ${sent.explorerUrl}`;
         appendAssistantText(text);
       }
-      setStatusText('Submission completed.');
+      setSubmitProgress('confirmed');
+      setStatusText('Transaction confirmed.');
     } catch (error) {
+      setSubmitProgress(null);
       if (interactionId) {
         try {
           await reportInteractionResult({
@@ -628,42 +736,46 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
               })
             )}
           </div>
-          {latestInteraction ? (
-            <div className="agent-actions">
-              {latestInteractionResult ? null : (
-                <button
-                  type="button"
-                  onClick={() => void handleSendDraft(latestInteractionDraft, latestInteraction.interactionId)}
-                  disabled={isLoading || isDraftActionLoading || !wallet.publicKey || !latestInteractionDraft}
-                >
-                  {isDraftActionLoading ? 'Opening Wallet...' : latestInteraction.label}
-                </button>
-              )}
-              <p>
-                {latestInteractionResult
-                  ? latestInteractionResult.status === 'confirmed'
-                    ? `Submitted${latestInteractionResult.signature ? `: ${latestInteractionResult.signature}` : ''}`
-                    : `Failed: ${latestInteractionResult.error ?? 'unknown'}`
-                  : latestInteraction.message ?? 'Wallet approval is required.'}
-              </p>
-              {latestInteractionResult?.status === 'confirmed' && latestInteractionResult.explorerUrl ? (
-                <a href={latestInteractionResult.explorerUrl} target="_blank" rel="noreferrer">
-                  View Explorer
-                </a>
-              ) : null}
-            </div>
-          ) : latestDraft ? (
-            <div className="agent-actions">
-              <button
-                type="button"
-                onClick={() => void handleSimulateDraft(latestDraft)}
-                disabled={isLoading || isDraftActionLoading || !wallet.publicKey}
-              >
-                {isDraftActionLoading ? 'Working...' : 'Simulate Draft'}
-              </button>
-              <p>
-                Draft ready: {latestDraft.operationId} / {latestDraft.instructionName ?? 'no instruction'}
-              </p>
+          {actionZone ? (
+            <div className="agent-action-zone" data-tone={actionZone.tone}>
+              <div className="agent-action-zone-copy">
+                <strong>{actionZone.title}</strong>
+                <p>{actionZone.message}</p>
+              </div>
+              <div className="agent-actions">
+                {latestInteraction ? (
+                  <>
+                    {latestInteractionResult ? null : (
+                      <button
+                        type="button"
+                        onClick={() => void handleSendDraft(latestInteractionDraft, latestInteraction.interactionId)}
+                        disabled={isLoading || isDraftActionLoading || !wallet.publicKey || !latestInteractionDraft}
+                      >
+                        {submitProgress === 'submitting' || submitProgress === 'confirming'
+                          ? 'Submitting...'
+                          : submitProgress === 'awaiting_wallet_approval'
+                            ? 'Waiting for Wallet...'
+                            : isDraftActionLoading
+                              ? 'Working...'
+                              : 'Approve in Wallet'}
+                      </button>
+                    )}
+                    {latestInteractionResult?.status === 'confirmed' && latestInteractionResult.explorerUrl ? (
+                      <a href={latestInteractionResult.explorerUrl} target="_blank" rel="noreferrer">
+                        View Explorer
+                      </a>
+                    ) : null}
+                  </>
+                ) : latestDraft ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleSimulateDraft(latestDraft)}
+                    disabled={isLoading || isDraftActionLoading || !wallet.publicKey}
+                  >
+                    {isDraftActionLoading ? 'Working...' : 'Simulate Draft'}
+                  </button>
+                ) : null}
+              </div>
             </div>
           ) : null}
           {showDebug ? (

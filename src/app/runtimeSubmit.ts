@@ -117,6 +117,7 @@ export async function sendPreparedExecutionDraft(options: {
   draft: PreparedExecutionDraft;
   connection: Connection;
   wallet: WalletContextState;
+  onStatus?: (status: 'preparing' | 'simulating' | 'awaiting_wallet_approval' | 'submitting' | 'confirming' | 'confirmed') => void;
 }) {
   if (!options.draft.instructionName) {
     throw new Error('Draft has no instructionName.');
@@ -132,5 +133,6 @@ export async function sendPreparedExecutionDraft(options: {
     postInstructions: buildPostInstructions(options.draft.postInstructions),
     connection: options.connection,
     wallet: options.wallet,
+    onStatus: options.onStatus,
   });
 }
