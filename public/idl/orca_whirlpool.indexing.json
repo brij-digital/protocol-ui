@@ -24,9 +24,72 @@
         "log_event"
       ],
       "filters": {}
+    },
+    "orca_whirlpool_snapshot": {
+      "kind": "rpc_account_snapshot",
+      "programId": "$protocol.programId",
+      "commitment": "confirmed",
+      "decoderRef": "orca_whirlpool",
+      "decodeTargets": [
+        "account"
+      ],
+      "filters": {
+        "accountName": "Whirlpool",
+        "targetsFrom": {
+          "kind": "incomplete_state_from_records",
+          "stateRecordName": "Whirlpool",
+          "missingFields": [
+            "tokenDecimalsA",
+            "tokenDecimalsB"
+          ],
+          "recordNames": [
+            "SwapEvent"
+          ],
+          "addressField": "resource_id",
+          "lookbackMinutes": 1440,
+          "limit": 500
+        }
+      }
+    },
+    "orca_whirlpool_snapshot_backfill": {
+      "kind": "rpc_account_snapshot",
+      "programId": "$protocol.programId",
+      "commitment": "confirmed",
+      "decoderRef": "orca_whirlpool",
+      "decodeTargets": [
+        "account"
+      ],
+      "filters": {
+        "accountName": "Whirlpool",
+        "targetsFrom": {
+          "kind": "incomplete_state_from_state",
+          "stateRecordName": "Whirlpool",
+          "missingFields": [
+            "tokenDecimalsA",
+            "tokenDecimalsB"
+          ],
+          "limit": 500
+        }
+      }
     }
   },
   "matchRules": [
+    {
+      "source": "orca_whirlpool_snapshot",
+      "match": {
+        "decodedType": "account",
+        "name": "Whirlpool"
+      },
+      "pipeline": "whirlpool_snapshot"
+    },
+    {
+      "source": "orca_whirlpool_snapshot_backfill",
+      "match": {
+        "decodedType": "account",
+        "name": "Whirlpool"
+      },
+      "pipeline": "whirlpool_snapshot"
+    },
     {
       "source": "orca_whirlpool_crawler",
       "match": {
@@ -58,7 +121,23 @@
           "name": "whirlpoolState",
           "resolve": "state.lookup",
           "recordName": "Whirlpool",
-          "subjectId": "$ctx.pool"
+          "subjectId": "$ctx.pool",
+          "required": true,
+          "requiredFields": [
+            "marketType",
+            "tokenMintA",
+            "tokenMintB",
+            "tokenVaultA",
+            "tokenVaultB",
+            "tokenDecimalsA",
+            "tokenDecimalsB",
+            "tickSpacing",
+            "feeRateBps",
+            "liquidity",
+            "tickCurrentIndex",
+            "vaultBalanceAUi",
+            "vaultBalanceBUi"
+          ]
         }
       ],
       "compute": [
