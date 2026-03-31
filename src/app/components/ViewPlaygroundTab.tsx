@@ -8,7 +8,7 @@ type ViewPlaygroundTabProps = {
 type RegistryProtocol = {
   id: string;
   name?: string;
-  agentRuntimePath?: string;
+  indexingSpecPath?: string;
   status?: string;
 };
 
@@ -20,20 +20,18 @@ type RuntimeInputDef = {
   default?: unknown;
 };
 
-type RuntimeViewShape = {
-  title?: string;
-  description?: string;
-};
-
-type RuntimeOperation = {
-  label?: string;
-  description?: string;
+type IndexViewOperation = {
+  kind?: string;
   inputs?: Record<string, RuntimeInputDef>;
-  read?: RuntimeViewShape;
 };
 
-type RuntimeSpec = {
-  index_views?: Record<string, RuntimeOperation>;
+type IndexingOperation = {
+  description?: string;
+  index_view?: IndexViewOperation;
+};
+
+type IndexingSpec = {
+  operations?: Record<string, IndexingOperation>;
 };
 
 type CatalogEntry = {
@@ -106,7 +104,7 @@ export function ViewPlaygroundTab({ viewApiBaseUrl, viewKind }: ViewPlaygroundTa
 
   const trimmedBaseUrl = useMemo(() => viewApiBaseUrl.trim().replace(/\/+$/, ''), [viewApiBaseUrl]);
   const title = 'Index Views';
-  const description = 'Run indexed discovery, feeds, rankings, and canonical read contracts declared in runtime.';
+  const description = 'Run indexed discovery, feeds, rankings, and canonical read contracts declared in indexing specs.';
 
   useEffect(() => {
     let cancelled = false;
@@ -123,17 +121,17 @@ export function ViewPlaygroundTab({ viewApiBaseUrl, viewKind }: ViewPlaygroundTa
         const loaded: CatalogEntry[] = [];
 
         for (const protocol of registry.protocols ?? []) {
-          if (protocol.status === 'inactive' || !protocol.agentRuntimePath) {
+          if (protocol.status === 'inactive' || !protocol.indexingSpecPath) {
             continue;
           }
-          const runtimeResponse = await fetch(protocol.agentRuntimePath);
-          if (!runtimeResponse.ok) {
+          const indexingResponse = await fetch(protocol.indexingSpecPath);
+          if (!indexingResponse.ok) {
             continue;
           }
-          const runtime = (await runtimeResponse.json()) as RuntimeSpec;
-          const readOperations = runtime.index_views ?? {};
-          for (const [opId, operation] of Object.entries(readOperations)) {
-            const view = operation.read;
+          const indexing = (await indexingResponse.json()) as IndexingSpec;
+          const operations = indexing.operations ?? {};
+          for (const [opId, operation] of Object.entries(operations)) {
+            const view = operation.index_view;
             if (!view) {
               continue;
             }
@@ -141,9 +139,9 @@ export function ViewPlaygroundTab({ viewApiBaseUrl, viewKind }: ViewPlaygroundTa
               protocolId: protocol.id,
               protocolLabel: protocol.name ?? protocol.id,
               operationId: opId,
-              operationLabel: operation.label ?? opId,
+              operationLabel: opId,
               description: operation.description ?? '',
-              inputTemplate: buildInputTemplate(operation.inputs),
+              inputTemplate: buildInputTemplate(view.inputs),
               limit: defaultLimitForOperation(opId),
             });
           }

@@ -1,9 +1,6 @@
 {
   "$schema": "/idl/solana_agent_runtime.schema.v1.json",
   "schema": "solana-agent-runtime.v1",
-  "protocol": {
-    "protocolId": "pump-amm-mainnet"
-  },
   "computes": {
     "preview_buy": {
       "instruction": "buy",

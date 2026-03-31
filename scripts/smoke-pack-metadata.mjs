@@ -45,7 +45,6 @@ async function main() {
       fail(`${agentRuntimeFilePath} did not parse as a JSON object.`);
     }
     const hasCapabilities =
-      (agentRuntime.index_views && typeof agentRuntime.index_views === 'object' && !Array.isArray(agentRuntime.index_views)) ||
       (agentRuntime.computes && typeof agentRuntime.computes === 'object' && !Array.isArray(agentRuntime.computes)) ||
       (agentRuntime.contract_writes && typeof agentRuntime.contract_writes === 'object' && !Array.isArray(agentRuntime.contract_writes));
     if (!hasCapabilities) {

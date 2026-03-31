@@ -5,16 +5,12 @@
   "type": "object",
   "required": [
     "schema",
-    "protocol",
     "computes",
     "contract_writes"
   ],
   "properties": {
     "schema": {
       "const": "solana-agent-runtime.v1"
-    },
-    "protocol": {
-      "$ref": "#/$defs/protocolSpec"
     },
     "computes": {
       "type": "object",
@@ -57,18 +53,6 @@
           }
         }
       ]
-    },
-    "protocolSpec": {
-      "type": "object",
-      "required": [
-        "protocolId"
-      ],
-      "properties": {
-        "protocolId": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
     },
     "inputSpec": {
       "type": "object",
@@ -164,6 +148,22 @@
     "accountBindingSpec": {
       "type": "string"
     },
+    "argBindingSpec": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "remainingAccountMetaSpec": {
       "type": "object",
       "required": ["pubkey"],
@@ -250,7 +250,7 @@
         "args": {
           "type": "object",
           "additionalProperties": {
-            "$ref": "#/$defs/jsonValue"
+            "$ref": "#/$defs/argBindingSpec"
           }
         },
         "accounts": {

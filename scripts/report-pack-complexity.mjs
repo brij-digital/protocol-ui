@@ -111,7 +111,6 @@ async function main() {
       `${protocolId}.agentRuntime`,
     );
     const sections = [
-      ...Object.entries(asObject(runtimePack.index_views ?? {}, `${protocolId}.agentRuntime.index_views`)),
       ...Object.entries(asObject(runtimePack.computes ?? {}, `${protocolId}.agentRuntime.computes`)),
       ...Object.entries(asObject(runtimePack.contract_writes ?? {}, `${protocolId}.agentRuntime.contract_writes`)),
     ];

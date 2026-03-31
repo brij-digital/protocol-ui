@@ -1,9 +1,6 @@
 {
   "$schema": "/idl/solana_agent_runtime.schema.v1.json",
   "schema": "solana-agent-runtime.v1",
-  "protocol": {
-    "protocolId": "orca-whirlpool-mainnet"
-  },
   "computes": {
     "quote_exact_in": {
       "instruction": "swap_v2",

@@ -86,9 +86,6 @@ async function main() {
     if (agentRuntime.schema !== 'solana-agent-runtime.v1') {
       fail(`${protocolId}: agent runtime schema must be solana-agent-runtime.v1.`);
     }
-    if (asString(agentRuntime.protocol?.protocolId, `${protocolId}.agentRuntime.protocol.protocolId`) !== protocolId) {
-      fail(`${protocolId}: agent runtime protocol id mismatch.`);
-    }
     const indexing = asObject(
       await readJson(resolveIdlPath(protocol.indexingSpecPath, `${protocolId}.indexingSpecPath`), `${protocolId} indexing spec`),
       `${protocolId} indexing spec`,

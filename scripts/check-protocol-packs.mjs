@@ -168,6 +168,13 @@ function validateExecution(protocolId, executionId, execution, instructionNames)
       fail(`${protocolId}: execution ${executionId} references missing instruction ${instruction}.`);
     }
   }
+  const args = asOptionalObject(op.args, `${protocolId}.agentRuntime.contract_writes.${executionId}.args`);
+  for (const [argName, binding] of Object.entries(args)) {
+    const kind = binding === null ? 'null' : typeof binding;
+    if (!['string', 'number', 'boolean', 'null'].includes(kind)) {
+      fail(`${protocolId}.agentRuntime.contract_writes.${executionId}.args.${argName} must be a scalar binding.`);
+    }
+  }
   const accounts = asOptionalObject(op.accounts, `${protocolId}.agentRuntime.contract_writes.${executionId}.accounts`);
   for (const [accountName, binding] of Object.entries(accounts)) {
     asString(binding, `${protocolId}.agentRuntime.contract_writes.${executionId}.accounts.${accountName}`);
@@ -266,9 +273,6 @@ async function main() {
     if (agentRuntime.schema !== 'solana-agent-runtime.v1') {
       fail(`${protocolId}: agentRuntimePath must point to solana-agent-runtime.v1.`);
     }
-    if (asString(agentRuntime.protocol?.protocolId, `${protocolId}.agentRuntime.protocol.protocolId`) !== protocolId) {
-      fail(`${protocolId}: agentRuntime.protocol.protocolId mismatch.`);
-    }
 
     const indexingPath = resolvePublicAssetPath(manifest.indexingSpecPath, `${protocolId}.indexingSpecPath`);
     const indexing = asObject(await readJson(indexingPath, `${protocolId} indexing spec`), `${protocolId} indexing spec`);
@@ -306,13 +310,8 @@ async function main() {
       }
     }
 
-    const indexViews = asOptionalObject(agentRuntime.index_views, `${protocolId}.agentRuntime.index_views`);
     const computes = asOptionalObject(agentRuntime.computes, `${protocolId}.agentRuntime.computes`);
     const contract_writes = asOptionalObject(agentRuntime.contract_writes, `${protocolId}.agentRuntime.contract_writes`);
-
-    if (Object.keys(indexViews).length > 0) {
-      fail(`${protocolId}: agentRuntime.index_views is no longer allowed; declare reads in indexing.operations.`);
-    }
 
     const indexingOperations = asOptionalObject(indexing.operations, `${protocolId}.indexing.operations`);
     for (const [operationId, operationRaw] of Object.entries(indexingOperations)) {

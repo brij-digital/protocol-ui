@@ -121,14 +121,12 @@ function createIndexingSkeleton({ protocolId, programId, codamaAssetPath }) {
 }
 
 function createAgentRuntimeSkeleton({ protocolId, programId, codamaAssetPath }) {
+  void protocolId;
   void programId;
   void codamaAssetPath;
   return {
     $schema: '/idl/solana_agent_runtime.schema.v1.json',
     schema: 'solana-agent-runtime.v1',
-    protocol: {
-      protocolId,
-    },
     computes: {},
     contract_writes: {},
   };

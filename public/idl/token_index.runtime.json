@@ -1,9 +1,6 @@
 {
   "$schema": "/idl/solana_agent_runtime.schema.v1.json",
   "schema": "solana-agent-runtime.v1",
-  "protocol": {
-    "protocolId": "token-index-mainnet"
-  },
   "computes": {},
   "contract_writes": {}
 }

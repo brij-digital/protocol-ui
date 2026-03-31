@@ -1,9 +1,6 @@
 {
   "$schema": "/idl/solana_agent_runtime.schema.v1.json",
   "schema": "solana-agent-runtime.v1",
-  "protocol": {
-    "protocolId": "pump-core-mainnet"
-  },
   "computes": {
     "preview_buy_exact_sol_in": {
       "inputs": {
