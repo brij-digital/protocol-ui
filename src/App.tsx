@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import './App.css';
 import { PumpWorkspaceTab } from './app/components/PumpWorkspaceTab';
@@ -8,15 +8,54 @@ import { TradingViewTestTab } from './app/components/TradingViewTestTab';
 import { ViewPlaygroundTab } from './app/components/ViewPlaygroundTab';
 import { AgentTab } from './app/components/AgentTab';
 import { RunnerTab } from './app/components/RunnerTab';
+import { LorisDemoTab } from './app/components/LorisDemoTab';
 
 const VIEW_API_BASE_URL = '';
 const RUNNER_VIEW_API_BASE_URL = '';
 
-type AppTab = 'indexViews' | 'pump' | 'raw' | 'compute' | 'tv' | 'agent' | 'runner';
+type AppTab = 'indexViews' | 'pump' | 'raw' | 'compute' | 'tv' | 'agent' | 'runner' | 'loris';
 const DISABLED_TABS = ['Apps', 'Command', 'Explorer'] as const;
 
+const TAB_HASHES: Record<AppTab, string> = {
+  agent: 'agent',
+  pump: 'pump',
+  runner: 'runner',
+  loris: 'loris',
+  indexViews: 'index-views',
+  raw: 'raw',
+  compute: 'compute',
+  tv: 'tradingview',
+};
+
+function parseTabFromLocationHash(): AppTab {
+  if (typeof window === 'undefined') {
+    return 'agent';
+  }
+  const hash = window.location.hash.replace(/^#/, '').trim();
+  const match = (Object.entries(TAB_HASHES) as Array<[AppTab, string]>).find(([, value]) => value === hash);
+  return match?.[0] ?? 'agent';
+}
+
 function App() {
-  const [activeTab, setActiveTab] = useState<AppTab>('agent');
+  const [activeTab, setActiveTab] = useState<AppTab>(parseTabFromLocationHash);
+
+  const switchTab = (nextTab: AppTab) => {
+    setActiveTab(nextTab);
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', `#${TAB_HASHES[nextTab]}`);
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+    const onHashChange = () => {
+      setActiveTab(parseTabFromLocationHash());
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
 
   return (
     <main className="page-shell">
@@ -35,7 +74,7 @@ function App() {
             role="tab"
             aria-selected={activeTab === 'agent'}
             className={activeTab === 'agent' ? 'active' : ''}
-            onClick={() => setActiveTab('agent')}
+            onClick={() => switchTab('agent')}
           >
             Agent
           </button>
@@ -44,7 +83,7 @@ function App() {
             role="tab"
             aria-selected={activeTab === 'pump'}
             className={activeTab === 'pump' ? 'active' : ''}
-            onClick={() => setActiveTab('pump')}
+            onClick={() => switchTab('pump')}
           >
             Pump
           </button>
@@ -53,16 +92,25 @@ function App() {
             role="tab"
             aria-selected={activeTab === 'runner'}
             className={activeTab === 'runner' ? 'active' : ''}
-            onClick={() => setActiveTab('runner')}
+            onClick={() => switchTab('runner')}
           >
             Runner
           </button>
           <button
             type="button"
             role="tab"
+            aria-selected={activeTab === 'loris'}
+            className={activeTab === 'loris' ? 'active' : ''}
+            onClick={() => switchTab('loris')}
+          >
+            Loris Demo
+          </button>
+          <button
+            type="button"
+            role="tab"
             aria-selected={activeTab === 'indexViews'}
             className={activeTab === 'indexViews' ? 'active' : ''}
-            onClick={() => setActiveTab('indexViews')}
+            onClick={() => switchTab('indexViews')}
           >
             Index Views
           </button>
@@ -71,7 +119,7 @@ function App() {
             role="tab"
             aria-selected={activeTab === 'raw'}
             className={activeTab === 'raw' ? 'active' : ''}
-            onClick={() => setActiveTab('raw')}
+            onClick={() => switchTab('raw')}
           >
             Raw Ops
           </button>
@@ -80,7 +128,7 @@ function App() {
             role="tab"
             aria-selected={activeTab === 'compute'}
             className={activeTab === 'compute' ? 'active' : ''}
-            onClick={() => setActiveTab('compute')}
+            onClick={() => switchTab('compute')}
           >
             Compute
           </button>
@@ -89,7 +137,7 @@ function App() {
             role="tab"
             aria-selected={activeTab === 'tv'}
             className={activeTab === 'tv' ? 'active' : ''}
-            onClick={() => setActiveTab('tv')}
+            onClick={() => switchTab('tv')}
           >
             TradingView
           </button>
@@ -120,6 +168,8 @@ function App() {
           <AgentTab viewApiBaseUrl={VIEW_API_BASE_URL} />
         ) : activeTab === 'runner' ? (
           <RunnerTab viewApiBaseUrl={RUNNER_VIEW_API_BASE_URL} />
+        ) : activeTab === 'loris' ? (
+          <LorisDemoTab onOpenRunner={() => switchTab('runner')} />
         ) : activeTab === 'tv' ? (
           <TradingViewTestTab viewApiBaseUrl={VIEW_API_BASE_URL} />
         ) : activeTab === 'indexViews' ? (
