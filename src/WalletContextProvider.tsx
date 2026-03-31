@@ -8,7 +8,10 @@ import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import { PhantomWalletAdapter } from '@solana/wallet-adapter-phantom';
 
 const RPC_ENDPOINT =
-  import.meta.env.VITE_SOLANA_RPC_URL ?? 'https://api.brijmail.com/rpc';
+  import.meta.env.VITE_SOLANA_RPC_URL
+  ?? (typeof window !== 'undefined'
+    ? new URL('/rpc', window.location.origin).toString()
+    : 'https://app.brijmail.com/rpc');
 
 export function WalletContextProvider({ children }: { children: ReactNode }) {
   const wallets = useMemo(() => [new PhantomWalletAdapter()], []);
