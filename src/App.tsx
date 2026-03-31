@@ -7,10 +7,11 @@ import { RawOperationsTab } from './app/components/RawOperationsTab';
 import { TradingViewTestTab } from './app/components/TradingViewTestTab';
 import { ViewPlaygroundTab } from './app/components/ViewPlaygroundTab';
 import { AgentTab } from './app/components/AgentTab';
+import { RunnerTab } from './app/components/RunnerTab';
 
 const VIEW_API_BASE_URL = 'https://api.brijmail.com';
 
-type AppTab = 'indexViews' | 'pump' | 'raw' | 'compute' | 'tv' | 'agent';
+type AppTab = 'indexViews' | 'pump' | 'raw' | 'compute' | 'tv' | 'agent' | 'runner';
 const DISABLED_TABS = ['Apps', 'Command', 'Explorer'] as const;
 
 function App() {
@@ -45,6 +46,15 @@ function App() {
             onClick={() => setActiveTab('pump')}
           >
             Pump
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'runner'}
+            className={activeTab === 'runner' ? 'active' : ''}
+            onClick={() => setActiveTab('runner')}
+          >
+            Runner
           </button>
           <button
             type="button"
@@ -107,6 +117,8 @@ function App() {
           <ComputeDevTab isWorking={false} />
         ) : activeTab === 'agent' ? (
           <AgentTab viewApiBaseUrl={VIEW_API_BASE_URL} />
+        ) : activeTab === 'runner' ? (
+          <RunnerTab viewApiBaseUrl={VIEW_API_BASE_URL} />
         ) : activeTab === 'tv' ? (
           <TradingViewTestTab viewApiBaseUrl={VIEW_API_BASE_URL} />
         ) : activeTab === 'indexViews' ? (

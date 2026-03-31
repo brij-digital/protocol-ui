@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "/idl/solana_action_runner.schema.v1.json",
+  "title": "Solana Action Runner Spec V1",
+  "type": "object",
+  "required": ["schema", "actionId", "title", "inputs", "steps", "output"],
+  "properties": {
+    "schema": {
+      "const": "solana-action-runner.v1"
+    },
+    "actionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/inputSpec"
+      }
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/stepSpec"
+      }
+    },
+    "output": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "inputSpec": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "default": {},
+        "description": {
+          "type": "string"
+        },
+        "example": {}
+      },
+      "additionalProperties": false
+    },
+    "stepSpec": {
+      "type": "object",
+      "required": ["id", "kind", "protocolId", "operationId"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": ["index_view", "compute", "contract_write"]
+        },
+        "protocolId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input": {
+          "type": "object"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

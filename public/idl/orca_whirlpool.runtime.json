@@ -504,6 +504,191 @@
     }
   },
   "index_views": {
+    "best_pool_for_pair": {
+      "inputs": {
+        "token_in_mint": {
+          "type": "token_mint",
+          "required": true
+        },
+        "token_out_mint": {
+          "type": "token_mint",
+          "required": true
+        }
+      },
+      "validate": {
+        "cross": [
+          {
+            "kind": "not_equal",
+            "left": "$input.token_in_mint",
+            "right": "$input.token_out_mint",
+            "message": "token_in_mint and token_out_mint must be different."
+          }
+        ]
+      },
+      "read_output": {
+        "type": "object",
+        "source": "$items.0",
+        "object_schema": {
+          "entity_type": "orca_whirlpool",
+          "identity_fields": [
+            "pool"
+          ],
+          "fields": {
+            "subjectId": {
+              "type": "pubkey",
+              "required": true
+            },
+            "resourceId": {
+              "type": "pubkey",
+              "required": true
+            },
+            "pool": {
+              "type": "pubkey",
+              "required": true
+            },
+            "marketType": {
+              "type": "string",
+              "required": true
+            },
+            "tokenMintA": {
+              "type": "pubkey",
+              "required": true
+            },
+            "tokenMintB": {
+              "type": "pubkey",
+              "required": true
+            },
+            "tokenVaultA": {
+              "type": "pubkey",
+              "required": true
+            },
+            "tokenVaultB": {
+              "type": "pubkey",
+              "required": true
+            },
+            "tokenDecimalsA": {
+              "type": "u8",
+              "required": true
+            },
+            "tokenDecimalsB": {
+              "type": "u8",
+              "required": true
+            },
+            "tickSpacing": {
+              "type": "u16",
+              "required": true
+            },
+            "feeRateBps": {
+              "type": "number",
+              "required": true
+            },
+            "liquidity": {
+              "type": "u128",
+              "required": true
+            },
+            "tickCurrentIndex": {
+              "type": "i32",
+              "required": true
+            },
+            "priceQuote": {
+              "type": "number",
+              "required": true
+            },
+            "inversePriceQuote": {
+              "type": "number",
+              "required": true
+            },
+            "vaultBalanceAUi": {
+              "type": "number",
+              "required": true
+            },
+            "vaultBalanceBUi": {
+              "type": "number",
+              "required": true
+            },
+            "liquidityQuote": {
+              "type": "number",
+              "required": true
+            },
+            "observedAt": {
+              "type": "timestamp",
+              "required": true
+            },
+            "updatedAt": {
+              "type": "timestamp",
+              "required": false
+            },
+            "lastEventTime": {
+              "type": "timestamp",
+              "required": false
+            }
+          }
+        }
+      },
+      "read": {
+        "kind": "index",
+        "freshness": {
+          "class": "near_realtime",
+          "target_ms": 10000,
+          "max_staleness_ms": 60000
+        },
+        "entity_type": "whirlpool_pool",
+        "title": "Best pool for pair",
+        "description": "Resolve the most liquid indexed Whirlpool pool for a token pair.",
+        "canonical": {
+          "source": "indexed_idl_state",
+          "protocol_id": "orca-whirlpool-mainnet",
+          "record_kind": "account",
+          "record_name": "Whirlpool",
+          "notes": "Canonical Whirlpool pool directory ordered by indexed liquidity."
+        },
+        "projection": {
+          "projection_kind": "search",
+          "filters": {
+            "any": [
+              {
+                "all": [
+                  {
+                    "field": "tokenMintA",
+                    "op": "=",
+                    "value": "$input.token_in_mint"
+                  },
+                  {
+                    "field": "tokenMintB",
+                    "op": "=",
+                    "value": "$input.token_out_mint"
+                  }
+                ]
+              },
+              {
+                "all": [
+                  {
+                    "field": "tokenMintA",
+                    "op": "=",
+                    "value": "$input.token_out_mint"
+                  },
+                  {
+                    "field": "tokenMintB",
+                    "op": "=",
+                    "value": "$input.token_in_mint"
+                  }
+                ]
+              }
+            ]
+          },
+          "sort_by": [
+            {
+              "field": "liquidityQuote",
+              "dir": "desc"
+            },
+            {
+              "field": "updatedAt",
+              "dir": "desc"
+            }
+          ]
+        }
+      }
+    },
     "trade_feed": {
       "inputs": {
         "pool": {
