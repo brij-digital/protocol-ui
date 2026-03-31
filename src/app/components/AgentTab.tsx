@@ -6,6 +6,8 @@ import {
   type PreparedExecutionDraft,
 } from '../runtimeSubmit';
 
+const COLLAPSED_PREVIEW_LINE_COUNT = 20;
+
 const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-4-20250514';
 const ANTHROPIC_MODEL_PRESETS = [
   'claude-sonnet-4-20250514',
@@ -147,6 +149,28 @@ function clearCookie(name: string): void {
     return;
   }
   document.cookie = `${name}=; Max-Age=0; Path=/; SameSite=Lax; Secure`;
+}
+
+function ExpandablePre({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const lines = useMemo(() => text.split('\n'), [text]);
+  const isExpandable = lines.length > COLLAPSED_PREVIEW_LINE_COUNT;
+  const displayText = isExpandable && !expanded
+    ? `${lines.slice(0, COLLAPSED_PREVIEW_LINE_COUNT).join('\n')}\n...`
+    : text;
+
+  return (
+    <div>
+      <pre>{displayText}</pre>
+      {isExpandable ? (
+        <div className="agent-actions">
+          <button type="button" onClick={() => setExpanded((current) => !current)}>
+            {expanded ? 'Collapse' : `Expand (${lines.length - COLLAPSED_PREVIEW_LINE_COUNT} more lines)`}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
@@ -536,7 +560,7 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
       <div className="agent-results">
         <section className="agent-panel">
           <h3>Final Answer</h3>
-          <pre>{finalText ?? '// no final answer yet'}</pre>
+          <ExpandablePre text={finalText ?? '// no final answer yet'} />
         </section>
         <section className="agent-panel">
           <h3>Transcript</h3>
@@ -561,9 +585,9 @@ export function AgentTab({ viewApiBaseUrl }: AgentTabProps) {
                       {entry.role} / {entry.kind}
                       {'toolName' in entry ? ` / ${entry.toolName}` : ''}
                     </strong>
-                    {'text' in entry ? <pre>{entry.text}</pre> : null}
-                    {'input' in entry ? <pre>{formatJson(entry.input)}</pre> : null}
-                    {'result' in entry ? <pre>{formatJson(entry.result)}</pre> : null}
+                    {'text' in entry ? <ExpandablePre text={entry.text} /> : null}
+                    {'input' in entry ? <ExpandablePre text={formatJson(entry.input)} /> : null}
+                    {'result' in entry ? <ExpandablePre text={formatJson(entry.result)} /> : null}
                     {showDraftActions ? (
                       <div className="agent-actions">
                         <button

@@ -525,9 +525,9 @@
           "token_vault_a": "$whirlpool_data.token_vault_a",
           "token_owner_account_b": "$token_owner_account_b",
           "token_vault_b": "$whirlpool_data.token_vault_b",
-          "tick_array_0": "$tick_arrays.0",
-          "tick_array_1": "$tick_arrays.1",
-          "tick_array_2": "$tick_arrays.2",
+          "tick_array0": "$tick_arrays.0",
+          "tick_array1": "$tick_arrays.1",
+          "tick_array2": "$tick_arrays.2",
           "oracle": "$oracle"
         },
         "pre": [
