@@ -1,0 +1,13 @@
+{
+  "$schema": "/idl/declarative_decoder_runtime.schema.v1.json",
+  "schema": "declarative-decoder-runtime.v1",
+  "version": "0.1.0",
+  "protocolId": "token-index-mainnet",
+  "label": "Manual Token Index",
+  "programId": "11111111111111111111111111111111",
+  "decoderArtifacts": {},
+  "sources": {},
+  "matchRules": [],
+  "pipelines": {},
+  "projectionSpecs": {}
+}

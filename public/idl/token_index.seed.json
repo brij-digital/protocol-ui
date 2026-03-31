@@ -1,0 +1,18 @@
+{
+  "schema": "solana-token-index.seed.v1",
+  "version": "0.1.0",
+  "tokens": [
+    {
+      "symbol": "SOL",
+      "name": "Solana",
+      "mint": "So11111111111111111111111111111111111111112",
+      "decimals": 9
+    },
+    {
+      "symbol": "USDC",
+      "name": "USD Coin",
+      "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "decimals": 6
+    }
+  ]
+}
