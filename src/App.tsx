@@ -10,6 +10,7 @@ import { AgentTab } from './app/components/AgentTab';
 import { RunnerTab } from './app/components/RunnerTab';
 
 const VIEW_API_BASE_URL = 'https://api.brijmail.com';
+const RUNNER_VIEW_API_BASE_URL = '';
 
 type AppTab = 'indexViews' | 'pump' | 'raw' | 'compute' | 'tv' | 'agent' | 'runner';
 const DISABLED_TABS = ['Apps', 'Command', 'Explorer'] as const;
@@ -118,7 +119,7 @@ function App() {
         ) : activeTab === 'agent' ? (
           <AgentTab viewApiBaseUrl={VIEW_API_BASE_URL} />
         ) : activeTab === 'runner' ? (
-          <RunnerTab viewApiBaseUrl={VIEW_API_BASE_URL} />
+          <RunnerTab viewApiBaseUrl={RUNNER_VIEW_API_BASE_URL} />
         ) : activeTab === 'tv' ? (
           <TradingViewTestTab viewApiBaseUrl={VIEW_API_BASE_URL} />
         ) : activeTab === 'indexViews' ? (
