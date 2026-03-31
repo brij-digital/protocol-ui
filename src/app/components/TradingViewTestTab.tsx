@@ -40,7 +40,7 @@ type CandleInspect = {
   changePct: number | null;
 };
 
-const DEFAULT_SYMBOL = 'pump:GknmGPnRtnmfSW44t8NqtQG8opKmfiHRvNXxhq69pump';
+const DEFAULT_SYMBOL = 'pump:a3W4qutoEJA4232T2gwZUfgYJTetr96pU4SJMwppump';
 
 function formatPriceLabel(value: number): string {
   if (!Number.isFinite(value)) {
