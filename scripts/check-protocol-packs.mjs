@@ -128,9 +128,6 @@ function validateRuntimeInputs(protocolId, sectionLabel, operationId, operation)
   for (const [inputName, inputRaw] of Object.entries(inputs)) {
     const input = asObject(inputRaw, `${protocolId}.${sectionLabel}.${operationId}.inputs.${inputName}`);
     asString(input.type, `${protocolId}.${sectionLabel}.${operationId}.inputs.${inputName}.type`);
-    if (input.bind_from !== undefined) {
-      asString(input.bind_from, `${protocolId}.${sectionLabel}.${operationId}.inputs.${inputName}.bind_from`);
-    }
     if (input.read_from !== undefined) {
       asString(input.read_from, `${protocolId}.${sectionLabel}.${operationId}.inputs.${inputName}.read_from`);
     }

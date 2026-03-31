@@ -45,11 +45,6 @@
           "type": "u16",
           "required": true
         },
-        "min_tokens_out": {
-          "type": "u64",
-          "required": false,
-          "bind_from": "$args.min_tokens_out"
-        },
         "track_volume": {
           "type": "bool",
           "required": false,
@@ -326,11 +321,6 @@
         "slippage_bps": {
           "type": "u16",
           "required": true
-        },
-        "min_tokens_out": {
-          "type": "u64",
-          "required": false,
-          "bind_from": "$args.min_tokens_out"
         },
         "track_volume": {
           "type": "bool",

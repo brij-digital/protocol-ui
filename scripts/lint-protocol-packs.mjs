@@ -113,12 +113,6 @@ async function main() {
         for (const [inputName, inputRaw] of Object.entries(inputs)) {
           const input = asObject(inputRaw, `${protocolId}.agentRuntime.${sectionName}.${operationId}.inputs.${inputName}`);
           asNonEmptyString(input.type, `${protocolId}.agentRuntime.${sectionName}.${operationId}.inputs.${inputName}.type`);
-          if (input.bind_from !== undefined) {
-            asNonEmptyString(
-              input.bind_from,
-              `${protocolId}.agentRuntime.${sectionName}.${operationId}.inputs.${inputName}.bind_from`,
-            );
-          }
           if (input.read_from !== undefined) {
             asNonEmptyString(
               input.read_from,

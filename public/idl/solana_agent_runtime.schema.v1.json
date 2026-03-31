@@ -102,7 +102,6 @@
         "type": { "type": "string" },
         "required": { "type": "boolean" },
         "default": { "$ref": "#/$defs/jsonValue" },
-        "bind_from": { "type": "string" },
         "validate": {
           "type": "object",
           "additionalProperties": true

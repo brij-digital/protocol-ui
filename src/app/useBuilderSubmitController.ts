@@ -1,7 +1,7 @@
 import type { WalletContextState } from '@solana/wallet-adapter-react';
 import type { Connection } from '@solana/web3.js';
 import { PublicKey } from '@solana/web3.js';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback } from 'react';
 import type { FormEvent } from 'react';
 import {
   prepareRuntimeOperation,
@@ -11,8 +11,6 @@ import {
   buildDerivedFromReadOutputSource,
   buildReadOnlyHighlightsFromSpec,
   parseBuilderInputValue,
-  readBuilderPath,
-  stringifyBuilderDefault,
 } from './builderHelpers';
 import { validateOperationInput, type OperationEnhancement } from './metaEnhancements';
 import {
@@ -90,97 +88,6 @@ function buildPreparedResult(prepared: Awaited<ReturnType<typeof prepareRuntimeO
 }
 
 export function useBuilderSubmitController(options: UseBuilderSubmitControllerOptions) {
-  const previewSeqRef = useRef(0);
-
-  useEffect(() => {
-    const operation = options.selectedBuilderOperation;
-    if (!operation) {
-      return;
-    }
-    const previewWalletPublicKey = options.wallet.publicKey ?? PublicKey.default;
-    const previewBindings = Object.entries(operation.inputs)
-      .filter(([, spec]) => typeof spec.bind_from === 'string' && spec.bind_from.trim().length > 0)
-      .map(([inputName, spec]) => ({
-        inputName,
-        source: spec.bind_from!.trim(),
-      }));
-    if (previewBindings.length === 0) {
-      return;
-    }
-
-    const missingRequired = Object.entries(operation.inputs).some(([inputName, spec]) => {
-      if (typeof spec.bind_from === 'string' && spec.bind_from.trim().length > 0) {
-        return false;
-      }
-      const rawValue = options.builderInputValues[inputName] ?? '';
-      return spec.required && spec.default === undefined && rawValue.trim().length === 0;
-    });
-    if (missingRequired) {
-      return;
-    }
-
-    const debounce = window.setTimeout(() => {
-      const currentSeq = ++previewSeqRef.current;
-      void (async () => {
-        try {
-          const inputPayload: Record<string, unknown> = {};
-          for (const [inputName, spec] of Object.entries(operation.inputs)) {
-            const rawValue = options.builderInputValues[inputName] ?? '';
-            if (!rawValue.trim()) {
-              continue;
-            }
-            if (typeof spec.bind_from === 'string' && spec.bind_from.trim().length > 0) {
-              continue;
-            }
-            inputPayload[inputName] = parseBuilderInputValue(rawValue, spec.type, `input ${inputName}`);
-          }
-
-          const prepared = await prepareRuntimeOperation({
-            protocolId: options.builderProtocolId,
-            operationId: operation.operationId,
-            input: inputPayload,
-            connection: options.connection,
-            walletPublicKey: previewWalletPublicKey,
-          });
-
-          if (currentSeq !== previewSeqRef.current) {
-            return;
-          }
-
-          const scope = {
-            input: inputPayload,
-            args: prepared.args,
-            accounts: prepared.accounts,
-            derived: prepared.derived,
-          };
-          for (const binding of previewBindings) {
-            const previewValue = readBuilderPath(scope, binding.source);
-            if (previewValue === undefined || previewValue === null) {
-              continue;
-            }
-            const nextText = stringifyBuilderDefault(previewValue);
-            if ((options.builderInputValues[binding.inputName] ?? '') !== nextText) {
-              options.onSetBuilderInputValue(binding.inputName, nextText);
-            }
-          }
-        } catch {
-          // Preview hydration must stay silent.
-        }
-      })();
-    }, 350);
-
-    return () => {
-      window.clearTimeout(debounce);
-    };
-  }, [
-    options.builderInputValues,
-    options.builderProtocolId,
-    options.connection,
-    options.onSetBuilderInputValue,
-    options.selectedBuilderOperation,
-    options.wallet.publicKey,
-  ]);
-
   const handleBuilderSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
@@ -209,8 +116,7 @@ export function useBuilderSubmitController(options: UseBuilderSubmitControllerOp
         for (const [inputName, spec] of Object.entries(operation.inputs)) {
           const rawValue = options.builderInputValues[inputName] ?? '';
           if (!rawValue.trim()) {
-            const autoBound = typeof spec.bind_from === 'string' && spec.bind_from.trim().length > 0;
-            if (spec.required && spec.default === undefined && !autoBound) {
+            if (spec.required && spec.default === undefined) {
               throw new Error(`Missing required input ${inputName}.`);
             }
             continue;

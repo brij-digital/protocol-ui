@@ -31,12 +31,8 @@ export function readBuilderPath(value: unknown, path: string): unknown {
 }
 
 export function getBuilderInputMode(
-  spec: RuntimeOperationSummary['inputs'][string],
+  _spec: RuntimeOperationSummary['inputs'][string],
 ): 'edit' | 'readonly' {
-  const readFrom = spec.bind_from;
-  if (typeof readFrom === 'string' && readFrom.length > 0) {
-    return 'readonly';
-  }
   return 'edit';
 }
 
@@ -102,10 +98,6 @@ export function buildExampleInputsForOperation(
   const nextValues: Record<string, string> = {};
 
   for (const [inputName, spec] of Object.entries(operation.inputs)) {
-    if (typeof spec.bind_from === 'string' && spec.bind_from.trim().length > 0) {
-      nextValues[inputName] = '';
-      continue;
-    }
     if (spec.default !== undefined) {
       nextValues[inputName] = stringifyBuilderDefault(spec.default);
       continue;
@@ -199,9 +191,7 @@ export function renderMetaExplain(explanation: RuntimeOperationExplain): string 
   const formatRequired = (spec: Record<string, unknown>): string => {
     const required = spec.required === false ? 'optional' : 'required';
     const defaultText = spec.default !== undefined ? `, default=${JSON.stringify(spec.default)}` : '';
-    const bindText =
-      typeof spec.bind_from === 'string' ? `, bind_from=${spec.bind_from}` : '';
-    return `${required}${defaultText}${bindText}`;
+    return `${required}${defaultText}`;
   };
 
   const inputLines = Object.entries(explanation.inputs).map(
