@@ -122,6 +122,5 @@
     }
   },
   "computes": {},
-  "contract_writes": {},
-  "templates": {}
+  "contract_writes": {}
 }

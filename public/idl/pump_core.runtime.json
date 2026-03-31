@@ -279,7 +279,6 @@
       }
     }
   },
-  "templates": {},
   "index_views": {},
   "contract_writes": {
     "buy_exact_sol_in": {
