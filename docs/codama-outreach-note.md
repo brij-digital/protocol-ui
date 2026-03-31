@@ -1,0 +1,3 @@
+Hi, we’re building a declarative Solana agent/runtime layer that uses Codama as the source of truth for instruction execution, so apps and agents can draft transactions without bespoke SDK code per protocol.
+
+We’ve already been able to move a lot into Codama, especially signer/default/PDA account resolution, including ATA-style defaults. What still remains on our side is mostly transaction envelope logic: pre-instructions, post-instructions, and simple conditional execution around the main instruction. I’d love your view on whether Codama should eventually model that layer too, or whether you see Codama staying instruction-scoped by design.
