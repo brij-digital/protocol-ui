@@ -186,7 +186,7 @@
             <tr><td><code>schema</code></td><td>Yes</td><td>string</td><td>Must be <code>solana-agent-runtime.v1</code>.</td></tr>
             <tr><td><code>views</code></td><td>Yes</td><td>object</td><td>Map of operation id to <code>viewSpec</code>.</td></tr>
             <tr><td><code>writes</code></td><td>Yes</td><td>object</td><td>Map of operation id to <code>writeSpec</code>.</td></tr>
-            <tr><td><code>transforms</code></td><td>Yes</td><td>object</td><td>Map of transform id to reusable <code>transformSpec</code>.</td></tr>
+            <tr><td><code>transforms</code></td><td>Yes</td><td>object</td><td>Map of transform id to an array of <code>transformStepSpec</code>.</td></tr>
           </tbody>
         </table>
       </section>
@@ -230,7 +230,7 @@
           </tbody>
         </table>
 
-        <h3><code>output</code></h3>
+        <h3><code>views[*].output</code></h3>
         <table>
           <thead><tr><th>Attribute</th><th>Required</th><th>Type</th><th>Notes</th></tr></thead>
           <tbody>
@@ -265,7 +265,7 @@
       </section>
 
       <section class="card">
-        <h2><code>transformSpec</code></h2>
+        <h2><code>transforms</code></h2>
         <p>
           Top-level <code>transforms</code> is the only place where transform steps are declared.
           Each entry is an array of <code>transformStepSpec</code> referenced from views or writes by name.
