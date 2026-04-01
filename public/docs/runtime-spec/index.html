@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AppPack Runtime Spec</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f5f7fb;
+        --panel: #ffffff;
+        --line: #d9dfeb;
+        --text: #14213d;
+        --muted: #4e5f7b;
+        --accent: #1f4cc4;
+        --warm: #fff6e1;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top left, #fff2d7 0, transparent 30%),
+          radial-gradient(circle at bottom right, #dbe6ff 0, transparent 34%),
+          var(--bg);
+      }
+
+      .page {
+        max-width: 1040px;
+        margin: 0 auto;
+        padding: 32px 16px 56px;
+      }
+
+      .hero, .card {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: var(--panel);
+        box-shadow: 0 16px 50px rgba(26, 42, 72, 0.08);
+      }
+
+      .hero {
+        padding: 22px;
+        background: linear-gradient(135deg, rgba(255,243,214,.75), rgba(232,240,255,.88)), var(--panel);
+      }
+
+      .eyebrow {
+        margin: 0 0 8px;
+        color: #7b5d08;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 32px;
+        line-height: 1.15;
+      }
+
+      h2 {
+        margin: 0 0 10px;
+        font-size: 20px;
+      }
+
+      p, li {
+        color: var(--muted);
+        line-height: 1.65;
+      }
+
+      .stack {
+        display: grid;
+        gap: 16px;
+        margin-top: 16px;
+      }
+
+      .card {
+        padding: 18px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 12px;
+      }
+
+      .box {
+        display: grid;
+        gap: 8px;
+        border: 1px solid #dde5f2;
+        border-radius: 14px;
+        background: #fbfcfe;
+        padding: 14px;
+      }
+
+      .box strong {
+        font-size: 15px;
+      }
+
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+
+      pre {
+        margin: 0;
+        overflow: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+        padding: 12px;
+        border-radius: 12px;
+        background: var(--warm);
+        border: 1px solid #f0ddb1;
+        color: #6a4c00;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .links {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 12px;
+      }
+
+      .link-card {
+        display: grid;
+        gap: 6px;
+        text-decoration: none;
+        color: inherit;
+        border: 1px solid #dde5f2;
+        border-radius: 14px;
+        background: #fff;
+        padding: 14px;
+      }
+
+      .link-card span {
+        color: #2e4f8d;
+        font-size: 12px;
+        word-break: break-all;
+      }
+
+      .pill {
+        width: fit-content;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: var(--warm);
+        border: 1px solid #f0ddb1;
+        color: #6a4c00;
+        font-size: 12px;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <p class="eyebrow">AppPack Runtime Spec</p>
+        <h1>Where the program-specific runtime logic lives</h1>
+        <p>
+          AppPack keeps instruction-level truth in Codama, indexed reads in the indexing spec, and
+          only a narrow deterministic execution layer in the runtime spec.
+        </p>
+      </section>
+
+      <section class="stack">
+        <article class="card">
+          <h2>The split</h2>
+          <div class="grid">
+            <div class="box">
+              <strong>Codama</strong>
+              <div class="pill">instruction source of truth</div>
+              <p>Instruction shape, named accounts, signer metadata, fixed defaults, PDA-backed defaults.</p>
+            </div>
+            <div class="box">
+              <strong>Indexing spec</strong>
+              <div class="pill">reads and discovery</div>
+              <p>Search, feeds, ranking, series, and all other indexed read semantics.</p>
+            </div>
+            <div class="box">
+              <strong>Runtime spec</strong>
+              <div class="pill">deterministic execution layer</div>
+              <p>Deterministic compute, write preparation, and the small transaction envelope around a write.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>What the program maintainer writes</h2>
+          <p>
+            Program-specific runtime logic lives in a per-protocol file such as
+            <code>public/idl/orca_whirlpool.runtime.json</code>. That file is provided by the pack
+            maintainer.
+          </p>
+          <div class="grid">
+            <div class="box">
+              <strong><code>computes</code></strong>
+              <p>Named deterministic protocol computations such as quotes, thresholds, and typed previews.</p>
+            </div>
+            <div class="box">
+              <strong><code>contract_writes</code></strong>
+              <p>Instruction preparation using Codama metadata plus runtime inputs and computed values.</p>
+            </div>
+            <div class="box">
+              <strong><code>resolve</code></strong>
+              <p>Only the extra runtime context still needed outside Codama, such as account decode or ATA derivation.</p>
+            </div>
+            <div class="box">
+              <strong><code>pre</code> / <code>post</code></strong>
+              <p>The remaining transaction-envelope logic, such as ATA creation, WSOL sync, and cleanup.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>Minimal file shape</h2>
+          <pre>{
+  "$schema": "/idl/solana_agent_runtime.schema.v1.json",
+  "schema": "solana-agent-runtime.v1",
+  "computes": {
+    "quote_exact_in": { "...": "..." }
+  },
+  "contract_writes": {
+    "swap_exact_in": { "...": "..." }
+  }
+}</pre>
+          <p>
+            The runtime spec deliberately does not restate the raw instruction schema. Codama already
+            owns that.
+          </p>
+        </article>
+
+        <article class="card">
+          <h2>Concrete Orca example</h2>
+          <div class="grid">
+            <div class="box">
+              <strong><code>quote_exact_in</code></strong>
+              <p>Decodes the Whirlpool account, computes swap direction, tick arrays, <code>estimated_out</code>, and <code>minimum_out</code>.</p>
+            </div>
+            <div class="box">
+              <strong><code>swap_exact_in</code></strong>
+              <p>Uses Codama’s <code>swap_v2</code> metadata plus computed values to prepare the final draft.</p>
+            </div>
+          </div>
+          <pre>{
+  "resolve": [
+    {
+      "name": "wallet",
+      "kind": "wallet_pubkey"
+    },
+    {
+      "name": "whirlpool_data",
+      "kind": "decode_account",
+      "address": "$input.whirlpool",
+      "account_type": "Whirlpool"
+    }
+  ],
+  "compute": [
+    {
+      "name": "a_to_b",
+      "kind": "compare.equals",
+      "left": "$whirlpool_data.token_mint_a",
+      "right": "$input.token_in_mint"
+    },
+    {
+      "name": "minimum_out",
+      "kind": "coalesce",
+      "values": ["$other_amount_threshold"]
+    }
+  ]
+}</pre>
+        </article>
+
+        <article class="card">
+          <h2>What stays out of the runtime spec</h2>
+          <div class="grid">
+            <div class="box">
+              <strong>Keep in Codama</strong>
+              <p>Instruction structure, account metadata, signer metadata, fixed/default accounts, PDA-backed defaults.</p>
+            </div>
+            <div class="box">
+              <strong>Keep in the indexing spec</strong>
+              <p>Discovery, search, feeds, ranking, and time-series semantics.</p>
+            </div>
+            <div class="box">
+              <strong>Keep out of both</strong>
+              <p>Any flow that requires “transaction A, then read live state, then transaction B” belongs in a higher-level runtime.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>Useful links</h2>
+          <div class="links">
+            <a class="link-card" href="/idl/solana_agent_runtime.schema.v1.json" target="_blank" rel="noreferrer">
+              <strong>Runtime schema</strong>
+              <span>/idl/solana_agent_runtime.schema.v1.json</span>
+            </a>
+            <a class="link-card" href="/idl/orca_whirlpool.runtime.json" target="_blank" rel="noreferrer">
+              <strong>Orca runtime spec</strong>
+              <span>/idl/orca_whirlpool.runtime.json</span>
+            </a>
+            <a class="link-card" href="/idl/orca_whirlpool.codama.json" target="_blank" rel="noreferrer">
+              <strong>Orca Codama IDL</strong>
+              <span>/idl/orca_whirlpool.codama.json</span>
+            </a>
+            <a class="link-card" href="/demo/loris/" target="_blank" rel="noreferrer">
+              <strong>Live demo</strong>
+              <span>/demo/loris/</span>
+            </a>
+          </div>
+        </article>
+      </section>
+    </main>
+  </body>
+  </html>

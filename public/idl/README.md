@@ -6,6 +6,8 @@ Shared schema files in this directory are synced from [`apppack-runtime/schemas`
 
 Do not hand-edit:
 - `declarative_decoder_runtime.schema.v1.json`
+- `solana_agent_runtime.schema.v1.json`
+- `solana_action_runner.schema.v1.json`
 
 Use:
 - `npm run schemas:sync`
@@ -30,16 +32,19 @@ Protocol pack ownership rule:
 
 Generated protocol artifacts in this directory now include:
 - canonical protocol specs: `*.codama.json`
-- declarative indexing/runtime specs: `*.runtime.json`
+- declarative indexing specs: `*.indexing.json`
+- declarative runtime specs: `*.runtime.json`
 
 Current ownership model:
 - `*.codama.json` are the protocol source of truth
-- `*.runtime.json` are wallet-owned declarative indexing specs
+- `*.indexing.json` own indexed reads and discovery
+- `*.runtime.json` own deterministic compute and write preparation
 - downstream repos must sync these files instead of editing their own copies
 
 Target architecture:
 - `Codama` = protocol truth
-- `runtime` = indexing / compute / projections
+- `indexing` = reads / discovery
+- `runtime` = compute / write preparation / small transaction envelope
 
 Current migration rule:
 - active packs expose only `codama + runtime`

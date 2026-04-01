@@ -4,7 +4,7 @@ This repository is the web app and pack-authoring workspace for AppPack.
 
 It provides:
 - a wallet-connected UI to execute declarative protocol operations
-- authoring + CI tooling for protocol packs (`Codama + runtime`)
+- authoring + CI tooling for protocol packs (`Codama + indexing + runtime`)
 
 ## Related Repos
 
@@ -45,18 +45,31 @@ Currently disabled in the default UI shell:
 
 ## Spec Model
 
-Each active protocol pack is now split into 2 layers:
+Each active protocol pack is now split into 3 layers:
 
 1. `Codama IDL`
-- canonical source of truth for protocol structure
-- declarative program description used by the indexing runtime
+- canonical source of truth for instruction structure
+- instruction accounts
+- signers
+- fixed/default/PDA-backed accounts
 - examples:
   - [public/idl/orca_whirlpool.codama.json](public/idl/orca_whirlpool.codama.json)
   - [public/idl/pump_amm.codama.json](public/idl/pump_amm.codama.json)
 
-2. `Declarative Runtime Spec`
-- declarative indexing/runtime contract
-- sources, match rules, resolve, compute, projections, read/execution ops
+2. `Indexing Spec`
+- indexed reads
+- discovery
+- feeds
+- ranking
+- series
+- examples:
+  - [public/idl/orca_whirlpool.indexing.json](public/idl/orca_whirlpool.indexing.json)
+  - [public/idl/pump_amm.indexing.json](public/idl/pump_amm.indexing.json)
+
+3. `Runtime Spec`
+- deterministic compute
+- deterministic write preparation
+- small transaction-envelope logic around writes
 - examples:
   - [public/idl/orca_whirlpool.runtime.json](public/idl/orca_whirlpool.runtime.json)
   - [public/idl/pump_core.runtime.json](public/idl/pump_core.runtime.json)
@@ -66,6 +79,7 @@ Registry:
 
 Schemas:
 - [public/idl/declarative_decoder_runtime.schema.v1.json](public/idl/declarative_decoder_runtime.schema.v1.json)
+- [public/idl/solana_agent_runtime.schema.v1.json](public/idl/solana_agent_runtime.schema.v1.json)
 
 ## Runtime + View Architecture
 
@@ -76,14 +90,8 @@ This web app depends on:
 Important behavior:
 - no local view fallback in app command mode
 - `/meta-run` requires explicit mode: `--simulate` or `--send`
-- search-view bootstrap/sync is expected to come from the view service cache layer, built around owned RPC snapshots + local temporal metadata (`first_seen_slot`, `last_seen_slot`)
-- search views may declare `bootstrap.retention_seconds` to prune stale cache rows
-- the current search-view backend model is: `cached_program_accounts` + `view_sync_state`, not a separate entity table
-
-Conceptual split:
-- `search` views are for discovery and shortlist generation over a cached universe
-- `account` views are for reading one known account (for example a pool or reserve already identified by a previous step)
-- if we later run our own RPC, `account` views are good candidates for direct RPC reads while `search` views still benefit from cache/index infrastructure
+- indexed reads are owned by the view service and the indexing spec
+- runtime compute/write execution is owned by `@brij-digital/apppack-runtime`
 
 ## Quick Start
 
@@ -205,6 +213,7 @@ npm run ci:protocol-packs:rpc
 - [PROJECT_STATE.md](PROJECT_STATE.md)
 - [MAINTAINER_GUIDE.md](MAINTAINER_GUIDE.md)
 - [CONTRIBUTING.md](CONTRIBUTING.md)
+- [docs/runtime-spec.md](https://github.com/brij-digital/apppack-runtime/blob/main/docs/runtime-spec.md)
 - [docs/aidl-authoring.md](docs/aidl-authoring.md)
 - [docs/pack-builder.md](docs/pack-builder.md)
 - [docs/protocol-pack-ci.md](docs/protocol-pack-ci.md)
