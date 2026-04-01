@@ -132,7 +132,7 @@
       "transform": [
         "preview_buy_exact_sol_in__transform"
       ],
-      "read_output": {
+      "output": {
         "type": "object",
         "source": "$derived",
         "object_schema": {

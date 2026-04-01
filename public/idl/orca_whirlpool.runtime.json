@@ -3,7 +3,6 @@
   "schema": "solana-agent-runtime.v1",
   "reads": {
     "quote_exact_in": {
-      "instruction": "swap_v2",
       "inputs": {
         "token_in_mint": {
           "type": "token_mint",
@@ -219,7 +218,8 @@
           }
         }
       ],
-      "read_output": {
+      "instruction_context": "swap_v2",
+      "output": {
         "type": "object",
         "source": "$derived",
         "object_schema": {

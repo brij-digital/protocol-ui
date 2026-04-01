@@ -214,7 +214,7 @@
           </tbody>
         </table>
 
-        <h3><code>read_output</code></h3>
+        <h3><code>output</code></h3>
         <table>
           <thead><tr><th>Attribute</th><th>Required</th><th>Type</th><th>Notes</th></tr></thead>
           <tbody>
@@ -232,7 +232,6 @@
         <table>
           <thead><tr><th>Attribute</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
           <tbody>
-            <tr><td><code>instruction</code></td><td>No</td><td>string</td><td>Instruction name for contextual alignment with Codama.</td></tr>
             <tr><td><code>inputs</code></td><td>No</td><td>object</td><td>Map of input name to <code>inputSpec</code>.</td></tr>
             <tr><td><code>load</code></td><td>No</td><td>array</td><td>Array of <code>loadStepSpec</code>.</td></tr>
             <tr><td><code>transform</code></td><td>No</td><td>array</td><td>Array of string references to top-level <code>transforms</code>.</td></tr>
@@ -249,7 +248,8 @@
         <table>
           <thead><tr><th>Attribute</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
           <tbody>
-            <tr><td><code>read_output</code></td><td>No</td><td>object</td><td>Typed output contract.</td></tr>
+            <tr><td><code>instruction_context</code></td><td>No</td><td>string</td><td>Codama instruction name used when the read previews a write-aligned flow.</td></tr>
+            <tr><td><code>output</code></td><td>No</td><td>object</td><td>Typed output contract.</td></tr>
           </tbody>
         </table>
       </section>
@@ -268,7 +268,6 @@
             <tr><td><code>remaining_accounts</code></td><td>No</td><td>string or array</td><td>String reference or explicit meta list.</td></tr>
             <tr><td><code>pre</code></td><td>No</td><td>array</td><td>Array of <code>preInstructionSpec</code>.</td></tr>
             <tr><td><code>post</code></td><td>No</td><td>array</td><td>Array of <code>postInstructionSpec</code>.</td></tr>
-            <tr><td><code>read_output</code></td><td>No</td><td>object</td><td>Typed output contract.</td></tr>
           </tbody>
         </table>
       </section>

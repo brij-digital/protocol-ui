@@ -134,8 +134,8 @@ export function useBuilderSubmitController(options: UseBuilderSubmitControllerOp
         }
 
         if (isReadOnlyOperation) {
-          if (!operation.readOutput) {
-            throw new Error(`Read-only operation ${options.builderProtocolId}/${operation.operationId} is missing read_output.`);
+          if (!operation.output) {
+            throw new Error(`Read-only operation ${options.builderProtocolId}/${operation.operationId} is missing output.`);
           }
 
           const response = await runRemoteViewRun({
@@ -147,7 +147,7 @@ export function useBuilderSubmitController(options: UseBuilderSubmitControllerOp
           });
 
           const readValue = response.items ?? [];
-          const derived = buildDerivedFromReadOutputSource(operation.readOutput.source, readValue);
+          const derived = buildDerivedFromReadOutputSource(operation.output.source, readValue);
           const preparedReadOnly: BuilderPreparedStepResult = {
             derived,
             args: {},
@@ -158,7 +158,7 @@ export function useBuilderSubmitController(options: UseBuilderSubmitControllerOp
           const lines = [
             `Runtime result (${options.builderProtocolId}/${operation.operationId}):`,
             'Read-only operation (view API).',
-            ...buildReadOnlyHighlightsFromSpec(operation.readOutput, readValue),
+            ...buildReadOnlyHighlightsFromSpec(operation.output, readValue),
           ];
           options.setBuilderResult(lines, {
             input: inputPayload,

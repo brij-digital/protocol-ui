@@ -130,30 +130,30 @@ function validateRuntimeInputs(protocolId, sectionLabel, operationId, operation)
     asString(input.type, `${protocolId}.${sectionLabel}.${operationId}.inputs.${inputName}.type`);
   }
 
-  if (op.read_output !== undefined) {
-    const readOutput = asObject(op.read_output, `${protocolId}.${sectionLabel}.${operationId}.read_output`);
-    asString(readOutput.type, `${protocolId}.${sectionLabel}.${operationId}.read_output.type`);
-    asString(readOutput.source, `${protocolId}.${sectionLabel}.${operationId}.read_output.source`);
-    if (readOutput.object_schema !== undefined) {
+  if (op.output !== undefined) {
+    const output = asObject(op.output, `${protocolId}.${sectionLabel}.${operationId}.output`);
+    asString(output.type, `${protocolId}.${sectionLabel}.${operationId}.output.type`);
+    asString(output.source, `${protocolId}.${sectionLabel}.${operationId}.output.source`);
+    if (output.object_schema !== undefined) {
       validateOutputSchema(
-        readOutput.object_schema,
-        `${protocolId}.${sectionLabel}.${operationId}.read_output.object_schema`,
+        output.object_schema,
+        `${protocolId}.${sectionLabel}.${operationId}.output.object_schema`,
       );
     }
-    if (readOutput.item_schema !== undefined) {
+    if (output.item_schema !== undefined) {
       validateOutputSchema(
-        readOutput.item_schema,
-        `${protocolId}.${sectionLabel}.${operationId}.read_output.item_schema`,
+        output.item_schema,
+        `${protocolId}.${sectionLabel}.${operationId}.output.item_schema`,
       );
     }
-    if (readOutput.scalar_type !== undefined) {
-      asString(readOutput.scalar_type, `${protocolId}.${sectionLabel}.${operationId}.read_output.scalar_type`);
+    if (output.scalar_type !== undefined) {
+      asString(output.scalar_type, `${protocolId}.${sectionLabel}.${operationId}.output.scalar_type`);
     }
-    const outputType = readOutput.type;
-    if ((outputType === 'object' && readOutput.object_schema === undefined)
-      || ((outputType === 'array' || outputType === 'list') && readOutput.item_schema === undefined)
-      || (outputType === 'scalar' && readOutput.scalar_type === undefined)) {
-      fail(`${protocolId}.${sectionLabel}.${operationId}.read_output is missing typed schema for ${outputType}.`);
+    const outputType = output.type;
+    if ((outputType === 'object' && output.object_schema === undefined)
+      || ((outputType === 'array' || outputType === 'list') && output.item_schema === undefined)
+      || (outputType === 'scalar' && output.scalar_type === undefined)) {
+      fail(`${protocolId}.${sectionLabel}.${operationId}.output is missing typed schema for ${outputType}.`);
     }
   }
 
@@ -232,8 +232,14 @@ function validateIndexingIndexView(protocolId, indexing, operationId) {
   asString(indexView.kind, `${protocolId}.indexing.operations.${operationId}.index_view.kind`);
 }
 
-function validateRead(protocolId, operationId, operation, transformNames) {
+function validateRead(protocolId, operationId, operation, instructionNames, transformNames) {
   const op = validateRuntimeInputs(protocolId, 'agentRuntime.reads', operationId, operation);
+  if (op.instruction_context !== undefined) {
+    const instruction = asString(op.instruction_context, `${protocolId}.agentRuntime.reads.${operationId}.instruction_context`);
+    if (!instructionNames.has(instruction)) {
+      fail(`${protocolId}: read ${operationId} references missing instruction_context ${instruction}.`);
+    }
+  }
   validateTransformRefs(protocolId, 'agentRuntime.reads', operationId, op, transformNames);
 }
 
@@ -349,7 +355,7 @@ async function main() {
       operationCount += 1;
     }
     for (const [operationId, operationRaw] of Object.entries(reads)) {
-      validateRead(protocolId, operationId, operationRaw, transformNames);
+      validateRead(protocolId, operationId, operationRaw, instructionNames, transformNames);
       operationCount += 1;
     }
     for (const [operationId, operationRaw] of Object.entries(writes)) {

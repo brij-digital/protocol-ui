@@ -3,7 +3,6 @@
   "schema": "solana-agent-runtime.v1",
   "reads": {
     "preview_buy": {
-      "instruction": "buy",
       "inputs": {
         "base_mint": {
           "type": "pubkey",
@@ -243,7 +242,8 @@
           }
         }
       ],
-      "read_output": {
+      "instruction_context": "buy",
+      "output": {
         "type": "object",
         "source": "$derived",
         "object_schema": {
@@ -290,7 +290,6 @@
       }
     },
     "preview_sell": {
-      "instruction": "sell",
       "inputs": {
         "base_mint": {
           "type": "pubkey",
@@ -420,7 +419,8 @@
         "quote_token_program": "$quote_token_program",
         "coin_creator_vault_authority": "$coin_creator_vault_authority"
       },
-      "read_output": {
+      "instruction_context": "sell",
+      "output": {
         "type": "object",
         "source": "$derived",
         "object_schema": {

@@ -212,7 +212,7 @@
     "readSpec": {
       "type": "object",
       "properties": {
-        "instruction": {
+        "instruction_context": {
           "type": "string"
         },
         "inputs": {
@@ -233,7 +233,7 @@
             "$ref": "#/$defs/transformUseSpec"
           }
         },
-        "read_output": {
+        "output": {
           "$ref": "#/$defs/readOutputSpec"
         }
       },
@@ -289,9 +289,6 @@
           "items": {
             "$ref": "#/$defs/postInstructionSpec"
           }
-        },
-        "read_output": {
-          "$ref": "#/$defs/readOutputSpec"
         }
       },
       "additionalProperties": false

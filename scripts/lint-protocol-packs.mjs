@@ -114,35 +114,35 @@ async function main() {
           const input = asObject(inputRaw, `${protocolId}.agentRuntime.${sectionName}.${operationId}.inputs.${inputName}`);
           asNonEmptyString(input.type, `${protocolId}.agentRuntime.${sectionName}.${operationId}.inputs.${inputName}.type`);
         }
-        if (operation.read_output !== undefined) {
-          const readOutput = asObject(
-            operation.read_output,
-            `${protocolId}.agentRuntime.${sectionName}.${operationId}.read_output`,
+        if (operation.output !== undefined) {
+          const output = asObject(
+            operation.output,
+            `${protocolId}.agentRuntime.${sectionName}.${operationId}.output`,
           );
           asNonEmptyString(
-            readOutput.type,
-            `${protocolId}.agentRuntime.${sectionName}.${operationId}.read_output.type`,
+            output.type,
+            `${protocolId}.agentRuntime.${sectionName}.${operationId}.output.type`,
           );
           asNonEmptyString(
-            readOutput.source,
-            `${protocolId}.agentRuntime.${sectionName}.${operationId}.read_output.source`,
+            output.source,
+            `${protocolId}.agentRuntime.${sectionName}.${operationId}.output.source`,
           );
-          if (readOutput.object_schema !== undefined) {
+          if (output.object_schema !== undefined) {
             validateOutputSchema(
-              readOutput.object_schema,
-              `${protocolId}.agentRuntime.${sectionName}.${operationId}.read_output.object_schema`,
+              output.object_schema,
+              `${protocolId}.agentRuntime.${sectionName}.${operationId}.output.object_schema`,
             );
           }
-          if (readOutput.item_schema !== undefined) {
+          if (output.item_schema !== undefined) {
             validateOutputSchema(
-              readOutput.item_schema,
-              `${protocolId}.agentRuntime.${sectionName}.${operationId}.read_output.item_schema`,
+              output.item_schema,
+              `${protocolId}.agentRuntime.${sectionName}.${operationId}.output.item_schema`,
             );
           }
-          if (readOutput.scalar_type !== undefined) {
+          if (output.scalar_type !== undefined) {
             asNonEmptyString(
-              readOutput.scalar_type,
-              `${protocolId}.agentRuntime.${sectionName}.${operationId}.read_output.scalar_type`,
+              output.scalar_type,
+              `${protocolId}.agentRuntime.${sectionName}.${operationId}.output.scalar_type`,
             );
           }
         }

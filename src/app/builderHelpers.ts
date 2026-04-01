@@ -109,29 +109,29 @@ export function buildExampleInputsForOperation(
 }
 
 export function buildReadOnlyHighlightsFromSpec(
-  readOutput: RuntimeOperationSummary['readOutput'] | RuntimeOperationExplain['readOutput'] | undefined,
+  output: RuntimeOperationSummary['output'] | RuntimeOperationExplain['output'] | undefined,
   value: unknown,
 ): string[] {
-  if (!readOutput) {
+  if (!output) {
     return [];
   }
 
   const lines = [
-    `read_output.type: ${readOutput.type}`,
-    `read_output.source: ${readOutput.source}`,
+    `output.type: ${output.type}`,
+    `output.source: ${output.source}`,
   ];
 
-  if (readOutput.type === 'array' && Array.isArray(value)) {
+  if (output.type === 'array' && Array.isArray(value)) {
     lines.push(`items: ${value.length}`);
     return lines;
   }
 
-  if (readOutput.type === 'object' && value && typeof value === 'object' && !Array.isArray(value)) {
+  if (output.type === 'object' && value && typeof value === 'object' && !Array.isArray(value)) {
     lines.push(`keys: ${Object.keys(value as Record<string, unknown>).join(', ') || '(none)'}`);
     return lines;
   }
 
-  if (readOutput.type === 'scalar') {
+  if (output.type === 'scalar') {
     lines.push(`value: ${String(value)}`);
   }
 
@@ -145,19 +145,19 @@ export function asPrettyJson(value: unknown): string {
 export function buildDerivedFromReadOutputSource(sourcePath: string, value: unknown): Record<string, unknown> {
   const cleaned = sourcePath.startsWith('$') ? sourcePath.slice(1) : sourcePath;
   if (!cleaned.startsWith('derived')) {
-    throw new Error(`Unsupported read_output.source ${sourcePath}: only $derived.* is supported in Builder remote view mode.`);
+    throw new Error(`Unsupported output.source ${sourcePath}: only $derived.* is supported in Builder remote view mode.`);
   }
 
   if (cleaned === 'derived') {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      throw new Error(`read_output.source ${sourcePath} resolved to non-object; expected object for $derived root.`);
+      throw new Error(`output.source ${sourcePath} resolved to non-object; expected object for $derived root.`);
     }
     return value as Record<string, unknown>;
   }
 
   const parts = cleaned.split('.').filter(Boolean);
   if (parts[0] !== 'derived' || parts.length < 2) {
-    throw new Error(`Unsupported read_output.source ${sourcePath}: expected $derived.<name>.`);
+    throw new Error(`Unsupported output.source ${sourcePath}: expected $derived.<name>.`);
   }
 
   const out: Record<string, unknown> = {};

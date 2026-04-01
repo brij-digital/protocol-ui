@@ -87,7 +87,7 @@ export async function runActionRunnerSpec(options: {
         });
         return {
           output: computed.output,
-          meta: computed.readOutput ? { readOutput: computed.readOutput } : {},
+          meta: computed.outputSpec ? { outputSpec: computed.outputSpec } : {},
         };
       }
 
