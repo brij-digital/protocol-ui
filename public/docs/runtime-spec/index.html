@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AppPack Runtime Spec</title>
+    <title>Runtime Spec V1 Reference</title>
     <style>
       :root {
         color-scheme: light;
@@ -12,238 +12,332 @@
         --line: #d9dfeb;
         --text: #14213d;
         --muted: #4e5f7b;
-        --accent: #1f4cc4;
-        --warm: #fff6e1;
+        --code-bg: #f8fafc;
+        --code-line: #dde5f2;
       }
-
       * { box-sizing: border-box; }
-
       body {
         margin: 0;
         font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         color: var(--text);
-        background:
-          radial-gradient(circle at top left, #fff2d7 0, transparent 30%),
-          radial-gradient(circle at bottom right, #dbe6ff 0, transparent 34%),
-          var(--bg);
+        background: var(--bg);
       }
-
       .page {
-        max-width: 1040px;
+        max-width: 1080px;
         margin: 0 auto;
-        padding: 32px 16px 56px;
+        padding: 28px 16px 56px;
       }
-
       .hero, .card {
         border: 1px solid var(--line);
-        border-radius: 18px;
+        border-radius: 16px;
         background: var(--panel);
-        box-shadow: 0 16px 50px rgba(26, 42, 72, 0.08);
       }
-
       .hero {
-        padding: 22px;
-        background: linear-gradient(135deg, rgba(255,243,214,.75), rgba(232,240,255,.88)), var(--panel);
+        padding: 20px;
       }
-
+      .card {
+        padding: 18px;
+        margin-top: 16px;
+      }
       .eyebrow {
         margin: 0 0 8px;
-        color: #7b5d08;
+        color: #51627f;
         font-size: 12px;
-        font-weight: 800;
+        font-weight: 700;
         letter-spacing: .08em;
         text-transform: uppercase;
       }
-
       h1 {
         margin: 0;
-        font-size: 32px;
+        font-size: 30px;
         line-height: 1.15;
       }
-
       h2 {
         margin: 0 0 10px;
-        font-size: 20px;
+        font-size: 22px;
       }
-
+      h3 {
+        margin: 18px 0 8px;
+        font-size: 16px;
+      }
       p, li {
         color: var(--muted);
         line-height: 1.65;
       }
-
-      .stack {
-        display: grid;
-        gap: 16px;
-        margin-top: 16px;
+      ul {
+        margin: 8px 0 0;
+        padding-left: 20px;
       }
-
-      .card {
-        padding: 18px;
-      }
-
       .grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
         gap: 12px;
       }
-
       .box {
-        display: grid;
-        gap: 8px;
-        border: 1px solid #dde5f2;
-        border-radius: 14px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
         background: #fbfcfe;
         padding: 14px;
       }
-
-      .box strong {
-        font-size: 15px;
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
       }
-
+      th, td {
+        border: 1px solid var(--line);
+        padding: 10px;
+        text-align: left;
+        vertical-align: top;
+        font-size: 14px;
+      }
+      th {
+        background: #f8fafc;
+      }
       code {
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       }
-
       pre {
-        margin: 0;
+        margin: 10px 0 0;
         overflow: auto;
         white-space: pre-wrap;
         word-break: break-word;
         padding: 12px;
         border-radius: 12px;
-        background: var(--warm);
-        border: 1px solid #f0ddb1;
-        color: #6a4c00;
+        background: var(--code-bg);
+        border: 1px solid var(--code-line);
         font-size: 12px;
         line-height: 1.5;
       }
-
       .links {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
         gap: 12px;
       }
-
       .link-card {
         display: grid;
         gap: 6px;
         text-decoration: none;
         color: inherit;
-        border: 1px solid #dde5f2;
-        border-radius: 14px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
         background: #fff;
         padding: 14px;
       }
-
       .link-card span {
         color: #2e4f8d;
         font-size: 12px;
         word-break: break-all;
-      }
-
-      .pill {
-        width: fit-content;
-        padding: 4px 8px;
-        border-radius: 999px;
-        background: var(--warm);
-        border: 1px solid #f0ddb1;
-        color: #6a4c00;
-        font-size: 12px;
-        font-weight: 700;
       }
     </style>
   </head>
   <body>
     <main class="page">
       <section class="hero">
-        <p class="eyebrow">AppPack Runtime Spec</p>
-        <h1>Where the program-specific runtime logic lives</h1>
+        <p class="eyebrow">Runtime Spec V1 Reference</p>
+        <h1>Program-specific runtime logic in AppPack</h1>
         <p>
-          AppPack keeps instruction-level truth in Codama, indexed reads in the indexing spec, and
-          only a narrow deterministic execution layer in the runtime spec.
+          This page documents the current <code>solana-agent-runtime.v1</code> contract and where
+          the program-specific logic lives after moving instruction truth into Codama and indexed
+          reads into the indexing spec.
         </p>
       </section>
 
-      <section class="stack">
-        <article class="card">
-          <h2>The split</h2>
-          <div class="grid">
-            <div class="box">
-              <strong>Codama</strong>
-              <div class="pill">instruction source of truth</div>
-              <p>Instruction shape, named accounts, signer metadata, fixed defaults, PDA-backed defaults.</p>
-            </div>
-            <div class="box">
-              <strong>Indexing spec</strong>
-              <div class="pill">reads and discovery</div>
-              <p>Search, feeds, ranking, series, and all other indexed read semantics.</p>
-            </div>
-            <div class="box">
-              <strong>Runtime spec</strong>
-              <div class="pill">deterministic execution layer</div>
-              <p>Deterministic compute, write preparation, and the small transaction envelope around a write.</p>
-            </div>
+      <section class="card">
+        <h2>Pack split</h2>
+        <div class="grid">
+          <div class="box">
+            <strong>Codama</strong>
+            <ul>
+              <li>instruction shape</li>
+              <li>named accounts</li>
+              <li>signers</li>
+              <li>fixed/default accounts</li>
+              <li>PDA-backed defaults when declared</li>
+            </ul>
           </div>
-        </article>
-
-        <article class="card">
-          <h2>What the program maintainer writes</h2>
-          <p>
-            Program-specific runtime logic lives in a per-protocol file such as
-            <code>public/idl/orca_whirlpool.runtime.json</code>. That file is provided by the pack
-            maintainer.
-          </p>
-          <div class="grid">
-            <div class="box">
-              <strong><code>computes</code></strong>
-              <p>Named deterministic protocol computations such as quotes, thresholds, and typed previews.</p>
-            </div>
-            <div class="box">
-              <strong><code>contract_writes</code></strong>
-              <p>Instruction preparation using Codama metadata plus runtime inputs and computed values.</p>
-            </div>
-            <div class="box">
-              <strong><code>resolve</code></strong>
-              <p>Only the extra runtime context still needed outside Codama, such as account decode or ATA derivation.</p>
-            </div>
-            <div class="box">
-              <strong><code>pre</code> / <code>post</code></strong>
-              <p>The remaining transaction-envelope logic, such as ATA creation, WSOL sync, and cleanup.</p>
-            </div>
+          <div class="box">
+            <strong>Indexing spec</strong>
+            <ul>
+              <li>search</li>
+              <li>feeds</li>
+              <li>ranking</li>
+              <li>series</li>
+              <li>all indexed read semantics</li>
+            </ul>
           </div>
-        </article>
+          <div class="box">
+            <strong>Runtime spec</strong>
+            <ul>
+              <li>deterministic compute</li>
+              <li>write preparation</li>
+              <li>resolve steps outside Codama</li>
+              <li>small transaction-envelope logic</li>
+            </ul>
+          </div>
+        </div>
+      </section>
 
-        <article class="card">
-          <h2>Minimal file shape</h2>
-          <pre>{
+      <section class="card">
+        <h2>Top-level shape</h2>
+        <pre>{
   "$schema": "/idl/solana_agent_runtime.schema.v1.json",
   "schema": "solana-agent-runtime.v1",
-  "computes": {
-    "quote_exact_in": { "...": "..." }
-  },
-  "contract_writes": {
-    "swap_exact_in": { "...": "..." }
-  }
+  "computes": {},
+  "contract_writes": {}
 }</pre>
-          <p>
-            The runtime spec deliberately does not restate the raw instruction schema. Codama already
-            owns that.
-          </p>
-        </article>
+        <table>
+          <thead>
+            <tr><th>Attribute</th><th>Required</th><th>Type</th><th>Meaning</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>$schema</code></td><td>No</td><td>string</td><td>JSON schema path.</td></tr>
+            <tr><td><code>schema</code></td><td>Yes</td><td>string</td><td>Must be <code>solana-agent-runtime.v1</code>.</td></tr>
+            <tr><td><code>computes</code></td><td>Yes</td><td>object</td><td>Map of operation id to <code>computeSpec</code>.</td></tr>
+            <tr><td><code>contract_writes</code></td><td>Yes</td><td>object</td><td>Map of operation id to <code>executionSpec</code>.</td></tr>
+          </tbody>
+        </table>
+      </section>
 
-        <article class="card">
-          <h2>Concrete Orca example</h2>
-          <div class="grid">
-            <div class="box">
-              <strong><code>quote_exact_in</code></strong>
-              <p>Decodes the Whirlpool account, computes swap direction, tick arrays, <code>estimated_out</code>, and <code>minimum_out</code>.</p>
-            </div>
-            <div class="box">
-              <strong><code>swap_exact_in</code></strong>
-              <p>Uses Codama’s <code>swap_v2</code> metadata plus computed values to prepare the final draft.</p>
-            </div>
-          </div>
-          <pre>{
+      <section class="card">
+        <h2>Shared object reference</h2>
+
+        <h3><code>inputSpec</code></h3>
+        <table>
+          <thead><tr><th>Attribute</th><th>Required</th><th>Type</th></tr></thead>
+          <tbody>
+            <tr><td><code>type</code></td><td>Yes</td><td>string</td></tr>
+            <tr><td><code>required</code></td><td>No</td><td>boolean</td></tr>
+            <tr><td><code>default</code></td><td>No</td><td>jsonValue</td></tr>
+          </tbody>
+        </table>
+
+        <h3><code>outputFieldSpec</code></h3>
+        <table>
+          <thead><tr><th>Attribute</th><th>Required</th><th>Type</th></tr></thead>
+          <tbody>
+            <tr><td><code>type</code></td><td>Yes</td><td>string</td></tr>
+            <tr><td><code>required</code></td><td>No</td><td>boolean</td></tr>
+            <tr><td><code>description</code></td><td>No</td><td>string</td></tr>
+          </tbody>
+        </table>
+
+        <h3><code>read_output</code></h3>
+        <table>
+          <thead><tr><th>Attribute</th><th>Required</th><th>Type</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><code>type</code></td><td>Yes</td><td>enum</td><td><code>array</code>, <code>object</code>, <code>scalar</code>, <code>list</code></td></tr>
+            <tr><td><code>source</code></td><td>Yes</td><td>string</td><td>Runtime expression.</td></tr>
+            <tr><td><code>object_schema</code></td><td>No</td><td>object</td><td>For object outputs.</td></tr>
+            <tr><td><code>item_schema</code></td><td>No</td><td>object</td><td>For array/list outputs.</td></tr>
+            <tr><td><code>scalar_type</code></td><td>No</td><td>string</td><td>For scalar outputs.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="card">
+        <h2><code>computeSpec</code></h2>
+        <table>
+          <thead><tr><th>Attribute</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td><code>instruction</code></td><td>No</td><td>string</td><td>Instruction name for contextual alignment with Codama.</td></tr>
+            <tr><td><code>inputs</code></td><td>No</td><td>object</td><td>Map of input name to <code>inputSpec</code>.</td></tr>
+            <tr><td><code>resolve</code></td><td>No</td><td>array</td><td>Array of <code>resolveStepSpec</code>.</td></tr>
+            <tr><td><code>compute</code></td><td>No</td><td>array</td><td>Array of <code>computeStepSpec</code>.</td></tr>
+            <tr><td><code>read_output</code></td><td>No</td><td>object</td><td>Typed output contract.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="card">
+        <h2><code>executionSpec</code></h2>
+        <table>
+          <thead><tr><th>Attribute</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td><code>instruction</code></td><td>No</td><td>string</td><td>Target instruction name in Codama.</td></tr>
+            <tr><td><code>inputs</code></td><td>No</td><td>object</td><td>Map of input name to <code>inputSpec</code>.</td></tr>
+            <tr><td><code>resolve</code></td><td>No</td><td>array</td><td>Array of <code>resolveStepSpec</code>.</td></tr>
+            <tr><td><code>compute</code></td><td>No</td><td>array</td><td>Array of <code>computeStepSpec</code>.</td></tr>
+            <tr><td><code>args</code></td><td>No</td><td>object</td><td>Map of arg name to scalar binding.</td></tr>
+            <tr><td><code>accounts</code></td><td>No</td><td>object</td><td>Map of account name to string binding.</td></tr>
+            <tr><td><code>remaining_accounts</code></td><td>No</td><td>string or array</td><td>String reference or explicit meta list.</td></tr>
+            <tr><td><code>pre</code></td><td>No</td><td>array</td><td>Array of <code>preInstructionSpec</code>.</td></tr>
+            <tr><td><code>post</code></td><td>No</td><td>array</td><td>Array of <code>postInstructionSpec</code>.</td></tr>
+            <tr><td><code>read_output</code></td><td>No</td><td>object</td><td>Typed output contract.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="card">
+        <h2><code>resolveStepSpec</code></h2>
+        <table>
+          <thead><tr><th><code>kind</code></th><th>Required attributes</th><th>Optional attributes</th></tr></thead>
+          <tbody>
+            <tr><td><code>wallet_pubkey</code></td><td><code>name</code>, <code>kind</code></td><td>none</td></tr>
+            <tr><td><code>decode_account</code></td><td><code>name</code>, <code>kind</code>, <code>address</code>, <code>account_type</code></td><td>none</td></tr>
+            <tr><td><code>account_owner</code></td><td><code>name</code>, <code>kind</code>, <code>address</code></td><td>none</td></tr>
+            <tr><td><code>token_account_balance</code></td><td><code>name</code>, <code>kind</code>, <code>address</code></td><td><code>allow_missing</code>, <code>default</code></td></tr>
+            <tr><td><code>token_supply</code></td><td><code>name</code>, <code>kind</code>, <code>mint</code></td><td>none</td></tr>
+            <tr><td><code>ata</code></td><td><code>name</code>, <code>kind</code>, <code>owner</code>, <code>mint</code></td><td><code>token_program</code>, <code>allow_owner_off_curve</code></td></tr>
+            <tr><td><code>pda</code></td><td><code>name</code>, <code>kind</code>, <code>program_id</code></td><td><code>seeds</code></td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="card">
+        <h2><code>computeStepSpec</code></h2>
+        <table>
+          <thead><tr><th>Kind group</th><th>Kinds</th><th>Main attributes</th></tr></thead>
+          <tbody>
+            <tr><td>Arithmetic</td><td><code>math.add</code>, <code>math.sum</code>, <code>math.mul</code>, <code>math.sub</code></td><td><code>name</code>, <code>kind</code>, <code>values</code></td></tr>
+            <tr><td>Division</td><td><code>math.floor_div</code></td><td><code>name</code>, <code>kind</code>, <code>dividend</code>, <code>divisor</code></td></tr>
+            <tr><td>List</td><td><code>list.range_map</code>, <code>list.get</code>, <code>list.filter</code>, <code>list.first</code>, <code>list.min_by</code>, <code>list.max_by</code></td><td>Depends on kind; see schema.</td></tr>
+            <tr><td>Utility</td><td><code>coalesce</code>, <code>pda(seed_spec)</code></td><td><code>values</code> or <code>seeds</code>, plus optional <code>program_id</code>, <code>map_over</code></td></tr>
+            <tr><td>Comparison</td><td><code>compare.equals</code>, <code>compare.not_equals</code>, <code>compare.gt</code>, <code>compare.gte</code>, <code>compare.lt</code>, <code>compare.lte</code></td><td><code>name</code>, <code>kind</code>, <code>left</code>, <code>right</code></td></tr>
+            <tr><td>Logic</td><td><code>logic.if</code></td><td><code>name</code>, <code>kind</code>, <code>condition</code>, <code>then</code>, <code>else</code></td></tr>
+            <tr><td>Assertion</td><td><code>assert.not_null</code></td><td><code>name</code>, <code>kind</code>, <code>value</code>, optional <code>message</code></td></tr>
+            <tr><td>Curve</td><td><code>curve.linear_interpolate_bps</code></td><td><code>name</code>, <code>kind</code>, <code>points</code>, <code>x_bps</code>, optional <code>x_field</code>, <code>y_field</code></td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="card">
+        <h2><code>metaConditionSpec</code></h2>
+        <p>Used in <code>when</code> conditions for <code>pre</code> and <code>post</code>.</p>
+        <table>
+          <thead><tr><th>Form</th><th>Attributes</th></tr></thead>
+          <tbody>
+            <tr><td><code>equals</code></td><td><code>{ "equals": [left, right] }</code></td></tr>
+            <tr><td><code>all</code></td><td><code>{ "all": [condition, ...] }</code></td></tr>
+            <tr><td><code>any</code></td><td><code>{ "any": [condition, ...] }</code></td></tr>
+            <tr><td><code>not</code></td><td><code>{ "not": condition }</code></td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="card">
+        <h2><code>preInstructionSpec</code> and <code>postInstructionSpec</code></h2>
+        <table>
+          <thead><tr><th>Kind</th><th>Required attributes</th><th>Optional attributes</th></tr></thead>
+          <tbody>
+            <tr><td><code>spl_ata_create_idempotent</code></td><td><code>name</code>, <code>kind</code>, <code>payer</code>, <code>ata</code>, <code>owner</code>, <code>mint</code></td><td><code>token_program</code>, <code>associated_token_program</code>, <code>when</code></td></tr>
+            <tr><td><code>system_transfer</code></td><td><code>name</code>, <code>kind</code>, <code>from</code>, <code>to</code>, <code>lamports</code></td><td><code>when</code></td></tr>
+            <tr><td><code>spl_token_sync_native</code></td><td><code>name</code>, <code>kind</code>, <code>account</code></td><td><code>token_program</code>, <code>when</code></td></tr>
+            <tr><td><code>spl_token_close_account</code></td><td><code>name</code>, <code>kind</code>, <code>account</code>, <code>destination</code>, <code>owner</code></td><td><code>token_program</code>, <code>when</code></td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="card">
+        <h2>Concrete Orca example</h2>
+        <p>
+          In the Orca pack, <code>quote_exact_in</code> decodes the <code>Whirlpool</code> account,
+          computes direction, tick arrays, <code>estimated_out</code>, and <code>minimum_out</code>.
+          Then <code>swap_exact_in</code> uses Codama instruction metadata plus these computed values
+          to prepare the final write.
+        </p>
+        <pre>{
+  "instruction": "swap_v2",
   "resolve": [
     {
       "name": "wallet",
@@ -268,49 +362,34 @@
       "kind": "coalesce",
       "values": ["$other_amount_threshold"]
     }
-  ]
+  ],
+  "args": {
+    "amount": "$input.amount_in",
+    "other_amount_threshold": "$other_amount_threshold"
+  }
 }</pre>
-        </article>
+      </section>
 
-        <article class="card">
-          <h2>What stays out of the runtime spec</h2>
-          <div class="grid">
-            <div class="box">
-              <strong>Keep in Codama</strong>
-              <p>Instruction structure, account metadata, signer metadata, fixed/default accounts, PDA-backed defaults.</p>
-            </div>
-            <div class="box">
-              <strong>Keep in the indexing spec</strong>
-              <p>Discovery, search, feeds, ranking, and time-series semantics.</p>
-            </div>
-            <div class="box">
-              <strong>Keep out of both</strong>
-              <p>Any flow that requires “transaction A, then read live state, then transaction B” belongs in a higher-level runtime.</p>
-            </div>
-          </div>
-        </article>
-
-        <article class="card">
-          <h2>Useful links</h2>
-          <div class="links">
-            <a class="link-card" href="/idl/solana_agent_runtime.schema.v1.json" target="_blank" rel="noreferrer">
-              <strong>Runtime schema</strong>
-              <span>/idl/solana_agent_runtime.schema.v1.json</span>
-            </a>
-            <a class="link-card" href="/idl/orca_whirlpool.runtime.json" target="_blank" rel="noreferrer">
-              <strong>Orca runtime spec</strong>
-              <span>/idl/orca_whirlpool.runtime.json</span>
-            </a>
-            <a class="link-card" href="/idl/orca_whirlpool.codama.json" target="_blank" rel="noreferrer">
-              <strong>Orca Codama IDL</strong>
-              <span>/idl/orca_whirlpool.codama.json</span>
-            </a>
-            <a class="link-card" href="/demo/loris/" target="_blank" rel="noreferrer">
-              <strong>Live demo</strong>
-              <span>/demo/loris/</span>
-            </a>
-          </div>
-        </article>
+      <section class="card">
+        <h2>Useful links</h2>
+        <div class="links">
+          <a class="link-card" href="/idl/solana_agent_runtime.schema.v1.json" target="_blank" rel="noreferrer">
+            <strong>Runtime schema</strong>
+            <span>/idl/solana_agent_runtime.schema.v1.json</span>
+          </a>
+          <a class="link-card" href="/idl/orca_whirlpool.runtime.json" target="_blank" rel="noreferrer">
+            <strong>Orca runtime spec</strong>
+            <span>/idl/orca_whirlpool.runtime.json</span>
+          </a>
+          <a class="link-card" href="/idl/orca_whirlpool.codama.json" target="_blank" rel="noreferrer">
+            <strong>Orca Codama IDL</strong>
+            <span>/idl/orca_whirlpool.codama.json</span>
+          </a>
+          <a class="link-card" href="/demo/loris/" target="_blank" rel="noreferrer">
+            <strong>Live Orca demo</strong>
+            <span>/demo/loris/</span>
+          </a>
+        </div>
       </section>
     </main>
   </body>
