@@ -99,7 +99,7 @@ export function useBuilderSubmitController(options: UseBuilderSubmitControllerOp
       }
 
       const operation = options.selectedBuilderOperation;
-      const isReadOnlyOperation = !operation.instruction;
+      const isReadOnlyOperation = operation.executionKind !== 'write';
       if (!options.wallet.publicKey && !isReadOnlyOperation) {
         options.setBuilderStatusText('Error: Connect wallet first.');
         options.setBuilderRawDetails(null);

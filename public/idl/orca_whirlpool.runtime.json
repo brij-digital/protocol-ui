@@ -461,7 +461,7 @@
   },
   "views": {
     "quote_exact_in": {
-      "instruction": "swap_v2",
+      "preview_instruction": "swap_v2",
       "inputs": {
         "token_in_mint": "token_mint",
         "token_out_mint": "token_mint",

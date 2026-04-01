@@ -172,7 +172,7 @@ export function renderMetaExplain(explanation: RuntimeOperationExplain): string 
 
   return [
     `Runtime operation: ${explanation.protocolId}/${explanation.operationId}`,
-    `instruction: ${explanation.instruction || 'read-only'}`,
+    `instruction: ${explanation.instruction || explanation.previewInstruction || 'read-only'}`,
     '',
     'Inputs:',
     ...(inputLines.length > 0 ? inputLines : ['- none']),

@@ -211,8 +211,9 @@
         <table>
           <thead><tr><th>Attribute</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
           <tbody>
+            <tr><td><code>preview_instruction</code></td><td>No</td><td>string</td><td>Codama instruction name used only for preview account resolution.</td></tr>
             <tr><td><code>inputs</code></td><td>No</td><td>object</td><td>Map of input name to type string.</td></tr>
-            <tr><td><code>output</code></td><td>No</td><td>object</td><td>Typed output contract.</td></tr>
+            <tr><td><code>output</code></td><td>Yes</td><td>object</td><td>Typed output contract.</td></tr>
           </tbody>
         </table>
       </section>
@@ -248,7 +249,7 @@
         <table>
           <thead><tr><th>Attribute</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
           <tbody>
-            <tr><td><code>instruction</code></td><td>No</td><td>string</td><td>Target instruction name in Codama.</td></tr>
+            <tr><td><code>instruction</code></td><td>Yes</td><td>string</td><td>Target instruction name in Codama.</td></tr>
             <tr><td><code>load</code></td><td>No</td><td>array</td><td>Array of <code>loadStepSpec</code>.</td></tr>
             <tr><td><code>transform</code></td><td>No</td><td>array</td><td>Array of string references to top-level <code>transforms</code>.</td></tr>
             <tr><td><code>args</code></td><td>No</td><td>object</td><td>Map of arg name to scalar binding.</td></tr>
@@ -339,7 +340,7 @@
           to prepare the final write.
         </p>
         <pre>{
-  "instruction": "swap_v2",
+  "preview_instruction": "swap_v2",
   "load": [
     {
       "name": "wallet",
