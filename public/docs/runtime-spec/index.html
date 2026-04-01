@@ -380,7 +380,15 @@
       ],
       "output": {
         "type": "object",
-        "source": "$derived"
+        "source": "$derived",
+        "object_schema": {
+          "fields": {
+            "a_to_b": { "type": "bool" },
+            "minimum_out": { "type": "u64" },
+            "sqrt_price_limit": { "type": "u128" },
+            "tick_arrays": { "type": "json" }
+          }
+        }
       }
     }
   },
