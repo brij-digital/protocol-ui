@@ -4,21 +4,11 @@
   "reads": {
     "quote_exact_in": {
       "inputs": {
-        "token_in_mint": {
-          "type": "token_mint"
-        },
-        "token_out_mint": {
-          "type": "token_mint"
-        },
-        "amount_in": {
-          "type": "u64"
-        },
-        "slippage_bps": {
-          "type": "u16"
-        },
-        "whirlpool": {
-          "type": "pubkey"
-        }
+        "token_in_mint": "token_mint",
+        "token_out_mint": "token_mint",
+        "amount_in": "u64",
+        "slippage_bps": "u16",
+        "whirlpool": "pubkey"
       },
       "load": [
         {
@@ -213,7 +203,6 @@
           }
         }
       ],
-      "instruction_context": "swap_v2",
       "output": {
         "type": "object",
         "source": "$derived",
@@ -224,40 +213,31 @@
           ],
           "fields": {
             "whirlpool": {
-              "type": "pubkey",
-              "required": true
+              "type": "pubkey"
             },
             "token_in_mint": {
-              "type": "pubkey",
-              "required": true
+              "type": "pubkey"
             },
             "token_out_mint": {
-              "type": "pubkey",
-              "required": true
+              "type": "pubkey"
             },
             "amount_in": {
-              "type": "u64",
-              "required": true
+              "type": "u64"
             },
             "slippage_bps": {
-              "type": "u16",
-              "required": true
+              "type": "u16"
             },
             "estimated_out": {
-              "type": "u64",
-              "required": true
+              "type": "u64"
             },
             "minimum_out": {
-              "type": "u64",
-              "required": true
+              "type": "u64"
             },
             "a_to_b": {
-              "type": "bool",
-              "required": true
+              "type": "bool"
             },
             "pool_fee_bps": {
-              "type": "number",
-              "required": false
+              "type": "number"
             }
           }
         }

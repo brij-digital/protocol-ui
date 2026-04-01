@@ -116,8 +116,7 @@ async function main() {
           ? asObject(operation.inputs ?? {}, `${protocolId}.agentRuntime.${sectionName}.${operationId}.inputs`)
           : {};
         for (const [inputName, inputRaw] of Object.entries(inputs)) {
-          const input = asObject(inputRaw, `${protocolId}.agentRuntime.${sectionName}.${operationId}.inputs.${inputName}`);
-          asNonEmptyString(input.type, `${protocolId}.agentRuntime.${sectionName}.${operationId}.inputs.${inputName}.type`);
+          asNonEmptyString(inputRaw, `${protocolId}.agentRuntime.${sectionName}.${operationId}.inputs.${inputName}`);
         }
         if (operation.output !== undefined) {
           const output = asObject(

@@ -122,12 +122,16 @@ function collectInstructionNamesFromCodama(codama, label) {
   );
 }
 
-function validateRuntimeInputs(protocolId, sectionLabel, operationId, operation) {
+function validateRuntimeInputs(protocolId, sectionLabel, operationId, operation, inputShape = 'typeString') {
   const op = asObject(operation, `${protocolId}.${sectionLabel}.${operationId}`);
   const inputs = asOptionalObject(op.inputs, `${protocolId}.${sectionLabel}.${operationId}.inputs`);
   for (const [inputName, inputRaw] of Object.entries(inputs)) {
-    const input = asObject(inputRaw, `${protocolId}.${sectionLabel}.${operationId}.inputs.${inputName}`);
-    asString(input.type, `${protocolId}.${sectionLabel}.${operationId}.inputs.${inputName}.type`);
+    if (inputShape === 'typedObject') {
+      const input = asObject(inputRaw, `${protocolId}.${sectionLabel}.${operationId}.inputs.${inputName}`);
+      asString(input.type, `${protocolId}.${sectionLabel}.${operationId}.inputs.${inputName}.type`);
+      continue;
+    }
+    asString(inputRaw, `${protocolId}.${sectionLabel}.${operationId}.inputs.${inputName}`);
   }
 
   if (op.output !== undefined) {
@@ -231,18 +235,13 @@ function validateIndexingIndexView(protocolId, indexing, operationId) {
   const indexView = validateRuntimeInputs(protocolId, 'indexing.operations', operationId, asObject(
     operation.index_view,
     `${protocolId}.indexing.operations.${operationId}.index_view`,
-  ));
+  ), 'typedObject');
   asString(indexView.kind, `${protocolId}.indexing.operations.${operationId}.index_view.kind`);
 }
 
 function validateRead(protocolId, operationId, operation, instructionNames, transformNames) {
   const op = validateRuntimeInputs(protocolId, 'agentRuntime.reads', operationId, operation);
-  if (op.instruction_context !== undefined) {
-    const instruction = asString(op.instruction_context, `${protocolId}.agentRuntime.reads.${operationId}.instruction_context`);
-    if (!instructionNames.has(instruction)) {
-      fail(`${protocolId}: read ${operationId} references missing instruction_context ${instruction}.`);
-    }
-  }
+  void instructionNames;
   validateTransformRefs(protocolId, 'agentRuntime.reads', operationId, op, transformNames);
 }
 
