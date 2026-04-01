@@ -454,12 +454,14 @@
   },
   "views": {
     "quote_exact_in": {
+      "instruction": "swap_v2",
       "inputs": {
         "token_in_mint": "token_mint",
         "token_out_mint": "token_mint",
         "amount_in": "u64",
         "slippage_bps": "u16",
-        "whirlpool": "pubkey"
+        "whirlpool": "pubkey",
+        "unwrap_sol_output": "bool"
       },
       "load": [
         {

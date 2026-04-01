@@ -73,7 +73,8 @@
         "token_out_mint": "$token_out.output.mint",
         "amount_in": "$input.amount_in",
         "slippage_bps": "$input.slippage_bps",
-        "whirlpool": "$pool.output.pool"
+        "whirlpool": "$pool.output.pool",
+        "unwrap_sol_output": "$input.unwrap_sol_output"
       }
     },
     {
@@ -105,6 +106,15 @@
     "token_out": "$token_out.output",
     "pool": "$pool.output",
     "quote": "$quote.output",
-    "draft": "$draft.output"
+    "draft": {
+      "protocolId": "$draft.output.protocolId",
+      "operationId": "$draft.output.operationId",
+      "instructionName": "$draft.output.instructionName",
+      "args": "$draft.output.args",
+      "accounts": "$draft.output.accounts",
+      "remainingAccounts": "$draft.output.remainingAccounts",
+      "preInstructions": "$quote.meta.preInstructions",
+      "postInstructions": "$quote.meta.postInstructions"
+    }
   }
 }
