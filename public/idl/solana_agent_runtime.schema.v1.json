@@ -5,7 +5,7 @@
   "type": "object",
   "required": [
     "schema",
-    "reads",
+    "views",
     "writes",
     "transforms"
   ],
@@ -13,10 +13,10 @@
     "schema": {
       "const": "solana-agent-runtime.v1"
     },
-    "reads": {
+    "views": {
       "type": "object",
       "additionalProperties": {
-        "$ref": "#/$defs/readSpec"
+        "$ref": "#/$defs/viewSpec"
       }
     },
     "writes": {
@@ -100,7 +100,7 @@
       },
       "additionalProperties": false
     },
-    "readOutputSpec": {
+    "viewOutputSpec": {
       "type": "object",
       "required": [
         "type",
@@ -112,8 +112,7 @@
           "enum": [
             "array",
             "object",
-            "scalar",
-            "list"
+            "scalar"
           ]
         },
         "source": {
@@ -188,7 +187,7 @@
         "$ref": "#/$defs/transformStepSpec"
       }
     },
-    "readSpec": {
+    "viewSpec": {
       "type": "object",
       "properties": {
         "inputs": {
@@ -210,7 +209,7 @@
           }
         },
         "output": {
-          "$ref": "#/$defs/readOutputSpec"
+          "$ref": "#/$defs/viewOutputSpec"
         }
       },
       "additionalProperties": false

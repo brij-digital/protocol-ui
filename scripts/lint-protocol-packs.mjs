@@ -102,7 +102,7 @@ async function main() {
 
     asObject(runtimePack.transforms ?? {}, `${protocolId}.agentRuntime.transforms`);
     const sections = [
-      ['reads', asObject(runtimePack.reads ?? {}, `${protocolId}.agentRuntime.reads`)],
+      ['views', asObject(runtimePack.views ?? {}, `${protocolId}.agentRuntime.views`)],
       ['writes', asObject(runtimePack.writes ?? {}, `${protocolId}.agentRuntime.writes`)],
     ];
     let lintedOperations = 0;
@@ -112,7 +112,7 @@ async function main() {
         if (sectionName === 'writes' && operation.inputs !== undefined) {
           fail(`${protocolId}.agentRuntime.writes.${operationId}.inputs is no longer allowed; write inputs come from Codama.`);
         }
-        const inputs = sectionName === 'reads'
+        const inputs = sectionName === 'views'
           ? asObject(operation.inputs ?? {}, `${protocolId}.agentRuntime.${sectionName}.${operationId}.inputs`)
           : {};
         for (const [inputName, inputRaw] of Object.entries(inputs)) {

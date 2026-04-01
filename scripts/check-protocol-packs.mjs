@@ -239,10 +239,10 @@ function validateIndexingIndexView(protocolId, indexing, operationId) {
   asString(indexView.kind, `${protocolId}.indexing.operations.${operationId}.index_view.kind`);
 }
 
-function validateRead(protocolId, operationId, operation, instructionNames, transformNames) {
-  const op = validateRuntimeInputs(protocolId, 'agentRuntime.reads', operationId, operation);
+function validateView(protocolId, operationId, operation, instructionNames, transformNames) {
+  const op = validateRuntimeInputs(protocolId, 'agentRuntime.views', operationId, operation);
   void instructionNames;
-  validateTransformRefs(protocolId, 'agentRuntime.reads', operationId, op, transformNames);
+  validateTransformRefs(protocolId, 'agentRuntime.views', operationId, op, transformNames);
 }
 
 async function main() {
@@ -344,7 +344,7 @@ async function main() {
     }
 
     const transformNames = validateTransforms(protocolId, agentRuntime);
-    const reads = asOptionalObject(agentRuntime.reads, `${protocolId}.agentRuntime.reads`);
+    const views = asOptionalObject(agentRuntime.views, `${protocolId}.agentRuntime.views`);
     const writes = asOptionalObject(agentRuntime.writes, `${protocolId}.agentRuntime.writes`);
 
     const indexingOperations = asOptionalObject(indexing.operations, `${protocolId}.indexing.operations`);
@@ -356,8 +356,8 @@ async function main() {
       validateIndexingIndexView(protocolId, indexing, operationId);
       operationCount += 1;
     }
-    for (const [operationId, operationRaw] of Object.entries(reads)) {
-      validateRead(protocolId, operationId, operationRaw, instructionNames, transformNames);
+    for (const [operationId, operationRaw] of Object.entries(views)) {
+      validateView(protocolId, operationId, operationRaw, instructionNames, transformNames);
       operationCount += 1;
     }
     for (const [operationId, operationRaw] of Object.entries(writes)) {

@@ -162,11 +162,11 @@ async function main() {
         if (runtime.schema !== 'solana-agent-runtime.v1') {
           protocolErrors.push(`Unsupported agent runtime schema: ${String(runtime.schema ?? '')}`);
         }
-        const reads = asObject(runtime.reads ?? {}, `${id}.agentRuntime.reads`);
+        const views = asObject(runtime.views ?? {}, `${id}.agentRuntime.views`);
         const writes = asObject(runtime.writes ?? {}, `${id}.agentRuntime.writes`);
         const transforms = asObject(runtime.transforms ?? {}, `${id}.agentRuntime.transforms`);
         void transforms;
-        if (Object.keys(reads).length + Object.keys(writes).length === 0) {
+        if (Object.keys(views).length + Object.keys(writes).length === 0) {
           protocolWarnings.push('No agent runtime capabilities declared.');
         }
       } catch (error) {

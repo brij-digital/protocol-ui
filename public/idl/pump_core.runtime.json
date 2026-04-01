@@ -1,153 +1,6 @@
 {
   "$schema": "/idl/solana_agent_runtime.schema.v1.json",
   "schema": "solana-agent-runtime.v1",
-  "reads": {
-    "preview_buy_exact_sol_in": {
-      "inputs": {
-        "base_mint": "pubkey",
-        "spendable_sol_in": "u64",
-        "slippage_bps": "u16",
-        "track_volume": "bool"
-      },
-      "load": [
-        {
-          "name": "wallet",
-          "kind": "wallet_pubkey"
-        },
-        {
-          "name": "token_program",
-          "kind": "account_owner",
-          "address": "$input.base_mint"
-        },
-        {
-          "name": "global",
-          "kind": "pda",
-          "program_id": "$protocol.programId",
-          "seeds": [
-            "utf8:global"
-          ]
-        },
-        {
-          "name": "global_data",
-          "kind": "decode_account",
-          "address": "$global",
-          "account_type": "Global"
-        },
-        {
-          "name": "bonding_curve",
-          "kind": "pda",
-          "program_id": "$protocol.programId",
-          "seeds": [
-            "utf8:bonding-curve",
-            "$input.base_mint"
-          ]
-        },
-        {
-          "name": "bonding_curve_v2",
-          "kind": "pda",
-          "program_id": "$protocol.programId",
-          "seeds": [
-            "utf8:bonding-curve-v2",
-            "$input.base_mint"
-          ]
-        },
-        {
-          "name": "bonding_curve_data",
-          "kind": "decode_account",
-          "address": "$bonding_curve",
-          "account_type": "BondingCurve"
-        },
-        {
-          "name": "associated_bonding_curve",
-          "kind": "ata",
-          "owner": "$bonding_curve",
-          "mint": "$input.base_mint",
-          "token_program": "$token_program",
-          "allow_owner_off_curve": true
-        },
-        {
-          "name": "associated_user",
-          "kind": "ata",
-          "owner": "$wallet",
-          "mint": "$input.base_mint",
-          "token_program": "$token_program"
-        },
-        {
-          "name": "creator_vault",
-          "kind": "pda",
-          "program_id": "$protocol.programId",
-          "seeds": [
-            "utf8:creator-vault",
-            "$bonding_curve_data.creator"
-          ]
-        },
-        {
-          "name": "event_authority",
-          "kind": "pda",
-          "program_id": "$protocol.programId",
-          "seeds": [
-            "utf8:__event_authority"
-          ]
-        },
-        {
-          "name": "global_volume_accumulator",
-          "kind": "pda",
-          "program_id": "$protocol.programId",
-          "seeds": [
-            "utf8:global_volume_accumulator"
-          ]
-        },
-        {
-          "name": "user_volume_accumulator",
-          "kind": "pda",
-          "program_id": "$protocol.programId",
-          "seeds": [
-            "utf8:user_volume_accumulator",
-            "$wallet"
-          ]
-        },
-        {
-          "name": "fee_config",
-          "kind": "pda",
-          "program_id": "pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ",
-          "seeds": [
-            "utf8:fee_config",
-            "$protocol.programId"
-          ]
-        }
-      ],
-      "transform": [
-        "preview_buy_exact_sol_in__transform"
-      ],
-      "output": {
-        "type": "object",
-        "source": "$derived",
-        "object_schema": {
-          "entity_type": "pump_core_preview_buy_exact_sol_in",
-          "fields": {
-            "base_mint": {
-              "type": "pubkey"
-            },
-            "spendable_sol_in": {
-              "type": "u64"
-            },
-            "slippage_bps": {
-              "type": "u16"
-            },
-            "estimated_out_auto": {
-              "type": "u64"
-            },
-            "min_tokens_out_auto": {
-              "type": "u64"
-            },
-            "total_fee_bps": {
-              "type": "u16"
-            }
-          }
-        }
-      }
-    }
-  },
   "writes": {
     "buy_exact_sol_in": {
       "instruction": "buy_exact_sol_in",
@@ -385,5 +238,152 @@
         "divisor": "10000"
       }
     ]
+  },
+  "views": {
+    "preview_buy_exact_sol_in": {
+      "inputs": {
+        "base_mint": "pubkey",
+        "spendable_sol_in": "u64",
+        "slippage_bps": "u16",
+        "track_volume": "bool"
+      },
+      "load": [
+        {
+          "name": "wallet",
+          "kind": "wallet_pubkey"
+        },
+        {
+          "name": "token_program",
+          "kind": "account_owner",
+          "address": "$input.base_mint"
+        },
+        {
+          "name": "global",
+          "kind": "pda",
+          "program_id": "$protocol.programId",
+          "seeds": [
+            "utf8:global"
+          ]
+        },
+        {
+          "name": "global_data",
+          "kind": "decode_account",
+          "address": "$global",
+          "account_type": "Global"
+        },
+        {
+          "name": "bonding_curve",
+          "kind": "pda",
+          "program_id": "$protocol.programId",
+          "seeds": [
+            "utf8:bonding-curve",
+            "$input.base_mint"
+          ]
+        },
+        {
+          "name": "bonding_curve_v2",
+          "kind": "pda",
+          "program_id": "$protocol.programId",
+          "seeds": [
+            "utf8:bonding-curve-v2",
+            "$input.base_mint"
+          ]
+        },
+        {
+          "name": "bonding_curve_data",
+          "kind": "decode_account",
+          "address": "$bonding_curve",
+          "account_type": "BondingCurve"
+        },
+        {
+          "name": "associated_bonding_curve",
+          "kind": "ata",
+          "owner": "$bonding_curve",
+          "mint": "$input.base_mint",
+          "token_program": "$token_program",
+          "allow_owner_off_curve": true
+        },
+        {
+          "name": "associated_user",
+          "kind": "ata",
+          "owner": "$wallet",
+          "mint": "$input.base_mint",
+          "token_program": "$token_program"
+        },
+        {
+          "name": "creator_vault",
+          "kind": "pda",
+          "program_id": "$protocol.programId",
+          "seeds": [
+            "utf8:creator-vault",
+            "$bonding_curve_data.creator"
+          ]
+        },
+        {
+          "name": "event_authority",
+          "kind": "pda",
+          "program_id": "$protocol.programId",
+          "seeds": [
+            "utf8:__event_authority"
+          ]
+        },
+        {
+          "name": "global_volume_accumulator",
+          "kind": "pda",
+          "program_id": "$protocol.programId",
+          "seeds": [
+            "utf8:global_volume_accumulator"
+          ]
+        },
+        {
+          "name": "user_volume_accumulator",
+          "kind": "pda",
+          "program_id": "$protocol.programId",
+          "seeds": [
+            "utf8:user_volume_accumulator",
+            "$wallet"
+          ]
+        },
+        {
+          "name": "fee_config",
+          "kind": "pda",
+          "program_id": "pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ",
+          "seeds": [
+            "utf8:fee_config",
+            "$protocol.programId"
+          ]
+        }
+      ],
+      "transform": [
+        "preview_buy_exact_sol_in__transform"
+      ],
+      "output": {
+        "type": "object",
+        "source": "$derived",
+        "object_schema": {
+          "entity_type": "pump_core_preview_buy_exact_sol_in",
+          "fields": {
+            "base_mint": {
+              "type": "pubkey"
+            },
+            "spendable_sol_in": {
+              "type": "u64"
+            },
+            "slippage_bps": {
+              "type": "u16"
+            },
+            "estimated_out_auto": {
+              "type": "u64"
+            },
+            "min_tokens_out_auto": {
+              "type": "u64"
+            },
+            "total_fee_bps": {
+              "type": "u16"
+            }
+          }
+        }
+      }
+    }
   }
 }

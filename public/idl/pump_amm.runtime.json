@@ -1,412 +1,6 @@
 {
   "$schema": "/idl/solana_agent_runtime.schema.v1.json",
   "schema": "solana-agent-runtime.v1",
-  "reads": {
-    "preview_buy": {
-      "inputs": {
-        "base_mint": "pubkey",
-        "quote_mint": "pubkey",
-        "quote_amount_in": "u64",
-        "track_volume": "bool",
-        "pool": "pubkey",
-        "slippage_bps": "u16"
-      },
-      "load": [
-        {
-          "name": "wallet",
-          "kind": "wallet_pubkey"
-        },
-        {
-          "name": "pool_data",
-          "kind": "decode_account",
-          "address": "$input.pool",
-          "account_type": "Pool"
-        },
-        {
-          "name": "global_config",
-          "kind": "pda",
-          "program_id": "$protocol.programId",
-          "seeds": [
-            "utf8:global_config"
-          ]
-        },
-        {
-          "name": "global_config_data",
-          "kind": "decode_account",
-          "address": "$global_config",
-          "account_type": "GlobalConfig"
-        },
-        {
-          "name": "base_token_program",
-          "kind": "account_owner",
-          "address": "$pool_data.base_mint"
-        },
-        {
-          "name": "quote_token_program",
-          "kind": "account_owner",
-          "address": "$pool_data.quote_mint"
-        },
-        {
-          "name": "user_base_token_account",
-          "kind": "ata",
-          "owner": "$wallet",
-          "mint": "$pool_data.base_mint",
-          "token_program": "$base_token_program"
-        },
-        {
-          "name": "user_quote_token_account",
-          "kind": "ata",
-          "owner": "$wallet",
-          "mint": "$pool_data.quote_mint",
-          "token_program": "$quote_token_program"
-        },
-        {
-          "name": "coin_creator_vault_authority",
-          "kind": "pda",
-          "program_id": "$protocol.programId",
-          "seeds": [
-            "utf8:creator_vault",
-            "$pool_data.coin_creator"
-          ]
-        },
-        {
-          "name": "coin_creator_vault_ata",
-          "kind": "ata",
-          "owner": "$coin_creator_vault_authority",
-          "mint": "$pool_data.quote_mint",
-          "token_program": "$quote_token_program",
-          "allow_owner_off_curve": true
-        },
-        {
-          "name": "global_volume_accumulator",
-          "kind": "pda",
-          "program_id": "$protocol.programId",
-          "seeds": [
-            "utf8:global_volume_accumulator"
-          ]
-        },
-        {
-          "name": "user_volume_accumulator",
-          "kind": "pda",
-          "program_id": "$protocol.programId",
-          "seeds": [
-            "utf8:user_volume_accumulator",
-            "$wallet"
-          ]
-        },
-        {
-          "name": "user_volume_accumulator_wsol_ata",
-          "kind": "ata",
-          "owner": "$user_volume_accumulator",
-          "mint": "$pool_data.quote_mint",
-          "token_program": "$quote_token_program",
-          "allow_owner_off_curve": true
-        },
-        {
-          "name": "event_authority",
-          "kind": "pda",
-          "program_id": "$protocol.programId",
-          "seeds": [
-            "utf8:__event_authority"
-          ]
-        },
-        {
-          "name": "fee_config",
-          "kind": "pda",
-          "program_id": "pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ",
-          "seeds": [
-            "utf8:fee_config",
-            "$protocol.programId"
-          ]
-        },
-        {
-          "name": "fee_config_data",
-          "kind": "decode_account",
-          "address": "$fee_config",
-          "account_type": "FeeConfig"
-        },
-        {
-          "name": "pump_pool_authority",
-          "kind": "pda",
-          "program_id": "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P",
-          "seeds": [
-            "utf8:pool-authority",
-            "$pool_data.base_mint"
-          ]
-        },
-        {
-          "name": "pool_base_reserve_atomic",
-          "kind": "token_account_balance",
-          "address": "$pool_data.pool_base_token_account"
-        },
-        {
-          "name": "pool_quote_reserve_atomic",
-          "kind": "token_account_balance",
-          "address": "$pool_data.pool_quote_token_account"
-        },
-        {
-          "name": "base_mint_supply_atomic",
-          "kind": "token_supply",
-          "mint": "$pool_data.base_mint"
-        },
-        {
-          "name": "pool_v2",
-          "kind": "pda",
-          "program_id": "$protocol.programId",
-          "seeds": [
-            "utf8:pool-v2",
-            "$pool_data.base_mint"
-          ]
-        }
-      ],
-      "transform": [
-        "preview_buy__transform"
-      ],
-      "args": {
-        "base_amount_out": "$base_amount_out",
-        "max_quote_amount_in": "$max_quote_amount_in",
-        "track_volume": "$input.track_volume"
-      },
-      "accounts": {
-        "pool": "$input.pool",
-        "global_config": "$global_config",
-        "base_mint": "$pool_data.base_mint",
-        "quote_mint": "$pool_data.quote_mint",
-        "user_base_token_account": "$user_base_token_account",
-        "user_quote_token_account": "$user_quote_token_account",
-        "pool_base_token_account": "$pool_data.pool_base_token_account",
-        "pool_quote_token_account": "$pool_data.pool_quote_token_account",
-        "protocol_fee_recipient": "$protocol_fee_recipient",
-        "base_token_program": "$base_token_program",
-        "quote_token_program": "$quote_token_program",
-        "coin_creator_vault_authority": "$coin_creator_vault_authority"
-      },
-      "remaining_accounts": "$remaining_accounts",
-      "pre": [
-        {
-          "kind": "spl_ata_create_idempotent",
-          "payer": "$wallet",
-          "ata": "$user_base_token_account",
-          "owner": "$wallet",
-          "mint": "$pool_data.base_mint",
-          "token_program": "$base_token_program"
-        },
-        {
-          "kind": "spl_ata_create_idempotent",
-          "payer": "$wallet",
-          "ata": "$user_quote_token_account",
-          "owner": "$wallet",
-          "mint": "$pool_data.quote_mint",
-          "token_program": "$quote_token_program"
-        },
-        {
-          "kind": "system_transfer",
-          "from": "$wallet",
-          "to": "$user_quote_token_account",
-          "lamports": "$max_quote_amount_in",
-          "when": {
-            "equals": [
-              "$pool_data.quote_mint",
-              "So11111111111111111111111111111111111111112"
-            ]
-          }
-        },
-        {
-          "kind": "spl_token_sync_native",
-          "account": "$user_quote_token_account",
-          "when": {
-            "equals": [
-              "$pool_data.quote_mint",
-              "So11111111111111111111111111111111111111112"
-            ]
-          }
-        }
-      ],
-      "output": {
-        "type": "object",
-        "source": "$derived",
-        "object_schema": {
-          "entity_type": "pump_preview_buy",
-          "fields": {
-            "pool": {
-              "type": "pubkey"
-            },
-            "base_mint": {
-              "type": "pubkey"
-            },
-            "quote_mint": {
-              "type": "pubkey"
-            },
-            "quote_amount_in": {
-              "type": "u64"
-            },
-            "slippage_bps": {
-              "type": "u16"
-            },
-            "estimated_base_amount_out": {
-              "type": "u64"
-            },
-            "minimum_base_amount_out": {
-              "type": "u64"
-            },
-            "price_quote": {
-              "type": "number"
-            },
-            "market_cap_quote": {
-              "type": "number"
-            }
-          }
-        }
-      }
-    },
-    "preview_sell": {
-      "inputs": {
-        "base_mint": "pubkey",
-        "quote_mint": "pubkey",
-        "pool": "pubkey",
-        "base_amount_in": "u64",
-        "min_quote_amount_out": "u64"
-      },
-      "load": [
-        {
-          "name": "wallet",
-          "kind": "wallet_pubkey"
-        },
-        {
-          "name": "pool_data",
-          "kind": "decode_account",
-          "address": "$input.pool",
-          "account_type": "Pool"
-        },
-        {
-          "name": "global_config",
-          "kind": "pda",
-          "program_id": "$protocol.programId",
-          "seeds": [
-            "utf8:global_config"
-          ]
-        },
-        {
-          "name": "global_config_data",
-          "kind": "decode_account",
-          "address": "$global_config",
-          "account_type": "GlobalConfig"
-        },
-        {
-          "name": "base_token_program",
-          "kind": "account_owner",
-          "address": "$pool_data.base_mint"
-        },
-        {
-          "name": "quote_token_program",
-          "kind": "account_owner",
-          "address": "$pool_data.quote_mint"
-        },
-        {
-          "name": "user_base_token_account",
-          "kind": "ata",
-          "owner": "$wallet",
-          "mint": "$pool_data.base_mint",
-          "token_program": "$base_token_program"
-        },
-        {
-          "name": "user_quote_token_account",
-          "kind": "ata",
-          "owner": "$wallet",
-          "mint": "$pool_data.quote_mint",
-          "token_program": "$quote_token_program"
-        },
-        {
-          "name": "coin_creator_vault_authority",
-          "kind": "pda",
-          "program_id": "$protocol.programId",
-          "seeds": [
-            "utf8:creator_vault",
-            "$pool_data.coin_creator"
-          ]
-        },
-        {
-          "name": "coin_creator_vault_ata",
-          "kind": "ata",
-          "owner": "$coin_creator_vault_authority",
-          "mint": "$pool_data.quote_mint",
-          "token_program": "$quote_token_program",
-          "allow_owner_off_curve": true
-        },
-        {
-          "name": "event_authority",
-          "kind": "pda",
-          "program_id": "$protocol.programId",
-          "seeds": [
-            "utf8:__event_authority"
-          ]
-        },
-        {
-          "name": "fee_config",
-          "kind": "pda",
-          "program_id": "pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ",
-          "seeds": [
-            "utf8:fee_config",
-            "$protocol.programId"
-          ]
-        }
-      ],
-      "transform": [
-        "preview_sell__transform"
-      ],
-      "args": {
-        "base_amount_in": "$input.base_amount_in",
-        "min_quote_amount_out": "$input.min_quote_amount_out"
-      },
-      "accounts": {
-        "pool": "$input.pool",
-        "global_config": "$global_config",
-        "base_mint": "$pool_data.base_mint",
-        "quote_mint": "$pool_data.quote_mint",
-        "user_base_token_account": "$user_base_token_account",
-        "user_quote_token_account": "$user_quote_token_account",
-        "pool_base_token_account": "$pool_data.pool_base_token_account",
-        "pool_quote_token_account": "$pool_data.pool_quote_token_account",
-        "protocol_fee_recipient": "$protocol_fee_recipient",
-        "base_token_program": "$base_token_program",
-        "quote_token_program": "$quote_token_program",
-        "coin_creator_vault_authority": "$coin_creator_vault_authority"
-      },
-      "output": {
-        "type": "object",
-        "source": "$derived",
-        "object_schema": {
-          "entity_type": "pump_preview_sell",
-          "fields": {
-            "pool": {
-              "type": "pubkey"
-            },
-            "base_mint": {
-              "type": "pubkey"
-            },
-            "quote_mint": {
-              "type": "pubkey"
-            },
-            "base_amount_in": {
-              "type": "u64"
-            },
-            "min_quote_amount_out": {
-              "type": "u64"
-            },
-            "estimated_quote_amount_out": {
-              "type": "u64"
-            },
-            "price_quote": {
-              "type": "number"
-            },
-            "market_cap_quote": {
-              "type": "number"
-            }
-          }
-        }
-      }
-    }
-  },
   "writes": {
     "buy": {
       "instruction": "buy",
@@ -951,5 +545,411 @@
         ]
       }
     ]
+  },
+  "views": {
+    "preview_buy": {
+      "inputs": {
+        "base_mint": "pubkey",
+        "quote_mint": "pubkey",
+        "quote_amount_in": "u64",
+        "track_volume": "bool",
+        "pool": "pubkey",
+        "slippage_bps": "u16"
+      },
+      "load": [
+        {
+          "name": "wallet",
+          "kind": "wallet_pubkey"
+        },
+        {
+          "name": "pool_data",
+          "kind": "decode_account",
+          "address": "$input.pool",
+          "account_type": "Pool"
+        },
+        {
+          "name": "global_config",
+          "kind": "pda",
+          "program_id": "$protocol.programId",
+          "seeds": [
+            "utf8:global_config"
+          ]
+        },
+        {
+          "name": "global_config_data",
+          "kind": "decode_account",
+          "address": "$global_config",
+          "account_type": "GlobalConfig"
+        },
+        {
+          "name": "base_token_program",
+          "kind": "account_owner",
+          "address": "$pool_data.base_mint"
+        },
+        {
+          "name": "quote_token_program",
+          "kind": "account_owner",
+          "address": "$pool_data.quote_mint"
+        },
+        {
+          "name": "user_base_token_account",
+          "kind": "ata",
+          "owner": "$wallet",
+          "mint": "$pool_data.base_mint",
+          "token_program": "$base_token_program"
+        },
+        {
+          "name": "user_quote_token_account",
+          "kind": "ata",
+          "owner": "$wallet",
+          "mint": "$pool_data.quote_mint",
+          "token_program": "$quote_token_program"
+        },
+        {
+          "name": "coin_creator_vault_authority",
+          "kind": "pda",
+          "program_id": "$protocol.programId",
+          "seeds": [
+            "utf8:creator_vault",
+            "$pool_data.coin_creator"
+          ]
+        },
+        {
+          "name": "coin_creator_vault_ata",
+          "kind": "ata",
+          "owner": "$coin_creator_vault_authority",
+          "mint": "$pool_data.quote_mint",
+          "token_program": "$quote_token_program",
+          "allow_owner_off_curve": true
+        },
+        {
+          "name": "global_volume_accumulator",
+          "kind": "pda",
+          "program_id": "$protocol.programId",
+          "seeds": [
+            "utf8:global_volume_accumulator"
+          ]
+        },
+        {
+          "name": "user_volume_accumulator",
+          "kind": "pda",
+          "program_id": "$protocol.programId",
+          "seeds": [
+            "utf8:user_volume_accumulator",
+            "$wallet"
+          ]
+        },
+        {
+          "name": "user_volume_accumulator_wsol_ata",
+          "kind": "ata",
+          "owner": "$user_volume_accumulator",
+          "mint": "$pool_data.quote_mint",
+          "token_program": "$quote_token_program",
+          "allow_owner_off_curve": true
+        },
+        {
+          "name": "event_authority",
+          "kind": "pda",
+          "program_id": "$protocol.programId",
+          "seeds": [
+            "utf8:__event_authority"
+          ]
+        },
+        {
+          "name": "fee_config",
+          "kind": "pda",
+          "program_id": "pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ",
+          "seeds": [
+            "utf8:fee_config",
+            "$protocol.programId"
+          ]
+        },
+        {
+          "name": "fee_config_data",
+          "kind": "decode_account",
+          "address": "$fee_config",
+          "account_type": "FeeConfig"
+        },
+        {
+          "name": "pump_pool_authority",
+          "kind": "pda",
+          "program_id": "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P",
+          "seeds": [
+            "utf8:pool-authority",
+            "$pool_data.base_mint"
+          ]
+        },
+        {
+          "name": "pool_base_reserve_atomic",
+          "kind": "token_account_balance",
+          "address": "$pool_data.pool_base_token_account"
+        },
+        {
+          "name": "pool_quote_reserve_atomic",
+          "kind": "token_account_balance",
+          "address": "$pool_data.pool_quote_token_account"
+        },
+        {
+          "name": "base_mint_supply_atomic",
+          "kind": "token_supply",
+          "mint": "$pool_data.base_mint"
+        },
+        {
+          "name": "pool_v2",
+          "kind": "pda",
+          "program_id": "$protocol.programId",
+          "seeds": [
+            "utf8:pool-v2",
+            "$pool_data.base_mint"
+          ]
+        }
+      ],
+      "transform": [
+        "preview_buy__transform"
+      ],
+      "args": {
+        "base_amount_out": "$base_amount_out",
+        "max_quote_amount_in": "$max_quote_amount_in",
+        "track_volume": "$input.track_volume"
+      },
+      "accounts": {
+        "pool": "$input.pool",
+        "global_config": "$global_config",
+        "base_mint": "$pool_data.base_mint",
+        "quote_mint": "$pool_data.quote_mint",
+        "user_base_token_account": "$user_base_token_account",
+        "user_quote_token_account": "$user_quote_token_account",
+        "pool_base_token_account": "$pool_data.pool_base_token_account",
+        "pool_quote_token_account": "$pool_data.pool_quote_token_account",
+        "protocol_fee_recipient": "$protocol_fee_recipient",
+        "base_token_program": "$base_token_program",
+        "quote_token_program": "$quote_token_program",
+        "coin_creator_vault_authority": "$coin_creator_vault_authority"
+      },
+      "remaining_accounts": "$remaining_accounts",
+      "pre": [
+        {
+          "kind": "spl_ata_create_idempotent",
+          "payer": "$wallet",
+          "ata": "$user_base_token_account",
+          "owner": "$wallet",
+          "mint": "$pool_data.base_mint",
+          "token_program": "$base_token_program"
+        },
+        {
+          "kind": "spl_ata_create_idempotent",
+          "payer": "$wallet",
+          "ata": "$user_quote_token_account",
+          "owner": "$wallet",
+          "mint": "$pool_data.quote_mint",
+          "token_program": "$quote_token_program"
+        },
+        {
+          "kind": "system_transfer",
+          "from": "$wallet",
+          "to": "$user_quote_token_account",
+          "lamports": "$max_quote_amount_in",
+          "when": {
+            "equals": [
+              "$pool_data.quote_mint",
+              "So11111111111111111111111111111111111111112"
+            ]
+          }
+        },
+        {
+          "kind": "spl_token_sync_native",
+          "account": "$user_quote_token_account",
+          "when": {
+            "equals": [
+              "$pool_data.quote_mint",
+              "So11111111111111111111111111111111111111112"
+            ]
+          }
+        }
+      ],
+      "output": {
+        "type": "object",
+        "source": "$derived",
+        "object_schema": {
+          "entity_type": "pump_preview_buy",
+          "fields": {
+            "pool": {
+              "type": "pubkey"
+            },
+            "base_mint": {
+              "type": "pubkey"
+            },
+            "quote_mint": {
+              "type": "pubkey"
+            },
+            "quote_amount_in": {
+              "type": "u64"
+            },
+            "slippage_bps": {
+              "type": "u16"
+            },
+            "estimated_base_amount_out": {
+              "type": "u64"
+            },
+            "minimum_base_amount_out": {
+              "type": "u64"
+            },
+            "price_quote": {
+              "type": "number"
+            },
+            "market_cap_quote": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    },
+    "preview_sell": {
+      "inputs": {
+        "base_mint": "pubkey",
+        "quote_mint": "pubkey",
+        "pool": "pubkey",
+        "base_amount_in": "u64",
+        "min_quote_amount_out": "u64"
+      },
+      "load": [
+        {
+          "name": "wallet",
+          "kind": "wallet_pubkey"
+        },
+        {
+          "name": "pool_data",
+          "kind": "decode_account",
+          "address": "$input.pool",
+          "account_type": "Pool"
+        },
+        {
+          "name": "global_config",
+          "kind": "pda",
+          "program_id": "$protocol.programId",
+          "seeds": [
+            "utf8:global_config"
+          ]
+        },
+        {
+          "name": "global_config_data",
+          "kind": "decode_account",
+          "address": "$global_config",
+          "account_type": "GlobalConfig"
+        },
+        {
+          "name": "base_token_program",
+          "kind": "account_owner",
+          "address": "$pool_data.base_mint"
+        },
+        {
+          "name": "quote_token_program",
+          "kind": "account_owner",
+          "address": "$pool_data.quote_mint"
+        },
+        {
+          "name": "user_base_token_account",
+          "kind": "ata",
+          "owner": "$wallet",
+          "mint": "$pool_data.base_mint",
+          "token_program": "$base_token_program"
+        },
+        {
+          "name": "user_quote_token_account",
+          "kind": "ata",
+          "owner": "$wallet",
+          "mint": "$pool_data.quote_mint",
+          "token_program": "$quote_token_program"
+        },
+        {
+          "name": "coin_creator_vault_authority",
+          "kind": "pda",
+          "program_id": "$protocol.programId",
+          "seeds": [
+            "utf8:creator_vault",
+            "$pool_data.coin_creator"
+          ]
+        },
+        {
+          "name": "coin_creator_vault_ata",
+          "kind": "ata",
+          "owner": "$coin_creator_vault_authority",
+          "mint": "$pool_data.quote_mint",
+          "token_program": "$quote_token_program",
+          "allow_owner_off_curve": true
+        },
+        {
+          "name": "event_authority",
+          "kind": "pda",
+          "program_id": "$protocol.programId",
+          "seeds": [
+            "utf8:__event_authority"
+          ]
+        },
+        {
+          "name": "fee_config",
+          "kind": "pda",
+          "program_id": "pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ",
+          "seeds": [
+            "utf8:fee_config",
+            "$protocol.programId"
+          ]
+        }
+      ],
+      "transform": [
+        "preview_sell__transform"
+      ],
+      "args": {
+        "base_amount_in": "$input.base_amount_in",
+        "min_quote_amount_out": "$input.min_quote_amount_out"
+      },
+      "accounts": {
+        "pool": "$input.pool",
+        "global_config": "$global_config",
+        "base_mint": "$pool_data.base_mint",
+        "quote_mint": "$pool_data.quote_mint",
+        "user_base_token_account": "$user_base_token_account",
+        "user_quote_token_account": "$user_quote_token_account",
+        "pool_base_token_account": "$pool_data.pool_base_token_account",
+        "pool_quote_token_account": "$pool_data.pool_quote_token_account",
+        "protocol_fee_recipient": "$protocol_fee_recipient",
+        "base_token_program": "$base_token_program",
+        "quote_token_program": "$quote_token_program",
+        "coin_creator_vault_authority": "$coin_creator_vault_authority"
+      },
+      "output": {
+        "type": "object",
+        "source": "$derived",
+        "object_schema": {
+          "entity_type": "pump_preview_sell",
+          "fields": {
+            "pool": {
+              "type": "pubkey"
+            },
+            "base_mint": {
+              "type": "pubkey"
+            },
+            "quote_mint": {
+              "type": "pubkey"
+            },
+            "base_amount_in": {
+              "type": "u64"
+            },
+            "min_quote_amount_out": {
+              "type": "u64"
+            },
+            "estimated_quote_amount_out": {
+              "type": "u64"
+            },
+            "price_quote": {
+              "type": "number"
+            },
+            "market_cap_quote": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    }
   }
 }

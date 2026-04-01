@@ -1,7 +1,7 @@
 {
   "$schema": "/idl/solana_agent_runtime.schema.v1.json",
   "schema": "solana-agent-runtime.v1",
-  "reads": {},
   "writes": {},
-  "transforms": {}
+  "transforms": {},
+  "views": {}
 }

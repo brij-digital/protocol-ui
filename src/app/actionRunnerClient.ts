@@ -2,7 +2,7 @@ import type { Connection, PublicKey } from '@solana/web3.js';
 import {
   prepareRuntimeOperation,
   runActionRunner,
-  runRuntimeRead,
+  runRuntimeView,
   type ActionRunnerResult,
   type ActionRunnerSpec,
 } from '@brij-digital/apppack-runtime';
@@ -78,7 +78,7 @@ export async function runActionRunnerSpec(options: {
       }
 
       if (step.kind === 'read') {
-        const computed = await runRuntimeRead({
+        const computed = await runRuntimeView({
           protocolId: step.protocolId,
           operationId: step.operationId,
           input: step.input,

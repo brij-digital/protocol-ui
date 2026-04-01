@@ -246,7 +246,7 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
     void (async () => {
       try {
         const listed = await listRuntimeOperations({ protocolId });
-        const computeOperations = listed.operations.filter((operation) => operation.executionKind === 'read');
+        const computeOperations = listed.operations.filter((operation) => operation.executionKind === 'view');
         if (cancelled) {
           return;
         }

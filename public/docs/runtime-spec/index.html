@@ -173,7 +173,7 @@
         <pre>{
   "$schema": "/idl/solana_agent_runtime.schema.v1.json",
   "schema": "solana-agent-runtime.v1",
-  "reads": {},
+  "views": {},
   "writes": {},
   "transforms": {}
 }</pre>
@@ -184,7 +184,7 @@
           <tbody>
             <tr><td><code>$schema</code></td><td>No</td><td>string</td><td>JSON schema path.</td></tr>
             <tr><td><code>schema</code></td><td>Yes</td><td>string</td><td>Must be <code>solana-agent-runtime.v1</code>.</td></tr>
-            <tr><td><code>reads</code></td><td>Yes</td><td>object</td><td>Map of operation id to <code>readSpec</code>.</td></tr>
+            <tr><td><code>views</code></td><td>Yes</td><td>object</td><td>Map of operation id to <code>viewSpec</code>.</td></tr>
             <tr><td><code>writes</code></td><td>Yes</td><td>object</td><td>Map of operation id to <code>writeSpec</code>.</td></tr>
             <tr><td><code>transforms</code></td><td>Yes</td><td>object</td><td>Map of transform id to reusable <code>transformSpec</code>.</td></tr>
           </tbody>
@@ -201,13 +201,13 @@
           </tbody>
         </table>
         <p>
-          Both <code>readSpec</code> and <code>writeSpec</code> share this preparation phase. They diverge only at the end:
-          reads return a typed result, while writes materialize args and accounts.
+          Both <code>viewSpec</code> and <code>writeSpec</code> share this preparation phase. They diverge only at the end:
+          views return a typed result, while writes materialize args and accounts.
         </p>
       </section>
 
       <section class="card">
-        <h2><code>readSpec</code></h2>
+        <h2><code>viewSpec</code></h2>
         <table>
           <thead><tr><th>Attribute</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
           <tbody>
@@ -219,7 +219,7 @@
 
       <section class="card">
         <h2>Read Output Types</h2>
-        <p>These types are used only by <code>reads[*].output</code>.</p>
+        <p>These types are used only by <code>views[*].output</code>.</p>
 
         <h3><code>outputFieldSpec</code></h3>
         <table>
@@ -234,10 +234,10 @@
         <table>
           <thead><tr><th>Attribute</th><th>Required</th><th>Type</th><th>Notes</th></tr></thead>
           <tbody>
-            <tr><td><code>type</code></td><td>Yes</td><td>enum</td><td><code>array</code>, <code>object</code>, <code>scalar</code>, <code>list</code></td></tr>
+            <tr><td><code>type</code></td><td>Yes</td><td>enum</td><td><code>array</code>, <code>object</code>, <code>scalar</code></td></tr>
             <tr><td><code>source</code></td><td>Yes</td><td>string</td><td>Runtime expression.</td></tr>
             <tr><td><code>object_schema</code></td><td>No</td><td>object</td><td>For object outputs.</td></tr>
-            <tr><td><code>item_schema</code></td><td>No</td><td>object</td><td>For array/list outputs.</td></tr>
+            <tr><td><code>item_schema</code></td><td>No</td><td>object</td><td>For array outputs.</td></tr>
             <tr><td><code>scalar_type</code></td><td>No</td><td>string</td><td>For scalar outputs.</td></tr>
           </tbody>
         </table>
@@ -268,7 +268,7 @@
         <h2><code>transformSpec</code></h2>
         <p>
           Top-level <code>transforms</code> is the only place where transform steps are declared.
-          Each entry is an array of <code>transformStepSpec</code> referenced from reads or writes by name.
+          Each entry is an array of <code>transformStepSpec</code> referenced from views or writes by name.
         </p>
       </section>
 

@@ -45,7 +45,7 @@ async function main() {
       fail(`${agentRuntimeFilePath} did not parse as a JSON object.`);
     }
     const hasCapabilities =
-      (agentRuntime.reads && typeof agentRuntime.reads === 'object' && !Array.isArray(agentRuntime.reads)) ||
+      (agentRuntime.views && typeof agentRuntime.views === 'object' && !Array.isArray(agentRuntime.views)) ||
       (agentRuntime.writes && typeof agentRuntime.writes === 'object' && !Array.isArray(agentRuntime.writes));
     if (!hasCapabilities) {
       fail(`${agentRuntimeFilePath} is missing agent runtime capabilities.`);

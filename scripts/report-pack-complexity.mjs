@@ -112,7 +112,7 @@ async function main() {
     );
     asObject(runtimePack.transforms ?? {}, `${protocolId}.agentRuntime.transforms`);
     const sections = [
-      ...Object.entries(asObject(runtimePack.reads ?? {}, `${protocolId}.agentRuntime.reads`)),
+      ...Object.entries(asObject(runtimePack.views ?? {}, `${protocolId}.agentRuntime.views`)),
       ...Object.entries(asObject(runtimePack.writes ?? {}, `${protocolId}.agentRuntime.writes`)),
     ];
     const opEntries = sections;
