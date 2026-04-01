@@ -337,7 +337,9 @@
           In the Orca pack, <code>quote_exact_in</code> previews Codama instruction
           <code>swap_v2</code>, decodes the <code>Whirlpool</code>, reuses a shared transform,
           and returns a typed quote object. Then <code>swap_exact_in</code> consumes raw Codama
-          write inputs and materializes the final instruction args and accounts.
+          write inputs, does not compute <code>tick_array0/1/2</code> itself, and expects values
+          such as <code>a_to_b</code>, <code>sqrt_price_limit</code>, and
+          <code>tick_array0/1/2</code> to be forwarded from a prior view or runner step.
         </p>
         <pre>{
   "transforms": {
@@ -378,7 +380,20 @@
       ],
       "output": {
         "type": "object",
-        "source": "$derived"
+        "source": "$derived",
+        "object_schema": {
+          "fields": {
+            "a_to_b": {
+              "type": "bool"
+            },
+            "sqrt_price_limit": {
+              "type": "u128"
+            },
+            "tick_arrays": {
+              "type": "array"
+            }
+          }
+        }
       }
     }
   },
@@ -401,6 +416,21 @@
       }
     }
   }
+}</pre>
+        <p>
+          In practice, a runner step or caller forwards the derived quote values into the write
+          input surface.
+        </p>
+        <pre>{
+  "amount": "$quote.output.amount",
+  "other_amount_threshold": "$quote.output.minimum_out",
+  "sqrt_price_limit": "$quote.output.sqrt_price_limit",
+  "amount_specified_is_input": true,
+  "a_to_b": "$quote.output.a_to_b",
+  "whirlpool": "$input.whirlpool",
+  "tick_array0": "$quote.output.tick_arrays.0",
+  "tick_array1": "$quote.output.tick_arrays.1",
+  "tick_array2": "$quote.output.tick_arrays.2"
 }</pre>
       </section>
 
