@@ -154,6 +154,27 @@
   max-width: 100%;
 }
 
+.mode-switcher {
+  display: inline-flex;
+  border: 1px solid #cfd9ec;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 0.55rem;
+}
+
+.mode-switcher button {
+  border: 0;
+  background: #f5f8ff;
+  color: #2a3f65;
+  font-weight: 700;
+  padding: 0.4rem 0.85rem;
+}
+
+.mode-switcher button.active {
+  background: #13213f;
+  color: #fff;
+}
+
 .tab-switcher button {
   border: 0;
   background: #f5f8ff;

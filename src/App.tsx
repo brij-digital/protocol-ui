@@ -13,7 +13,10 @@ const VIEW_API_BASE_URL = '';
 const RUNNER_VIEW_API_BASE_URL = '';
 
 type AppTab = 'indexViews' | 'pump' | 'raw' | 'compute' | 'tv' | 'agent' | 'runner';
+type AppMode = 'normal' | 'advanced';
 const DISABLED_TABS = ['Apps', 'Command', 'Explorer'] as const;
+const NORMAL_TABS: AppTab[] = ['runner', 'indexViews', 'compute'];
+const ADVANCED_TABS: AppTab[] = ['agent', 'pump', 'raw', 'tv'];
 
 const TAB_HASHES: Record<AppTab, string> = {
   agent: 'agent',
@@ -36,6 +39,9 @@ function parseTabFromLocationHash(): AppTab {
 
 function App() {
   const [activeTab, setActiveTab] = useState<AppTab>(parseTabFromLocationHash);
+  const [appMode, setAppMode] = useState<AppMode>(() =>
+    NORMAL_TABS.includes(parseTabFromLocationHash()) ? 'normal' : 'advanced',
+  );
 
   const switchTab = (nextTab: AppTab) => {
     setActiveTab(nextTab);
@@ -49,11 +55,21 @@ function App() {
       return undefined;
     }
     const onHashChange = () => {
-      setActiveTab(parseTabFromLocationHash());
+      const nextTab = parseTabFromLocationHash();
+      setActiveTab(nextTab);
+      setAppMode(NORMAL_TABS.includes(nextTab) ? 'normal' : 'advanced');
     };
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
+
+  useEffect(() => {
+    if (appMode === 'normal' && !NORMAL_TABS.includes(activeTab)) {
+      switchTab('runner');
+    }
+  }, [activeTab, appMode]);
+
+  const visibleTabs = appMode === 'normal' ? NORMAL_TABS : [...NORMAL_TABS, ...ADVANCED_TABS];
 
   return (
     <main className="page-shell">
@@ -66,84 +82,121 @@ function App() {
           <WalletMultiButton />
         </header>
 
+        <div className="mode-switcher" role="tablist" aria-label="Navigation mode">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={appMode === 'normal'}
+            className={appMode === 'normal' ? 'active' : ''}
+            onClick={() => setAppMode('normal')}
+          >
+            Normal
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={appMode === 'advanced'}
+            className={appMode === 'advanced' ? 'active' : ''}
+            onClick={() => setAppMode('advanced')}
+          >
+            Advanced
+          </button>
+        </div>
+
         <div className="tab-switcher" role="tablist" aria-label="Mode">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'agent'}
-            className={activeTab === 'agent' ? 'active' : ''}
-            onClick={() => switchTab('agent')}
-          >
-            Agent
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'pump'}
-            className={activeTab === 'pump' ? 'active' : ''}
-            onClick={() => switchTab('pump')}
-          >
-            Pump
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'runner'}
-            className={activeTab === 'runner' ? 'active' : ''}
-            onClick={() => switchTab('runner')}
-          >
-            Runner
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'indexViews'}
-            className={activeTab === 'indexViews' ? 'active' : ''}
-            onClick={() => switchTab('indexViews')}
-          >
-            Index Views
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'raw'}
-            className={activeTab === 'raw' ? 'active' : ''}
-            onClick={() => switchTab('raw')}
-          >
-            Raw Ops
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'compute'}
-            className={activeTab === 'compute' ? 'active' : ''}
-            onClick={() => switchTab('compute')}
-          >
-            Compute
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'tv'}
-            className={activeTab === 'tv' ? 'active' : ''}
-            onClick={() => switchTab('tv')}
-          >
-            TradingView
-          </button>
-          {DISABLED_TABS.map((label) => (
+          {visibleTabs.includes('agent') ? (
             <button
-              key={label}
               type="button"
               role="tab"
-              className="disabled-tab"
-              aria-disabled="true"
-              disabled
-              title={`${label} is disabled. The active contract is Codama + runtime only.`}
+              aria-selected={activeTab === 'agent'}
+              className={activeTab === 'agent' ? 'active' : ''}
+              onClick={() => switchTab('agent')}
             >
-              {label}
-              <span>off</span>
+              Agent
             </button>
-          ))}
+          ) : null}
+          {visibleTabs.includes('pump') ? (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'pump'}
+              className={activeTab === 'pump' ? 'active' : ''}
+              onClick={() => switchTab('pump')}
+            >
+              Pump
+            </button>
+          ) : null}
+          {visibleTabs.includes('runner') ? (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'runner'}
+              className={activeTab === 'runner' ? 'active' : ''}
+              onClick={() => switchTab('runner')}
+            >
+              Runner
+            </button>
+          ) : null}
+          {visibleTabs.includes('indexViews') ? (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'indexViews'}
+              className={activeTab === 'indexViews' ? 'active' : ''}
+              onClick={() => switchTab('indexViews')}
+            >
+              Index Views
+            </button>
+          ) : null}
+          {visibleTabs.includes('raw') ? (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'raw'}
+              className={activeTab === 'raw' ? 'active' : ''}
+              onClick={() => switchTab('raw')}
+            >
+              Raw Ops
+            </button>
+          ) : null}
+          {visibleTabs.includes('compute') ? (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'compute'}
+              className={activeTab === 'compute' ? 'active' : ''}
+              onClick={() => switchTab('compute')}
+            >
+              Compute
+            </button>
+          ) : null}
+          {visibleTabs.includes('tv') ? (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'tv'}
+              className={activeTab === 'tv' ? 'active' : ''}
+              onClick={() => switchTab('tv')}
+            >
+              TradingView
+            </button>
+          ) : null}
+          {appMode === 'advanced'
+            ? DISABLED_TABS.map((label) => (
+                <button
+                  key={label}
+                  type="button"
+                  role="tab"
+                  className="disabled-tab"
+                  aria-disabled="true"
+                  disabled
+                  title={`${label} is disabled. The active contract is Codama + runtime only.`}
+                >
+                  {label}
+                  <span>off</span>
+                </button>
+              ))
+            : null}
         </div>
         <p className="tab-status-note">Active path is `Codama + runtime`. App packs are out of the contract.</p>
 
