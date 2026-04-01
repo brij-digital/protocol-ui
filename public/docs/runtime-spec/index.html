@@ -211,7 +211,8 @@
         <table>
           <thead><tr><th>Attribute</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
           <tbody>
-            <tr><td><code>preview_instruction</code></td><td>No</td><td>string</td><td>Codama instruction name used only for preview account resolution.</td></tr>
+            <tr><td><code>load_instruction</code></td><td>No</td><td>string</td><td>Codama instruction name whose account context should be loaded for the view.</td></tr>
+            <tr><td><code>load_instruction_bindings</code></td><td>No</td><td>object</td><td>Explicit <code>args</code> and <code>accounts</code> bindings used to populate that instruction context.</td></tr>
             <tr><td><code>inputs</code></td><td>No</td><td>object</td><td>Map of input name to type string.</td></tr>
             <tr><td><code>output</code></td><td>Yes</td><td>object</td><td>Typed output contract.</td></tr>
           </tbody>
@@ -334,7 +335,7 @@
       <section class="card">
         <h2>Concrete Orca example</h2>
         <p>
-          In the Orca pack, <code>quote_exact_in</code> previews Codama instruction
+          In the Orca pack, <code>quote_exact_in</code> loads Codama instruction context for
           <code>swap_v2</code>, decodes the <code>Whirlpool</code>, reuses a shared transform,
           and returns a typed quote object. Then <code>swap_exact_in</code> consumes raw
           Codama-shaped write inputs and materializes the final instruction args and accounts.
@@ -345,7 +346,7 @@
   },
   "views": {
     "quote_exact_in": {
-      "preview_instruction": "swap_v2",
+      "load_instruction": "swap_v2",
       "inputs": {
         "token_in_mint": "token_mint",
         "token_out_mint": "token_mint",
@@ -353,6 +354,14 @@
         "slippage_bps": "u16",
         "whirlpool": "pubkey",
         "unwrap_sol_output": "bool"
+      },
+      "load_instruction_bindings": {
+        "args": {
+          "amount": "$input.amount_in"
+        },
+        "accounts": {
+          "whirlpool": "$input.whirlpool"
+        }
       },
       "load": [],
       "transform": [

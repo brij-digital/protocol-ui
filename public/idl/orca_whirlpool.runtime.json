@@ -461,7 +461,29 @@
   },
   "views": {
     "quote_exact_in": {
-      "preview_instruction": "swap_v2",
+      "load_instruction": "swap_v2",
+      "load_instruction_bindings": {
+        "args": {
+          "amount": "$input.amount_in",
+          "other_amount_threshold": "$other_amount_threshold",
+          "sqrt_price_limit": "$sqrt_price_limit",
+          "amount_specified_is_input": true,
+          "a_to_b": "$a_to_b",
+          "remaining_accounts_info": null
+        },
+        "accounts": {
+          "token_program_a": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "token_program_b": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "whirlpool": "$input.whirlpool",
+          "token_mint_a": "$whirlpool_data.token_mint_a",
+          "token_mint_b": "$whirlpool_data.token_mint_b",
+          "token_vault_a": "$whirlpool_data.token_vault_a",
+          "token_vault_b": "$whirlpool_data.token_vault_b",
+          "tick_array0": "$tick_arrays.0",
+          "tick_array1": "$tick_arrays.1",
+          "tick_array2": "$tick_arrays.2"
+        }
+      },
       "inputs": {
         "token_in_mint": "token_mint",
         "token_out_mint": "token_mint",
@@ -485,26 +507,6 @@
       "transform": [
         "quote_exact_in__transform"
       ],
-      "args": {
-        "amount": "$input.amount_in",
-        "other_amount_threshold": "$other_amount_threshold",
-        "sqrt_price_limit": "$sqrt_price_limit",
-        "amount_specified_is_input": true,
-        "a_to_b": "$a_to_b",
-        "remaining_accounts_info": null
-      },
-      "accounts": {
-        "token_program_a": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
-        "token_program_b": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
-        "whirlpool": "$input.whirlpool",
-        "token_mint_a": "$whirlpool_data.token_mint_a",
-        "token_mint_b": "$whirlpool_data.token_mint_b",
-        "token_vault_a": "$whirlpool_data.token_vault_a",
-        "token_vault_b": "$whirlpool_data.token_vault_b",
-        "tick_array0": "$tick_arrays.0",
-        "tick_array1": "$tick_arrays.1",
-        "tick_array2": "$tick_arrays.2"
-      },
       "pre": [
         {
           "kind": "spl_ata_create_idempotent",

@@ -325,7 +325,7 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
     const transform = Array.isArray(explain.transform)
       ? explain.transform.filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === 'object' && !Array.isArray(entry))
       : [];
-    return renderPseudoFunction(functionName, explain.instruction ?? explain.previewInstruction ?? null, transform);
+    return renderPseudoFunction(functionName, explain.instruction ?? explain.loadInstruction ?? null, transform);
   }, [explain]);
 
   return (
