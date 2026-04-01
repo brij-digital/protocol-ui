@@ -334,41 +334,72 @@
       <section class="card">
         <h2>Concrete Orca example</h2>
         <p>
-          In the Orca pack, <code>quote_exact_in</code> decodes the <code>Whirlpool</code> account,
-          derives direction, tick arrays, <code>estimated_out</code>, and <code>minimum_out</code>.
-          Then <code>swap_exact_in</code> uses Codama instruction metadata plus these derived values
-          to prepare the final write.
+          In the Orca pack, <code>quote_exact_in</code> previews Codama instruction
+          <code>swap_v2</code>, decodes the <code>Whirlpool</code>, reuses a shared transform,
+          and returns a typed quote object. Then <code>swap_exact_in</code> consumes raw Codama
+          write inputs and materializes the final instruction args and accounts.
         </p>
         <pre>{
-  "preview_instruction": "swap_v2",
-  "load": [
-    {
-      "name": "wallet",
-      "kind": "wallet_pubkey"
-    },
-    {
-      "name": "whirlpool_data",
-      "kind": "decode_account",
-      "address": "$input.whirlpool",
-      "account_type": "Whirlpool"
+  "transforms": {
+    "quote_exact_in__transform": [
+      {
+        "name": "a_to_b",
+        "kind": "compare.equals",
+        "left": "$whirlpool_data.token_mint_a",
+        "right": "$input.token_in_mint"
+      }
+    ]
+  },
+  "views": {
+    "quote_exact_in": {
+      "preview_instruction": "swap_v2",
+      "inputs": {
+        "token_in_mint": "token_mint",
+        "token_out_mint": "token_mint",
+        "amount_in": "u64",
+        "slippage_bps": "u16",
+        "whirlpool": "pubkey",
+        "unwrap_sol_output": "bool"
+      },
+      "load": [
+        {
+          "name": "wallet",
+          "kind": "wallet_pubkey"
+        },
+        {
+          "name": "whirlpool_data",
+          "kind": "decode_account",
+          "address": "$input.whirlpool",
+          "account_type": "Whirlpool"
+        }
+      ],
+      "transform": [
+        "quote_exact_in__transform"
+      ],
+      "output": {
+        "type": "object",
+        "source": "$derived"
+      }
     }
-  ],
-  "transform": [
-    {
-      "name": "a_to_b",
-      "kind": "compare.equals",
-      "left": "$whirlpool_data.token_mint_a",
-      "right": "$input.token_in_mint"
-    },
-    {
-      "name": "minimum_out",
-      "kind": "coalesce",
-      "values": ["$other_amount_threshold"]
+  },
+  "writes": {
+    "swap_exact_in": {
+      "instruction": "swap_v2",
+      "args": {
+        "amount": "$input.amount",
+        "other_amount_threshold": "$input.other_amount_threshold",
+        "sqrt_price_limit": "$input.sqrt_price_limit",
+        "amount_specified_is_input": "$input.amount_specified_is_input",
+        "a_to_b": "$input.a_to_b",
+        "remaining_accounts_info": null
+      },
+      "accounts": {
+        "whirlpool": "$input.whirlpool",
+        "tick_array0": "$input.tick_array0",
+        "tick_array1": "$input.tick_array1",
+        "tick_array2": "$input.tick_array2"
+      }
     }
-  ],
-  "args": {
-    "amount": "$input.amount_in",
-    "other_amount_threshold": "$other_amount_threshold"
   }
 }</pre>
       </section>
