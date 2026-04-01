@@ -1,7 +1,7 @@
 {
   "$schema": "/idl/solana_agent_runtime.schema.v1.json",
   "schema": "solana-agent-runtime.v1",
-  "computes": {
+  "reads": {
     "preview_buy": {
       "instruction": "buy",
       "inputs": {
@@ -1324,5 +1324,6 @@
         "coin_creator_vault_authority": "$coin_creator_vault_authority"
       }
     }
-  }
+  },
+  "transforms": {}
 }

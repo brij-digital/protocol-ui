@@ -100,8 +100,9 @@ async function main() {
       fail(`${protocolId}.agentRuntime.schema must be solana-agent-runtime.v1.`);
     }
 
+    asObject(runtimePack.transforms ?? {}, `${protocolId}.agentRuntime.transforms`);
     const sections = [
-      ['computes', asObject(runtimePack.computes ?? {}, `${protocolId}.agentRuntime.computes`)],
+      ['reads', asObject(runtimePack.reads ?? {}, `${protocolId}.agentRuntime.reads`)],
       ['writes', asObject(runtimePack.writes ?? {}, `${protocolId}.agentRuntime.writes`)],
     ];
     let lintedOperations = 0;

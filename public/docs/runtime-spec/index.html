@@ -158,8 +158,9 @@
           <div class="box">
             <strong>Runtime spec</strong>
             <ul>
-              <li>deterministic compute operations</li>
+              <li>deterministic read operations</li>
               <li>write preparation</li>
+              <li>reusable transform fragments</li>
               <li>load steps outside Codama</li>
               <li>small transaction-envelope logic</li>
             </ul>
@@ -172,8 +173,9 @@
         <pre>{
   "$schema": "/idl/solana_agent_runtime.schema.v1.json",
   "schema": "solana-agent-runtime.v1",
-  "computes": {},
-  "writes": {}
+  "reads": {},
+  "writes": {},
+  "transforms": {}
 }</pre>
         <table>
           <thead>
@@ -182,8 +184,9 @@
           <tbody>
             <tr><td><code>$schema</code></td><td>No</td><td>string</td><td>JSON schema path.</td></tr>
             <tr><td><code>schema</code></td><td>Yes</td><td>string</td><td>Must be <code>solana-agent-runtime.v1</code>.</td></tr>
-            <tr><td><code>computes</code></td><td>Yes</td><td>object</td><td>Map of operation id to <code>computeSpec</code>.</td></tr>
+            <tr><td><code>reads</code></td><td>Yes</td><td>object</td><td>Map of operation id to <code>readSpec</code>.</td></tr>
             <tr><td><code>writes</code></td><td>Yes</td><td>object</td><td>Map of operation id to <code>writeSpec</code>.</td></tr>
+            <tr><td><code>transforms</code></td><td>Yes</td><td>object</td><td>Map of transform id to reusable <code>transformSpec</code>.</td></tr>
           </tbody>
         </table>
       </section>
@@ -225,14 +228,27 @@
       </section>
 
       <section class="card">
-        <h2><code>computeSpec</code></h2>
+        <h2>Shared operation core</h2>
         <table>
           <thead><tr><th>Attribute</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
           <tbody>
             <tr><td><code>instruction</code></td><td>No</td><td>string</td><td>Instruction name for contextual alignment with Codama.</td></tr>
             <tr><td><code>inputs</code></td><td>No</td><td>object</td><td>Map of input name to <code>inputSpec</code>.</td></tr>
             <tr><td><code>load</code></td><td>No</td><td>array</td><td>Array of <code>loadStepSpec</code>.</td></tr>
-            <tr><td><code>transform</code></td><td>No</td><td>array</td><td>Array of <code>transformStepSpec</code>.</td></tr>
+            <tr><td><code>transform</code></td><td>No</td><td>array</td><td>Array of inline <code>transformStepSpec</code> or string references to top-level <code>transforms</code>.</td></tr>
+          </tbody>
+        </table>
+        <p>
+          Both <code>readSpec</code> and <code>writeSpec</code> share this preparation phase. They diverge only at the end:
+          reads return a typed result, while writes materialize args and accounts.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2><code>readSpec</code></h2>
+        <table>
+          <thead><tr><th>Attribute</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+          <tbody>
             <tr><td><code>read_output</code></td><td>No</td><td>object</td><td>Typed output contract.</td></tr>
           </tbody>
         </table>
@@ -246,7 +262,7 @@
             <tr><td><code>instruction</code></td><td>No</td><td>string</td><td>Target instruction name in Codama.</td></tr>
             <tr><td><code>inputs</code></td><td>No</td><td>object</td><td>Map of input name to <code>inputSpec</code>.</td></tr>
             <tr><td><code>load</code></td><td>No</td><td>array</td><td>Array of <code>loadStepSpec</code>.</td></tr>
-            <tr><td><code>transform</code></td><td>No</td><td>array</td><td>Array of <code>transformStepSpec</code>.</td></tr>
+            <tr><td><code>transform</code></td><td>No</td><td>array</td><td>Array of inline <code>transformStepSpec</code> or string references to top-level <code>transforms</code>.</td></tr>
             <tr><td><code>args</code></td><td>No</td><td>object</td><td>Map of arg name to scalar binding.</td></tr>
             <tr><td><code>accounts</code></td><td>No</td><td>object</td><td>Map of account name to string binding.</td></tr>
             <tr><td><code>remaining_accounts</code></td><td>No</td><td>string or array</td><td>String reference or explicit meta list.</td></tr>
@@ -255,6 +271,14 @@
             <tr><td><code>read_output</code></td><td>No</td><td>object</td><td>Typed output contract.</td></tr>
           </tbody>
         </table>
+      </section>
+
+      <section class="card">
+        <h2><code>transformSpec</code></h2>
+        <p>
+          Top-level <code>transforms</code> is a reusable catalog. Each entry is an array of
+          <code>transformStepSpec</code> that can be referenced from any read or write operation by name.
+        </p>
       </section>
 
       <section class="card">
@@ -321,8 +345,8 @@
         <h2>Concrete Orca example</h2>
         <p>
           In the Orca pack, <code>quote_exact_in</code> decodes the <code>Whirlpool</code> account,
-          computes direction, tick arrays, <code>estimated_out</code>, and <code>minimum_out</code>.
-          Then <code>swap_exact_in</code> uses Codama instruction metadata plus these computed values
+          derives direction, tick arrays, <code>estimated_out</code>, and <code>minimum_out</code>.
+          Then <code>swap_exact_in</code> uses Codama instruction metadata plus these derived values
           to prepare the final write.
         </p>
         <pre>{

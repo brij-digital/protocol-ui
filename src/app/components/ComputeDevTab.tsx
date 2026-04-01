@@ -246,7 +246,7 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
     void (async () => {
       try {
         const listed = await listRuntimeOperations({ protocolId });
-        const computeOperations = listed.operations.filter((operation) => operation.executionKind === 'compute');
+        const computeOperations = listed.operations.filter((operation) => operation.executionKind === 'read');
         if (cancelled) {
           return;
         }
@@ -356,7 +356,7 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
       {error ? <p className="compute-error">Error: {error}</p> : null}
       {selectedProtocol ? (
         <p className="compute-empty">
-          Runtime compute is loaded directly from `{selectedProtocol.id}.runtime.json` agent packs.
+          Runtime read logic is loaded directly from `{selectedProtocol.id}.runtime.json` agent packs.
         </p>
       ) : null}
       {explain ? (
@@ -371,7 +371,7 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
           </article>
         </div>
       ) : (
-        <p className="compute-empty">{loading ? 'Loading compute spec...' : 'Select a protocol and operation.'}</p>
+        <p className="compute-empty">{loading ? 'Loading read spec...' : 'Select a protocol and operation.'}</p>
       )}
     </section>
   );

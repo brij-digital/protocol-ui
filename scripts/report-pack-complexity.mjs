@@ -110,8 +110,9 @@ async function main() {
       await readJson(toLocalPublicPath(protocol.agentRuntimePath, `${protocolId}.agentRuntimePath`), `${protocolId} agent runtime`),
       `${protocolId}.agentRuntime`,
     );
+    asObject(runtimePack.transforms ?? {}, `${protocolId}.agentRuntime.transforms`);
     const sections = [
-      ...Object.entries(asObject(runtimePack.computes ?? {}, `${protocolId}.agentRuntime.computes`)),
+      ...Object.entries(asObject(runtimePack.reads ?? {}, `${protocolId}.agentRuntime.reads`)),
       ...Object.entries(asObject(runtimePack.writes ?? {}, `${protocolId}.agentRuntime.writes`)),
     ];
     const opEntries = sections;

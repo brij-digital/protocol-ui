@@ -1,7 +1,7 @@
 {
   "$schema": "/idl/solana_agent_runtime.schema.v1.json",
   "schema": "solana-agent-runtime.v1",
-  "computes": {
+  "reads": {
     "quote_exact_in": {
       "instruction": "swap_v2",
       "inputs": {
@@ -39,75 +39,7 @@
         }
       ],
       "transform": [
-        {
-          "name": "a_to_b",
-          "kind": "compare.equals",
-          "left": "$whirlpool_data.token_mint_a",
-          "right": "$input.token_in_mint"
-        },
-        {
-          "name": "tick_array_direction",
-          "kind": "logic.if",
-          "condition": "$a_to_b",
-          "then": -1,
-          "else": 1
-        },
-        {
-          "name": "ticks_per_array",
-          "kind": "math.mul",
-          "values": [
-            "$whirlpool_data.tick_spacing",
-            88
-          ]
-        },
-        {
-          "name": "direction_step",
-          "kind": "math.mul",
-          "values": [
-            "$ticks_per_array",
-            "$tick_array_direction"
-          ]
-        },
-        {
-          "name": "current_array_index",
-          "kind": "math.floor_div",
-          "dividend": "$whirlpool_data.tick_current_index",
-          "divisor": "$ticks_per_array"
-        },
-        {
-          "name": "current_start_index",
-          "kind": "math.mul",
-          "values": [
-            "$current_array_index",
-            "$ticks_per_array"
-          ]
-        },
-        {
-          "name": "tick_array_starts",
-          "kind": "list.range_map",
-          "base": "$current_start_index",
-          "step": "$direction_step",
-          "count": 3
-        },
-        {
-          "name": "tick_arrays",
-          "kind": "pda(seed_spec)",
-          "program_id": "$protocol.programId",
-          "map_over": "$tick_array_starts",
-          "seeds": [
-            {
-              "kind": "utf8",
-              "value": "tick_array"
-            },
-            {
-              "kind": "pubkey",
-              "value": "$input.whirlpool"
-            },
-            {
-              "kind": "item_utf8"
-            }
-          ]
-        },
+        "whirlpool_swap_core",
         {
           "name": "spot_price_numerator",
           "kind": "math.mul",
@@ -526,75 +458,7 @@
         }
       ],
       "transform": [
-        {
-          "name": "a_to_b",
-          "kind": "compare.equals",
-          "left": "$whirlpool_data.token_mint_a",
-          "right": "$input.token_in_mint"
-        },
-        {
-          "name": "tick_array_direction",
-          "kind": "logic.if",
-          "condition": "$a_to_b",
-          "then": -1,
-          "else": 1
-        },
-        {
-          "name": "ticks_per_array",
-          "kind": "math.mul",
-          "values": [
-            "$whirlpool_data.tick_spacing",
-            88
-          ]
-        },
-        {
-          "name": "direction_step",
-          "kind": "math.mul",
-          "values": [
-            "$ticks_per_array",
-            "$tick_array_direction"
-          ]
-        },
-        {
-          "name": "current_array_index",
-          "kind": "math.floor_div",
-          "dividend": "$whirlpool_data.tick_current_index",
-          "divisor": "$ticks_per_array"
-        },
-        {
-          "name": "current_start_index",
-          "kind": "math.mul",
-          "values": [
-            "$current_array_index",
-            "$ticks_per_array"
-          ]
-        },
-        {
-          "name": "tick_array_starts",
-          "kind": "list.range_map",
-          "base": "$current_start_index",
-          "step": "$direction_step",
-          "count": 3
-        },
-        {
-          "name": "tick_arrays",
-          "kind": "pda(seed_spec)",
-          "program_id": "$protocol.programId",
-          "map_over": "$tick_array_starts",
-          "seeds": [
-            {
-              "kind": "utf8",
-              "value": "tick_array"
-            },
-            {
-              "kind": "pubkey",
-              "value": "$input.whirlpool"
-            },
-            {
-              "kind": "item_utf8"
-            }
-          ]
-        },
+        "whirlpool_swap_core",
         {
           "name": "spot_price_numerator",
           "kind": "math.mul",
@@ -916,5 +780,78 @@
         }
       ]
     }
+  },
+  "transforms": {
+    "whirlpool_swap_core": [
+      {
+        "name": "a_to_b",
+        "kind": "compare.equals",
+        "left": "$whirlpool_data.token_mint_a",
+        "right": "$input.token_in_mint"
+      },
+      {
+        "name": "tick_array_direction",
+        "kind": "logic.if",
+        "condition": "$a_to_b",
+        "then": -1,
+        "else": 1
+      },
+      {
+        "name": "ticks_per_array",
+        "kind": "math.mul",
+        "values": [
+          "$whirlpool_data.tick_spacing",
+          88
+        ]
+      },
+      {
+        "name": "direction_step",
+        "kind": "math.mul",
+        "values": [
+          "$ticks_per_array",
+          "$tick_array_direction"
+        ]
+      },
+      {
+        "name": "current_array_index",
+        "kind": "math.floor_div",
+        "dividend": "$whirlpool_data.tick_current_index",
+        "divisor": "$ticks_per_array"
+      },
+      {
+        "name": "current_start_index",
+        "kind": "math.mul",
+        "values": [
+          "$current_array_index",
+          "$ticks_per_array"
+        ]
+      },
+      {
+        "name": "tick_array_starts",
+        "kind": "list.range_map",
+        "base": "$current_start_index",
+        "step": "$direction_step",
+        "count": 3
+      },
+      {
+        "name": "tick_arrays",
+        "kind": "pda(seed_spec)",
+        "program_id": "$protocol.programId",
+        "map_over": "$tick_array_starts",
+        "seeds": [
+          {
+            "kind": "utf8",
+            "value": "tick_array"
+          },
+          {
+            "kind": "pubkey",
+            "value": "$input.whirlpool"
+          },
+          {
+            "kind": "item_utf8"
+          }
+        ]
+      }
+    ]
   }
 }

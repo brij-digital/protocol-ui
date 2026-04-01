@@ -160,8 +160,37 @@ function validateRuntimeInputs(protocolId, sectionLabel, operationId, operation)
   return op;
 }
 
-function validateWrite(protocolId, executionId, execution, instructionNames) {
+function validateTransforms(protocolId, agentRuntime) {
+  const transforms = asOptionalObject(agentRuntime.transforms, `${protocolId}.agentRuntime.transforms`);
+  for (const [transformId, transformRaw] of Object.entries(transforms)) {
+    const steps = asArray(transformRaw, `${protocolId}.agentRuntime.transforms.${transformId}`);
+    for (let index = 0; index < steps.length; index += 1) {
+      asObject(steps[index], `${protocolId}.agentRuntime.transforms.${transformId}[${index}]`);
+    }
+  }
+  return new Set(Object.keys(transforms));
+}
+
+function validateTransformRefs(protocolId, sectionLabel, operationId, operation, transformNames) {
+  const transform = operation.transform === undefined
+    ? []
+    : asArray(operation.transform, `${protocolId}.${sectionLabel}.${operationId}.transform`);
+  for (let index = 0; index < transform.length; index += 1) {
+    const entry = transform[index];
+    if (typeof entry === 'string') {
+      const ref = asString(entry, `${protocolId}.${sectionLabel}.${operationId}.transform[${index}]`);
+      if (!transformNames.has(ref)) {
+        fail(`${protocolId}.${sectionLabel}.${operationId}.transform[${index}] references unknown transform ${ref}.`);
+      }
+      continue;
+    }
+    asObject(entry, `${protocolId}.${sectionLabel}.${operationId}.transform[${index}]`);
+  }
+}
+
+function validateWrite(protocolId, executionId, execution, instructionNames, transformNames) {
   const op = validateRuntimeInputs(protocolId, 'agentRuntime.writes', executionId, execution);
+  validateTransformRefs(protocolId, 'agentRuntime.writes', executionId, op, transformNames);
   if (op.instruction !== undefined) {
     const instruction = asString(op.instruction, `${protocolId}.agentRuntime.writes.${executionId}.instruction`);
     if (!instructionNames.has(instruction)) {
@@ -208,8 +237,9 @@ function validateIndexingIndexView(protocolId, indexing, operationId) {
   asString(indexView.kind, `${protocolId}.indexing.operations.${operationId}.index_view.kind`);
 }
 
-function validateCompute(protocolId, operationId, operation) {
-  validateRuntimeInputs(protocolId, 'agentRuntime.computes', operationId, operation);
+function validateRead(protocolId, operationId, operation, transformNames) {
+  const op = validateRuntimeInputs(protocolId, 'agentRuntime.reads', operationId, operation);
+  validateTransformRefs(protocolId, 'agentRuntime.reads', operationId, op, transformNames);
 }
 
 async function main() {
@@ -310,7 +340,8 @@ async function main() {
       }
     }
 
-    const computes = asOptionalObject(agentRuntime.computes, `${protocolId}.agentRuntime.computes`);
+    const transformNames = validateTransforms(protocolId, agentRuntime);
+    const reads = asOptionalObject(agentRuntime.reads, `${protocolId}.agentRuntime.reads`);
     const writes = asOptionalObject(agentRuntime.writes, `${protocolId}.agentRuntime.writes`);
 
     const indexingOperations = asOptionalObject(indexing.operations, `${protocolId}.indexing.operations`);
@@ -322,12 +353,12 @@ async function main() {
       validateIndexingIndexView(protocolId, indexing, operationId);
       operationCount += 1;
     }
-    for (const [operationId, operationRaw] of Object.entries(computes)) {
-      validateCompute(protocolId, operationId, operationRaw);
+    for (const [operationId, operationRaw] of Object.entries(reads)) {
+      validateRead(protocolId, operationId, operationRaw, transformNames);
       operationCount += 1;
     }
     for (const [operationId, operationRaw] of Object.entries(writes)) {
-      validateWrite(protocolId, operationId, operationRaw, instructionNames);
+      validateWrite(protocolId, operationId, operationRaw, instructionNames, transformNames);
       operationCount += 1;
     }
   }

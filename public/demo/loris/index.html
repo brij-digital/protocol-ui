@@ -419,14 +419,14 @@ draft swap payload</code>
         </p>
         <div class="example-grid">
           <div class="example-box">
-            <strong><code>computes</code></strong>
+            <strong><code>reads</code></strong>
             <code>quote_exact_in</code>
             <p>Runs deterministic quote logic and produces values such as <code>estimated_out</code> and <code>minimum_out</code>.</p>
           </div>
           <div class="example-box">
             <strong><code>writes</code></strong>
             <code>swap_exact_in</code>
-            <p>Uses Codama’s instruction metadata plus the computed values to prepare the final swap draft.</p>
+            <p>Uses Codama’s instruction metadata plus the derived values to prepare the final swap draft.</p>
           </div>
           <div class="example-box">
             <strong><code>load</code></strong>
@@ -434,9 +434,9 @@ draft swap payload</code>
             <p>Loads only the extra runtime context that is still needed and not already implied by Codama.</p>
           </div>
           <div class="example-box">
-            <strong><code>preInstructions</code> / <code>postInstructions</code></strong>
-            <code>ATA create, cleanup</code>
-            <p>Handles the small transaction-envelope layer that still sits around the main instruction.</p>
+            <strong><code>transforms</code></strong>
+            <code>shared deterministic fragments</code>
+            <p>Defines reusable transform blocks that a read or write can reference instead of repeating the same logic inline.</p>
           </div>
         </div>
       </section>

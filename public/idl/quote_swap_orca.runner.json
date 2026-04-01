@@ -60,7 +60,7 @@
     },
     {
       "id": "quote",
-      "kind": "compute",
+      "kind": "read",
       "protocolId": "orca-whirlpool-mainnet",
       "operationId": "quote_exact_in",
       "input": {

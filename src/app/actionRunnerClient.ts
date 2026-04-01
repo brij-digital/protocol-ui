@@ -2,7 +2,7 @@ import type { Connection, PublicKey } from '@solana/web3.js';
 import {
   prepareRuntimeOperation,
   runActionRunner,
-  runRuntimeCompute,
+  runRuntimeRead,
   type ActionRunnerResult,
   type ActionRunnerSpec,
 } from '@brij-digital/apppack-runtime';
@@ -77,8 +77,8 @@ export async function runActionRunnerSpec(options: {
         throw new Error(`${step.kind} step ${step.id} requires a connected wallet.`);
       }
 
-      if (step.kind === 'compute') {
-        const computed = await runRuntimeCompute({
+      if (step.kind === 'read') {
+        const computed = await runRuntimeRead({
           protocolId: step.protocolId,
           operationId: step.operationId,
           input: step.input,
