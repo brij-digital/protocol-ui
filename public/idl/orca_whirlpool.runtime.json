@@ -338,7 +338,9 @@
           "terminal": true,
           "tick_index": "$terminal_tick_index",
           "tick_array_start_index": "$last_tick_array_start",
-          "tick_array_address": "$tick_arrays.2"
+          "tick_array_address": "$tick_arrays.2",
+          "liquidity_net": "0",
+          "liquidity_gross": "0"
         }
       },
       {
@@ -1632,6 +1634,177 @@
         "else": "$next_swap_target_tick_sqrt_price_positive"
       },
       {
+        "name": "swap_target_ticks_with_prices",
+        "kind": "list.map",
+        "items": "$swap_target_ticks",
+        "item_as": "target_tick",
+        "steps": [
+          {
+            "name": "target_sqrt_price_x64",
+            "kind": "transform",
+            "transform": "quote_exact_in__tick_index_to_sqrt_price_x64",
+            "bindings": {
+              "tick_index": "$target_tick.tick_index"
+            },
+            "output": "$tick_sqrt_price_x64"
+          },
+          {
+            "name": "target_tick_price_metadata",
+            "kind": "object.create",
+            "fields": {
+              "sqrt_price_x64": "$target_sqrt_price_x64"
+            }
+          },
+          {
+            "name": "target_tick_with_price",
+            "kind": "object.merge",
+            "objects": [
+              "$target_tick",
+              "$target_tick_price_metadata"
+            ]
+          }
+        ],
+        "output": "$target_tick_with_price"
+      },
+      {
+        "name": "initial_swap_state",
+        "kind": "object.create",
+        "fields": {
+          "done": false,
+          "amount_remaining": "$input.amount_in",
+          "amount_calculated": "0",
+          "current_liquidity": "$whirlpool_data.liquidity",
+          "current_sqrt_price": "$whirlpool_data.sqrt_price"
+        }
+      },
+      {
+        "name": "swap_quote_state",
+        "kind": "list.reduce",
+        "items": "$swap_target_ticks_with_prices",
+        "initial": "$initial_swap_state",
+        "item_as": "target_tick",
+        "acc_as": "acc",
+        "steps": [
+          {
+            "name": "step_quote",
+            "kind": "transform",
+            "transform": "quote_exact_in__swap_step_exact_input",
+            "bindings": {
+              "amount_remaining": "$acc.amount_remaining",
+              "fee_rate": "$whirlpool_data.fee_rate",
+              "curr_liquidity": "$acc.current_liquidity",
+              "curr_sqrt_price": "$acc.current_sqrt_price",
+              "target_sqrt_price": "$target_tick.sqrt_price_x64",
+              "a_to_b": "$a_to_b"
+            },
+            "output": "$payload"
+          },
+          {
+            "name": "next_amount_remaining_raw",
+            "kind": "math.sub",
+            "values": [
+              "$acc.amount_remaining",
+              "$step_quote.amount_in",
+              "$step_quote.fee_amount"
+            ]
+          },
+          {
+            "name": "next_amount_calculated_raw",
+            "kind": "math.add",
+            "values": [
+              "$acc.amount_calculated",
+              "$step_quote.amount_out"
+            ]
+          },
+          {
+            "name": "target_liquidity_delta",
+            "kind": "coalesce",
+            "values": [
+              "$target_tick.liquidity_net",
+              "0"
+            ]
+          },
+          {
+            "name": "liquidity_after_cross_a_to_b",
+            "kind": "math.sub",
+            "values": [
+              "$acc.current_liquidity",
+              "$target_liquidity_delta"
+            ]
+          },
+          {
+            "name": "liquidity_after_cross_b_to_a",
+            "kind": "math.add",
+            "values": [
+              "$acc.current_liquidity",
+              "$target_liquidity_delta"
+            ]
+          },
+          {
+            "name": "liquidity_after_cross",
+            "kind": "logic.if",
+            "condition": "$a_to_b",
+            "then": "$liquidity_after_cross_a_to_b",
+            "else": "$liquidity_after_cross_b_to_a"
+          },
+          {
+            "name": "liquidity_after_target",
+            "kind": "logic.if",
+            "condition": "$target_tick.initialized",
+            "then": "$liquidity_after_cross",
+            "else": "$acc.current_liquidity"
+          },
+          {
+            "name": "next_current_liquidity",
+            "kind": "logic.if",
+            "condition": "$step_quote.reaches_target",
+            "then": "$liquidity_after_target",
+            "else": "$acc.current_liquidity"
+          },
+          {
+            "name": "has_amount_remaining",
+            "kind": "compare.gt",
+            "left": "$next_amount_remaining_raw",
+            "right": "0"
+          },
+          {
+            "name": "done_when_reached",
+            "kind": "logic.if",
+            "condition": "$has_amount_remaining",
+            "then": false,
+            "else": true
+          },
+          {
+            "name": "done_raw",
+            "kind": "logic.if",
+            "condition": "$step_quote.reaches_target",
+            "then": "$done_when_reached",
+            "else": true
+          },
+          {
+            "name": "next_state_raw",
+            "kind": "object.create",
+            "fields": {
+              "done": "$done_raw",
+              "amount_remaining": "$next_amount_remaining_raw",
+              "amount_calculated": "$next_amount_calculated_raw",
+              "current_liquidity": "$next_current_liquidity",
+              "current_sqrt_price": "$step_quote.next_sqrt_price",
+              "last_swap_step": "$step_quote",
+              "last_target_tick": "$target_tick"
+            }
+          },
+          {
+            "name": "next_state",
+            "kind": "logic.if",
+            "condition": "$acc.done",
+            "then": "$acc",
+            "else": "$next_state_raw"
+          }
+        ],
+        "output": "$next_state"
+      },
+      {
         "name": "initialized_liquidity_gross_total",
         "kind": "list.reduce",
         "items": "$initialized_ticks",
@@ -1651,40 +1824,32 @@
         "output": "$next_total"
       },
       {
-        "name": "spot_price_numerator",
-        "kind": "math.mul",
-        "values": [
-          "$whirlpool_data.sqrt_price",
-          "$whirlpool_data.sqrt_price"
-        ]
+        "name": "swap_step",
+        "kind": "transform",
+        "transform": "quote_exact_in__swap_step_exact_input",
+        "bindings": {
+          "amount_remaining": "$input.amount_in",
+          "fee_rate": "$whirlpool_data.fee_rate",
+          "curr_liquidity": "$whirlpool_data.liquidity",
+          "curr_sqrt_price": "$whirlpool_data.sqrt_price",
+          "target_sqrt_price": "$next_swap_target_tick_sqrt_price_x64",
+          "a_to_b": "$a_to_b"
+        },
+        "output": "$payload"
       },
       {
-        "name": "estimated_out_a_to_b",
-        "kind": "math.mul_div_floor",
-        "multiplicand": "$input.amount_in",
-        "multiplier": "$spot_price_numerator",
-        "divisor": "340282366920938463463374607431768211456"
-      },
-      {
-        "name": "estimated_out_b_to_a",
-        "kind": "math.mul_div_floor",
-        "multiplicand": "$input.amount_in",
-        "multiplier": "340282366920938463463374607431768211456",
-        "divisor": "$spot_price_numerator"
-      },
-      {
-        "name": "estimated_out_spot",
-        "kind": "logic.if",
-        "condition": "$a_to_b",
-        "then": "$estimated_out_a_to_b",
-        "else": "$estimated_out_b_to_a"
-      },
-      {
-        "name": "estimated_out_auto",
+        "name": "estimated_out_effective",
         "kind": "coalesce",
         "values": [
-          "$estimated_out_spot"
+          "$swap_quote_state.amount_calculated"
         ]
+      },
+      {
+        "name": "sqrt_price_limit",
+        "kind": "logic.if",
+        "condition": "$a_to_b",
+        "then": "4295048016",
+        "else": "79226673515401279992447579055"
       },
       {
         "name": "raw_slippage_keep_bps",
@@ -1701,20 +1866,6 @@
           "0",
           "$raw_slippage_keep_bps"
         ]
-      },
-      {
-        "name": "estimated_out_effective",
-        "kind": "coalesce",
-        "values": [
-          "$estimated_out_auto"
-        ]
-      },
-      {
-        "name": "sqrt_price_limit",
-        "kind": "logic.if",
-        "condition": "$a_to_b",
-        "then": "4295048016",
-        "else": "79226673515401279992447579055"
       },
       {
         "name": "other_amount_threshold",
@@ -1778,6 +1929,1711 @@
         "values": [
           "$whirlpool_data.fee_rate"
         ]
+      }
+    ],
+    "quote_exact_in__amount_delta_a": [
+      {
+        "name": "sqrt_price_lower",
+        "kind": "math.min",
+        "values": [
+          "$curr_sqrt_price",
+          "$target_sqrt_price"
+        ]
+      },
+      {
+        "name": "sqrt_price_upper",
+        "kind": "math.max",
+        "values": [
+          "$curr_sqrt_price",
+          "$target_sqrt_price"
+        ]
+      },
+      {
+        "name": "sqrt_price_diff",
+        "kind": "math.sub",
+        "values": [
+          "$sqrt_price_upper",
+          "$sqrt_price_lower"
+        ]
+      },
+      {
+        "name": "numerator_product",
+        "kind": "math.mul",
+        "values": [
+          "$curr_liquidity",
+          "$sqrt_price_diff"
+        ]
+      },
+      {
+        "name": "numerator",
+        "kind": "math.shift_left",
+        "value": "$numerator_product",
+        "shift": 64
+      },
+      {
+        "name": "denominator",
+        "kind": "math.mul",
+        "values": [
+          "$sqrt_price_lower",
+          "$sqrt_price_upper"
+        ]
+      },
+      {
+        "name": "quotient",
+        "kind": "math.floor_div",
+        "dividend": "$numerator",
+        "divisor": "$denominator"
+      },
+      {
+        "name": "remainder",
+        "kind": "math.mod",
+        "dividend": "$numerator",
+        "divisor": "$denominator"
+      },
+      {
+        "name": "remainder_nonzero",
+        "kind": "compare.gt",
+        "left": "$remainder",
+        "right": "0"
+      },
+      {
+        "name": "rounded_value",
+        "kind": "math.add",
+        "values": [
+          "$quotient",
+          "1"
+        ]
+      },
+      {
+        "name": "quotient_or_rounded",
+        "kind": "logic.if",
+        "condition": "$remainder_nonzero",
+        "then": "$rounded_value",
+        "else": "$quotient"
+      },
+      {
+        "name": "value",
+        "kind": "logic.if",
+        "condition": "$round_up",
+        "then": "$quotient_or_rounded",
+        "else": "$quotient"
+      }
+    ],
+    "quote_exact_in__amount_delta_b": [
+      {
+        "name": "sqrt_price_lower",
+        "kind": "math.min",
+        "values": [
+          "$curr_sqrt_price",
+          "$target_sqrt_price"
+        ]
+      },
+      {
+        "name": "sqrt_price_upper",
+        "kind": "math.max",
+        "values": [
+          "$curr_sqrt_price",
+          "$target_sqrt_price"
+        ]
+      },
+      {
+        "name": "sqrt_price_diff",
+        "kind": "math.sub",
+        "values": [
+          "$sqrt_price_upper",
+          "$sqrt_price_lower"
+        ]
+      },
+      {
+        "name": "product",
+        "kind": "math.mul",
+        "values": [
+          "$curr_liquidity",
+          "$sqrt_price_diff"
+        ]
+      },
+      {
+        "name": "quotient",
+        "kind": "math.shift_right",
+        "value": "$product",
+        "shift": 64
+      },
+      {
+        "name": "remainder",
+        "kind": "math.bit_and",
+        "left": "$product",
+        "right": "18446744073709551615"
+      },
+      {
+        "name": "remainder_nonzero",
+        "kind": "compare.gt",
+        "left": "$remainder",
+        "right": "0"
+      },
+      {
+        "name": "rounded_value",
+        "kind": "math.add",
+        "values": [
+          "$quotient",
+          "1"
+        ]
+      },
+      {
+        "name": "quotient_or_rounded",
+        "kind": "logic.if",
+        "condition": "$remainder_nonzero",
+        "then": "$rounded_value",
+        "else": "$quotient"
+      },
+      {
+        "name": "value",
+        "kind": "logic.if",
+        "condition": "$round_up",
+        "then": "$quotient_or_rounded",
+        "else": "$quotient"
+      }
+    ],
+    "quote_exact_in__next_sqrt_price_from_a_round_up": [
+      {
+        "name": "amount_is_zero",
+        "kind": "compare.equals",
+        "left": "$amount",
+        "right": "0"
+      },
+      {
+        "name": "product",
+        "kind": "math.mul",
+        "values": [
+          "$curr_sqrt_price",
+          "$amount"
+        ]
+      },
+      {
+        "name": "numerator_product",
+        "kind": "math.mul",
+        "values": [
+          "$curr_liquidity",
+          "$curr_sqrt_price"
+        ]
+      },
+      {
+        "name": "numerator",
+        "kind": "math.shift_left",
+        "value": "$numerator_product",
+        "shift": 64
+      },
+      {
+        "name": "curr_liquidity_x64",
+        "kind": "math.shift_left",
+        "value": "$curr_liquidity",
+        "shift": 64
+      },
+      {
+        "name": "denominator",
+        "kind": "math.add",
+        "values": [
+          "$curr_liquidity_x64",
+          "$product"
+        ]
+      },
+      {
+        "name": "quotient",
+        "kind": "math.div_round_up",
+        "dividend": "$numerator",
+        "divisor": "$denominator"
+      },
+      {
+        "name": "value",
+        "kind": "logic.if",
+        "condition": "$amount_is_zero",
+        "then": "$curr_sqrt_price",
+        "else": "$quotient"
+      }
+    ],
+    "quote_exact_in__next_sqrt_price_from_b_round_down": [
+      {
+        "name": "amount_x64",
+        "kind": "math.shift_left",
+        "value": "$amount",
+        "shift": 64
+      },
+      {
+        "name": "delta",
+        "kind": "math.floor_div",
+        "dividend": "$amount_x64",
+        "divisor": "$curr_liquidity"
+      },
+      {
+        "name": "value",
+        "kind": "math.add",
+        "values": [
+          "$curr_sqrt_price",
+          "$delta"
+        ]
+      }
+    ],
+    "quote_exact_in__swap_step_exact_input": [
+      {
+        "name": "fee_rate_remaining",
+        "kind": "math.sub",
+        "values": [
+          "1000000",
+          "$fee_rate"
+        ]
+      },
+      {
+        "name": "amount_less_fees",
+        "kind": "math.mul_div_floor",
+        "multiplicand": "$amount_remaining",
+        "multiplier": "$fee_rate_remaining",
+        "divisor": "1000000"
+      },
+      {
+        "name": "fixed_delta_to_target_a_to_b",
+        "kind": "transform",
+        "transform": "quote_exact_in__amount_delta_a",
+        "bindings": {
+          "curr_sqrt_price": "$curr_sqrt_price",
+          "target_sqrt_price": "$target_sqrt_price",
+          "curr_liquidity": "$curr_liquidity",
+          "round_up": true
+        },
+        "output": "$value"
+      },
+      {
+        "name": "fixed_delta_to_target_b_to_a",
+        "kind": "transform",
+        "transform": "quote_exact_in__amount_delta_b",
+        "bindings": {
+          "curr_sqrt_price": "$curr_sqrt_price",
+          "target_sqrt_price": "$target_sqrt_price",
+          "curr_liquidity": "$curr_liquidity",
+          "round_up": true
+        },
+        "output": "$value"
+      },
+      {
+        "name": "fixed_delta_to_target",
+        "kind": "logic.if",
+        "condition": "$a_to_b",
+        "then": "$fixed_delta_to_target_a_to_b",
+        "else": "$fixed_delta_to_target_b_to_a"
+      },
+      {
+        "name": "reaches_target",
+        "kind": "compare.lte",
+        "left": "$fixed_delta_to_target",
+        "right": "$amount_less_fees"
+      },
+      {
+        "name": "partial_next_sqrt_price_a_to_b",
+        "kind": "transform",
+        "transform": "quote_exact_in__next_sqrt_price_from_a_round_up",
+        "bindings": {
+          "curr_sqrt_price": "$curr_sqrt_price",
+          "curr_liquidity": "$curr_liquidity",
+          "amount": "$amount_less_fees"
+        },
+        "output": "$value"
+      },
+      {
+        "name": "partial_next_sqrt_price_b_to_a",
+        "kind": "transform",
+        "transform": "quote_exact_in__next_sqrt_price_from_b_round_down",
+        "bindings": {
+          "curr_sqrt_price": "$curr_sqrt_price",
+          "curr_liquidity": "$curr_liquidity",
+          "amount": "$amount_less_fees"
+        },
+        "output": "$value"
+      },
+      {
+        "name": "partial_next_sqrt_price",
+        "kind": "logic.if",
+        "condition": "$a_to_b",
+        "then": "$partial_next_sqrt_price_a_to_b",
+        "else": "$partial_next_sqrt_price_b_to_a"
+      },
+      {
+        "name": "next_sqrt_price",
+        "kind": "logic.if",
+        "condition": "$reaches_target",
+        "then": "$target_sqrt_price",
+        "else": "$partial_next_sqrt_price"
+      },
+      {
+        "name": "fixed_delta_to_next_a_to_b",
+        "kind": "transform",
+        "transform": "quote_exact_in__amount_delta_a",
+        "bindings": {
+          "curr_sqrt_price": "$curr_sqrt_price",
+          "target_sqrt_price": "$next_sqrt_price",
+          "curr_liquidity": "$curr_liquidity",
+          "round_up": true
+        },
+        "output": "$value"
+      },
+      {
+        "name": "fixed_delta_to_next_b_to_a",
+        "kind": "transform",
+        "transform": "quote_exact_in__amount_delta_b",
+        "bindings": {
+          "curr_sqrt_price": "$curr_sqrt_price",
+          "target_sqrt_price": "$next_sqrt_price",
+          "curr_liquidity": "$curr_liquidity",
+          "round_up": true
+        },
+        "output": "$value"
+      },
+      {
+        "name": "amount_in",
+        "kind": "logic.if",
+        "condition": "$a_to_b",
+        "then": "$fixed_delta_to_next_a_to_b",
+        "else": "$fixed_delta_to_next_b_to_a"
+      },
+      {
+        "name": "unfixed_delta_to_next_a_to_b",
+        "kind": "transform",
+        "transform": "quote_exact_in__amount_delta_b",
+        "bindings": {
+          "curr_sqrt_price": "$curr_sqrt_price",
+          "target_sqrt_price": "$next_sqrt_price",
+          "curr_liquidity": "$curr_liquidity",
+          "round_up": false
+        },
+        "output": "$value"
+      },
+      {
+        "name": "unfixed_delta_to_next_b_to_a",
+        "kind": "transform",
+        "transform": "quote_exact_in__amount_delta_a",
+        "bindings": {
+          "curr_sqrt_price": "$curr_sqrt_price",
+          "target_sqrt_price": "$next_sqrt_price",
+          "curr_liquidity": "$curr_liquidity",
+          "round_up": false
+        },
+        "output": "$value"
+      },
+      {
+        "name": "amount_out",
+        "kind": "logic.if",
+        "condition": "$a_to_b",
+        "then": "$unfixed_delta_to_next_a_to_b",
+        "else": "$unfixed_delta_to_next_b_to_a"
+      },
+      {
+        "name": "fee_amount_max",
+        "kind": "math.mul_div_ceil",
+        "multiplicand": "$amount_in",
+        "multiplier": "$fee_rate",
+        "divisor": "$fee_rate_remaining"
+      },
+      {
+        "name": "fee_amount_partial",
+        "kind": "math.sub",
+        "values": [
+          "$amount_remaining",
+          "$amount_in"
+        ]
+      },
+      {
+        "name": "fee_amount",
+        "kind": "logic.if",
+        "condition": "$reaches_target",
+        "then": "$fee_amount_max",
+        "else": "$fee_amount_partial"
+      },
+      {
+        "name": "payload",
+        "kind": "object.create",
+        "fields": {
+          "amount_in": "$amount_in",
+          "amount_out": "$amount_out",
+          "fee_amount": "$fee_amount",
+          "next_sqrt_price": "$next_sqrt_price",
+          "reaches_target": "$reaches_target",
+          "amount_less_fees": "$amount_less_fees",
+          "fixed_delta_to_target": "$fixed_delta_to_target",
+          "fee_rate_remaining": "$fee_rate_remaining"
+        }
+      }
+    ],
+    "quote_exact_in__tick_index_to_sqrt_price_x64": [
+      {
+        "name": "tick_index",
+        "kind": "coalesce",
+        "values": [
+          "$tick_index"
+        ]
+      },
+      {
+        "name": "tick_index_is_negative",
+        "kind": "compare.lt",
+        "left": "$tick_index",
+        "right": "0"
+      },
+      {
+        "name": "tick_index_abs_negated",
+        "kind": "math.sub",
+        "values": [
+          "0",
+          "$tick_index"
+        ]
+      },
+      {
+        "name": "tick_index_abs",
+        "kind": "logic.if",
+        "condition": "$tick_index_is_negative",
+        "then": "$tick_index_abs_negated",
+        "else": "$tick_index"
+      },
+      {
+        "name": "tick_positive_bit_1_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "1"
+      },
+      {
+        "name": "tick_positive_bit_1_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_positive_bit_1_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_positive_ratio_0",
+        "kind": "logic.if",
+        "condition": "$tick_positive_bit_1_enabled",
+        "then": "79232123823359799118286999567",
+        "else": "79228162514264337593543950336"
+      },
+      {
+        "name": "tick_positive_bit_2_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "2"
+      },
+      {
+        "name": "tick_positive_bit_2_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_positive_bit_2_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_positive_ratio_2_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_positive_ratio_0",
+          "79236085330515764027303304731"
+        ]
+      },
+      {
+        "name": "tick_positive_ratio_2_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_positive_ratio_2_mul",
+        "shift": 96
+      },
+      {
+        "name": "tick_positive_ratio_2",
+        "kind": "logic.if",
+        "condition": "$tick_positive_bit_2_enabled",
+        "then": "$tick_positive_ratio_2_shift",
+        "else": "$tick_positive_ratio_0"
+      },
+      {
+        "name": "tick_positive_bit_4_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "4"
+      },
+      {
+        "name": "tick_positive_bit_4_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_positive_bit_4_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_positive_ratio_4_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_positive_ratio_2",
+          "79244008939048815603706035061"
+        ]
+      },
+      {
+        "name": "tick_positive_ratio_4_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_positive_ratio_4_mul",
+        "shift": 96
+      },
+      {
+        "name": "tick_positive_ratio_4",
+        "kind": "logic.if",
+        "condition": "$tick_positive_bit_4_enabled",
+        "then": "$tick_positive_ratio_4_shift",
+        "else": "$tick_positive_ratio_2"
+      },
+      {
+        "name": "tick_positive_bit_8_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "8"
+      },
+      {
+        "name": "tick_positive_bit_8_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_positive_bit_8_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_positive_ratio_8_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_positive_ratio_4",
+          "79259858533276714757314932305"
+        ]
+      },
+      {
+        "name": "tick_positive_ratio_8_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_positive_ratio_8_mul",
+        "shift": 96
+      },
+      {
+        "name": "tick_positive_ratio_8",
+        "kind": "logic.if",
+        "condition": "$tick_positive_bit_8_enabled",
+        "then": "$tick_positive_ratio_8_shift",
+        "else": "$tick_positive_ratio_4"
+      },
+      {
+        "name": "tick_positive_bit_16_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "16"
+      },
+      {
+        "name": "tick_positive_bit_16_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_positive_bit_16_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_positive_ratio_16_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_positive_ratio_8",
+          "79291567232598584799939703904"
+        ]
+      },
+      {
+        "name": "tick_positive_ratio_16_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_positive_ratio_16_mul",
+        "shift": 96
+      },
+      {
+        "name": "tick_positive_ratio_16",
+        "kind": "logic.if",
+        "condition": "$tick_positive_bit_16_enabled",
+        "then": "$tick_positive_ratio_16_shift",
+        "else": "$tick_positive_ratio_8"
+      },
+      {
+        "name": "tick_positive_bit_32_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "32"
+      },
+      {
+        "name": "tick_positive_bit_32_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_positive_bit_32_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_positive_ratio_32_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_positive_ratio_16",
+          "79355022692464371645785046466"
+        ]
+      },
+      {
+        "name": "tick_positive_ratio_32_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_positive_ratio_32_mul",
+        "shift": 96
+      },
+      {
+        "name": "tick_positive_ratio_32",
+        "kind": "logic.if",
+        "condition": "$tick_positive_bit_32_enabled",
+        "then": "$tick_positive_ratio_32_shift",
+        "else": "$tick_positive_ratio_16"
+      },
+      {
+        "name": "tick_positive_bit_64_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "64"
+      },
+      {
+        "name": "tick_positive_bit_64_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_positive_bit_64_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_positive_ratio_64_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_positive_ratio_32",
+          "79482085999252804386437311141"
+        ]
+      },
+      {
+        "name": "tick_positive_ratio_64_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_positive_ratio_64_mul",
+        "shift": 96
+      },
+      {
+        "name": "tick_positive_ratio_64",
+        "kind": "logic.if",
+        "condition": "$tick_positive_bit_64_enabled",
+        "then": "$tick_positive_ratio_64_shift",
+        "else": "$tick_positive_ratio_32"
+      },
+      {
+        "name": "tick_positive_bit_128_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "128"
+      },
+      {
+        "name": "tick_positive_bit_128_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_positive_bit_128_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_positive_ratio_128_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_positive_ratio_64",
+          "79736823300114093921829183326"
+        ]
+      },
+      {
+        "name": "tick_positive_ratio_128_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_positive_ratio_128_mul",
+        "shift": 96
+      },
+      {
+        "name": "tick_positive_ratio_128",
+        "kind": "logic.if",
+        "condition": "$tick_positive_bit_128_enabled",
+        "then": "$tick_positive_ratio_128_shift",
+        "else": "$tick_positive_ratio_64"
+      },
+      {
+        "name": "tick_positive_bit_256_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "256"
+      },
+      {
+        "name": "tick_positive_bit_256_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_positive_bit_256_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_positive_ratio_256_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_positive_ratio_128",
+          "80248749790819932309965073892"
+        ]
+      },
+      {
+        "name": "tick_positive_ratio_256_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_positive_ratio_256_mul",
+        "shift": 96
+      },
+      {
+        "name": "tick_positive_ratio_256",
+        "kind": "logic.if",
+        "condition": "$tick_positive_bit_256_enabled",
+        "then": "$tick_positive_ratio_256_shift",
+        "else": "$tick_positive_ratio_128"
+      },
+      {
+        "name": "tick_positive_bit_512_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "512"
+      },
+      {
+        "name": "tick_positive_bit_512_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_positive_bit_512_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_positive_ratio_512_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_positive_ratio_256",
+          "81282483887344747381513967011"
+        ]
+      },
+      {
+        "name": "tick_positive_ratio_512_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_positive_ratio_512_mul",
+        "shift": 96
+      },
+      {
+        "name": "tick_positive_ratio_512",
+        "kind": "logic.if",
+        "condition": "$tick_positive_bit_512_enabled",
+        "then": "$tick_positive_ratio_512_shift",
+        "else": "$tick_positive_ratio_256"
+      },
+      {
+        "name": "tick_positive_bit_1024_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "1024"
+      },
+      {
+        "name": "tick_positive_bit_1024_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_positive_bit_1024_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_positive_ratio_1024_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_positive_ratio_512",
+          "83390072131320151908154831281"
+        ]
+      },
+      {
+        "name": "tick_positive_ratio_1024_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_positive_ratio_1024_mul",
+        "shift": 96
+      },
+      {
+        "name": "tick_positive_ratio_1024",
+        "kind": "logic.if",
+        "condition": "$tick_positive_bit_1024_enabled",
+        "then": "$tick_positive_ratio_1024_shift",
+        "else": "$tick_positive_ratio_512"
+      },
+      {
+        "name": "tick_positive_bit_2048_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "2048"
+      },
+      {
+        "name": "tick_positive_bit_2048_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_positive_bit_2048_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_positive_ratio_2048_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_positive_ratio_1024",
+          "87770609709833776024991924138"
+        ]
+      },
+      {
+        "name": "tick_positive_ratio_2048_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_positive_ratio_2048_mul",
+        "shift": 96
+      },
+      {
+        "name": "tick_positive_ratio_2048",
+        "kind": "logic.if",
+        "condition": "$tick_positive_bit_2048_enabled",
+        "then": "$tick_positive_ratio_2048_shift",
+        "else": "$tick_positive_ratio_1024"
+      },
+      {
+        "name": "tick_positive_bit_4096_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "4096"
+      },
+      {
+        "name": "tick_positive_bit_4096_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_positive_bit_4096_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_positive_ratio_4096_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_positive_ratio_2048",
+          "97234110755111693312479820773"
+        ]
+      },
+      {
+        "name": "tick_positive_ratio_4096_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_positive_ratio_4096_mul",
+        "shift": 96
+      },
+      {
+        "name": "tick_positive_ratio_4096",
+        "kind": "logic.if",
+        "condition": "$tick_positive_bit_4096_enabled",
+        "then": "$tick_positive_ratio_4096_shift",
+        "else": "$tick_positive_ratio_2048"
+      },
+      {
+        "name": "tick_positive_bit_8192_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "8192"
+      },
+      {
+        "name": "tick_positive_bit_8192_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_positive_bit_8192_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_positive_ratio_8192_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_positive_ratio_4096",
+          "119332217159966728226237229890"
+        ]
+      },
+      {
+        "name": "tick_positive_ratio_8192_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_positive_ratio_8192_mul",
+        "shift": 96
+      },
+      {
+        "name": "tick_positive_ratio_8192",
+        "kind": "logic.if",
+        "condition": "$tick_positive_bit_8192_enabled",
+        "then": "$tick_positive_ratio_8192_shift",
+        "else": "$tick_positive_ratio_4096"
+      },
+      {
+        "name": "tick_positive_bit_16384_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "16384"
+      },
+      {
+        "name": "tick_positive_bit_16384_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_positive_bit_16384_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_positive_ratio_16384_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_positive_ratio_8192",
+          "179736315981702064433883588727"
+        ]
+      },
+      {
+        "name": "tick_positive_ratio_16384_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_positive_ratio_16384_mul",
+        "shift": 96
+      },
+      {
+        "name": "tick_positive_ratio_16384",
+        "kind": "logic.if",
+        "condition": "$tick_positive_bit_16384_enabled",
+        "then": "$tick_positive_ratio_16384_shift",
+        "else": "$tick_positive_ratio_8192"
+      },
+      {
+        "name": "tick_positive_bit_32768_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "32768"
+      },
+      {
+        "name": "tick_positive_bit_32768_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_positive_bit_32768_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_positive_ratio_32768_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_positive_ratio_16384",
+          "407748233172238350107850275304"
+        ]
+      },
+      {
+        "name": "tick_positive_ratio_32768_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_positive_ratio_32768_mul",
+        "shift": 96
+      },
+      {
+        "name": "tick_positive_ratio_32768",
+        "kind": "logic.if",
+        "condition": "$tick_positive_bit_32768_enabled",
+        "then": "$tick_positive_ratio_32768_shift",
+        "else": "$tick_positive_ratio_16384"
+      },
+      {
+        "name": "tick_positive_bit_65536_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "65536"
+      },
+      {
+        "name": "tick_positive_bit_65536_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_positive_bit_65536_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_positive_ratio_65536_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_positive_ratio_32768",
+          "2098478828474011932436660412517"
+        ]
+      },
+      {
+        "name": "tick_positive_ratio_65536_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_positive_ratio_65536_mul",
+        "shift": 96
+      },
+      {
+        "name": "tick_positive_ratio_65536",
+        "kind": "logic.if",
+        "condition": "$tick_positive_bit_65536_enabled",
+        "then": "$tick_positive_ratio_65536_shift",
+        "else": "$tick_positive_ratio_32768"
+      },
+      {
+        "name": "tick_positive_bit_131072_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "131072"
+      },
+      {
+        "name": "tick_positive_bit_131072_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_positive_bit_131072_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_positive_ratio_131072_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_positive_ratio_65536",
+          "55581415166113811149459800483533"
+        ]
+      },
+      {
+        "name": "tick_positive_ratio_131072_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_positive_ratio_131072_mul",
+        "shift": 96
+      },
+      {
+        "name": "tick_positive_ratio_131072",
+        "kind": "logic.if",
+        "condition": "$tick_positive_bit_131072_enabled",
+        "then": "$tick_positive_ratio_131072_shift",
+        "else": "$tick_positive_ratio_65536"
+      },
+      {
+        "name": "tick_positive_bit_262144_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "262144"
+      },
+      {
+        "name": "tick_positive_bit_262144_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_positive_bit_262144_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_positive_ratio_262144_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_positive_ratio_131072",
+          "38992368544603139932233054999993551"
+        ]
+      },
+      {
+        "name": "tick_positive_ratio_262144_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_positive_ratio_262144_mul",
+        "shift": 96
+      },
+      {
+        "name": "tick_positive_ratio_262144",
+        "kind": "logic.if",
+        "condition": "$tick_positive_bit_262144_enabled",
+        "then": "$tick_positive_ratio_262144_shift",
+        "else": "$tick_positive_ratio_131072"
+      },
+      {
+        "name": "tick_sqrt_price_positive",
+        "kind": "math.shift_right",
+        "value": "$tick_positive_ratio_262144",
+        "shift": 32
+      },
+      {
+        "name": "tick_negative_bit_1_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "1"
+      },
+      {
+        "name": "tick_negative_bit_1_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_negative_bit_1_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_negative_ratio_0",
+        "kind": "logic.if",
+        "condition": "$tick_negative_bit_1_enabled",
+        "then": "18445821805675392311",
+        "else": "18446744073709551616"
+      },
+      {
+        "name": "tick_negative_bit_2_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "2"
+      },
+      {
+        "name": "tick_negative_bit_2_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_negative_bit_2_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_negative_ratio_2_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_negative_ratio_0",
+          "18444899583751176498"
+        ]
+      },
+      {
+        "name": "tick_negative_ratio_2_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_negative_ratio_2_mul",
+        "shift": 64
+      },
+      {
+        "name": "tick_negative_ratio_2",
+        "kind": "logic.if",
+        "condition": "$tick_negative_bit_2_enabled",
+        "then": "$tick_negative_ratio_2_shift",
+        "else": "$tick_negative_ratio_0"
+      },
+      {
+        "name": "tick_negative_bit_4_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "4"
+      },
+      {
+        "name": "tick_negative_bit_4_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_negative_bit_4_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_negative_ratio_4_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_negative_ratio_2",
+          "18443055278223354162"
+        ]
+      },
+      {
+        "name": "tick_negative_ratio_4_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_negative_ratio_4_mul",
+        "shift": 64
+      },
+      {
+        "name": "tick_negative_ratio_4",
+        "kind": "logic.if",
+        "condition": "$tick_negative_bit_4_enabled",
+        "then": "$tick_negative_ratio_4_shift",
+        "else": "$tick_negative_ratio_2"
+      },
+      {
+        "name": "tick_negative_bit_8_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "8"
+      },
+      {
+        "name": "tick_negative_bit_8_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_negative_bit_8_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_negative_ratio_8_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_negative_ratio_4",
+          "18439367220385604838"
+        ]
+      },
+      {
+        "name": "tick_negative_ratio_8_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_negative_ratio_8_mul",
+        "shift": 64
+      },
+      {
+        "name": "tick_negative_ratio_8",
+        "kind": "logic.if",
+        "condition": "$tick_negative_bit_8_enabled",
+        "then": "$tick_negative_ratio_8_shift",
+        "else": "$tick_negative_ratio_4"
+      },
+      {
+        "name": "tick_negative_bit_16_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "16"
+      },
+      {
+        "name": "tick_negative_bit_16_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_negative_bit_16_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_negative_ratio_16_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_negative_ratio_8",
+          "18431993317065449817"
+        ]
+      },
+      {
+        "name": "tick_negative_ratio_16_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_negative_ratio_16_mul",
+        "shift": 64
+      },
+      {
+        "name": "tick_negative_ratio_16",
+        "kind": "logic.if",
+        "condition": "$tick_negative_bit_16_enabled",
+        "then": "$tick_negative_ratio_16_shift",
+        "else": "$tick_negative_ratio_8"
+      },
+      {
+        "name": "tick_negative_bit_32_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "32"
+      },
+      {
+        "name": "tick_negative_bit_32_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_negative_bit_32_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_negative_ratio_32_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_negative_ratio_16",
+          "18417254355718160513"
+        ]
+      },
+      {
+        "name": "tick_negative_ratio_32_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_negative_ratio_32_mul",
+        "shift": 64
+      },
+      {
+        "name": "tick_negative_ratio_32",
+        "kind": "logic.if",
+        "condition": "$tick_negative_bit_32_enabled",
+        "then": "$tick_negative_ratio_32_shift",
+        "else": "$tick_negative_ratio_16"
+      },
+      {
+        "name": "tick_negative_bit_64_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "64"
+      },
+      {
+        "name": "tick_negative_bit_64_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_negative_bit_64_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_negative_ratio_64_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_negative_ratio_32",
+          "18387811781193591352"
+        ]
+      },
+      {
+        "name": "tick_negative_ratio_64_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_negative_ratio_64_mul",
+        "shift": 64
+      },
+      {
+        "name": "tick_negative_ratio_64",
+        "kind": "logic.if",
+        "condition": "$tick_negative_bit_64_enabled",
+        "then": "$tick_negative_ratio_64_shift",
+        "else": "$tick_negative_ratio_32"
+      },
+      {
+        "name": "tick_negative_bit_128_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "128"
+      },
+      {
+        "name": "tick_negative_bit_128_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_negative_bit_128_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_negative_ratio_128_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_negative_ratio_64",
+          "18329067761203520168"
+        ]
+      },
+      {
+        "name": "tick_negative_ratio_128_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_negative_ratio_128_mul",
+        "shift": 64
+      },
+      {
+        "name": "tick_negative_ratio_128",
+        "kind": "logic.if",
+        "condition": "$tick_negative_bit_128_enabled",
+        "then": "$tick_negative_ratio_128_shift",
+        "else": "$tick_negative_ratio_64"
+      },
+      {
+        "name": "tick_negative_bit_256_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "256"
+      },
+      {
+        "name": "tick_negative_bit_256_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_negative_bit_256_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_negative_ratio_256_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_negative_ratio_128",
+          "18212142134806087854"
+        ]
+      },
+      {
+        "name": "tick_negative_ratio_256_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_negative_ratio_256_mul",
+        "shift": 64
+      },
+      {
+        "name": "tick_negative_ratio_256",
+        "kind": "logic.if",
+        "condition": "$tick_negative_bit_256_enabled",
+        "then": "$tick_negative_ratio_256_shift",
+        "else": "$tick_negative_ratio_128"
+      },
+      {
+        "name": "tick_negative_bit_512_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "512"
+      },
+      {
+        "name": "tick_negative_bit_512_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_negative_bit_512_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_negative_ratio_512_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_negative_ratio_256",
+          "17980523815641551639"
+        ]
+      },
+      {
+        "name": "tick_negative_ratio_512_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_negative_ratio_512_mul",
+        "shift": 64
+      },
+      {
+        "name": "tick_negative_ratio_512",
+        "kind": "logic.if",
+        "condition": "$tick_negative_bit_512_enabled",
+        "then": "$tick_negative_ratio_512_shift",
+        "else": "$tick_negative_ratio_256"
+      },
+      {
+        "name": "tick_negative_bit_1024_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "1024"
+      },
+      {
+        "name": "tick_negative_bit_1024_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_negative_bit_1024_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_negative_ratio_1024_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_negative_ratio_512",
+          "17526086738831147013"
+        ]
+      },
+      {
+        "name": "tick_negative_ratio_1024_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_negative_ratio_1024_mul",
+        "shift": 64
+      },
+      {
+        "name": "tick_negative_ratio_1024",
+        "kind": "logic.if",
+        "condition": "$tick_negative_bit_1024_enabled",
+        "then": "$tick_negative_ratio_1024_shift",
+        "else": "$tick_negative_ratio_512"
+      },
+      {
+        "name": "tick_negative_bit_2048_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "2048"
+      },
+      {
+        "name": "tick_negative_bit_2048_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_negative_bit_2048_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_negative_ratio_2048_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_negative_ratio_1024",
+          "16651378430235024244"
+        ]
+      },
+      {
+        "name": "tick_negative_ratio_2048_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_negative_ratio_2048_mul",
+        "shift": 64
+      },
+      {
+        "name": "tick_negative_ratio_2048",
+        "kind": "logic.if",
+        "condition": "$tick_negative_bit_2048_enabled",
+        "then": "$tick_negative_ratio_2048_shift",
+        "else": "$tick_negative_ratio_1024"
+      },
+      {
+        "name": "tick_negative_bit_4096_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "4096"
+      },
+      {
+        "name": "tick_negative_bit_4096_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_negative_bit_4096_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_negative_ratio_4096_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_negative_ratio_2048",
+          "15030750278693429944"
+        ]
+      },
+      {
+        "name": "tick_negative_ratio_4096_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_negative_ratio_4096_mul",
+        "shift": 64
+      },
+      {
+        "name": "tick_negative_ratio_4096",
+        "kind": "logic.if",
+        "condition": "$tick_negative_bit_4096_enabled",
+        "then": "$tick_negative_ratio_4096_shift",
+        "else": "$tick_negative_ratio_2048"
+      },
+      {
+        "name": "tick_negative_bit_8192_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "8192"
+      },
+      {
+        "name": "tick_negative_bit_8192_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_negative_bit_8192_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_negative_ratio_8192_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_negative_ratio_4096",
+          "12247334978882834399"
+        ]
+      },
+      {
+        "name": "tick_negative_ratio_8192_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_negative_ratio_8192_mul",
+        "shift": 64
+      },
+      {
+        "name": "tick_negative_ratio_8192",
+        "kind": "logic.if",
+        "condition": "$tick_negative_bit_8192_enabled",
+        "then": "$tick_negative_ratio_8192_shift",
+        "else": "$tick_negative_ratio_4096"
+      },
+      {
+        "name": "tick_negative_bit_16384_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "16384"
+      },
+      {
+        "name": "tick_negative_bit_16384_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_negative_bit_16384_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_negative_ratio_16384_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_negative_ratio_8192",
+          "8131365268884726200"
+        ]
+      },
+      {
+        "name": "tick_negative_ratio_16384_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_negative_ratio_16384_mul",
+        "shift": 64
+      },
+      {
+        "name": "tick_negative_ratio_16384",
+        "kind": "logic.if",
+        "condition": "$tick_negative_bit_16384_enabled",
+        "then": "$tick_negative_ratio_16384_shift",
+        "else": "$tick_negative_ratio_8192"
+      },
+      {
+        "name": "tick_negative_bit_32768_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "32768"
+      },
+      {
+        "name": "tick_negative_bit_32768_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_negative_bit_32768_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_negative_ratio_32768_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_negative_ratio_16384",
+          "3584323654723342297"
+        ]
+      },
+      {
+        "name": "tick_negative_ratio_32768_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_negative_ratio_32768_mul",
+        "shift": 64
+      },
+      {
+        "name": "tick_negative_ratio_32768",
+        "kind": "logic.if",
+        "condition": "$tick_negative_bit_32768_enabled",
+        "then": "$tick_negative_ratio_32768_shift",
+        "else": "$tick_negative_ratio_16384"
+      },
+      {
+        "name": "tick_negative_bit_65536_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "65536"
+      },
+      {
+        "name": "tick_negative_bit_65536_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_negative_bit_65536_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_negative_ratio_65536_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_negative_ratio_32768",
+          "696457651847595233"
+        ]
+      },
+      {
+        "name": "tick_negative_ratio_65536_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_negative_ratio_65536_mul",
+        "shift": 64
+      },
+      {
+        "name": "tick_negative_ratio_65536",
+        "kind": "logic.if",
+        "condition": "$tick_negative_bit_65536_enabled",
+        "then": "$tick_negative_ratio_65536_shift",
+        "else": "$tick_negative_ratio_32768"
+      },
+      {
+        "name": "tick_negative_bit_131072_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "131072"
+      },
+      {
+        "name": "tick_negative_bit_131072_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_negative_bit_131072_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_negative_ratio_131072_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_negative_ratio_65536",
+          "26294789957452057"
+        ]
+      },
+      {
+        "name": "tick_negative_ratio_131072_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_negative_ratio_131072_mul",
+        "shift": 64
+      },
+      {
+        "name": "tick_negative_ratio_131072",
+        "kind": "logic.if",
+        "condition": "$tick_negative_bit_131072_enabled",
+        "then": "$tick_negative_ratio_131072_shift",
+        "else": "$tick_negative_ratio_65536"
+      },
+      {
+        "name": "tick_negative_bit_262144_mask",
+        "kind": "math.bit_and",
+        "left": "$tick_index_abs",
+        "right": "262144"
+      },
+      {
+        "name": "tick_negative_bit_262144_enabled",
+        "kind": "compare.gt",
+        "left": "$tick_negative_bit_262144_mask",
+        "right": "0"
+      },
+      {
+        "name": "tick_negative_ratio_262144_mul",
+        "kind": "math.mul",
+        "values": [
+          "$tick_negative_ratio_131072",
+          "37481735321082"
+        ]
+      },
+      {
+        "name": "tick_negative_ratio_262144_shift",
+        "kind": "math.shift_right",
+        "value": "$tick_negative_ratio_262144_mul",
+        "shift": 64
+      },
+      {
+        "name": "tick_negative_ratio_262144",
+        "kind": "logic.if",
+        "condition": "$tick_negative_bit_262144_enabled",
+        "then": "$tick_negative_ratio_262144_shift",
+        "else": "$tick_negative_ratio_131072"
+      },
+      {
+        "name": "tick_sqrt_price_negative",
+        "kind": "coalesce",
+        "values": [
+          "$tick_negative_ratio_262144"
+        ]
+      },
+      {
+        "name": "tick_sqrt_price_x64",
+        "kind": "logic.if",
+        "condition": "$tick_index_is_negative",
+        "then": "$tick_sqrt_price_negative",
+        "else": "$tick_sqrt_price_positive"
       }
     ]
   },

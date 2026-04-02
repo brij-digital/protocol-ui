@@ -419,6 +419,30 @@
               "type": "string"
             },
             "kind": {
+              "const": "math.div_round_up"
+            },
+            "dividend": {
+              "$ref": "#/$defs/jsonValue"
+            },
+            "divisor": {
+              "$ref": "#/$defs/jsonValue"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "name",
+            "kind",
+            "dividend",
+            "divisor"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "kind": {
               "const": "math.mod"
             },
             "dividend": {
@@ -426,6 +450,36 @@
             },
             "divisor": {
               "$ref": "#/$defs/jsonValue"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "name",
+            "kind",
+            "transform",
+            "output"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "transform"
+            },
+            "transform": {
+              "type": "string"
+            },
+            "bindings": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/jsonValue"
+              }
+            },
+            "output": {
+              "type": "string"
             }
           },
           "additionalProperties": false
