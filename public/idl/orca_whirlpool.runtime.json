@@ -28,6 +28,90 @@
         "tick_array1": "$input.tick_array1",
         "tick_array2": "$input.tick_array2"
       }
+    },
+    "increase_liquidity_by_token_amounts_v2": {
+      "instruction": "increase_liquidity_by_token_amounts_v2",
+      "steps": [
+        {
+          "name": "wallet",
+          "kind": "wallet_pubkey"
+        },
+        {
+          "name": "position_data",
+          "kind": "decode_account",
+          "address": "$input.position",
+          "account_type": "Position"
+        },
+        {
+          "name": "whirlpool_data",
+          "kind": "decode_account",
+          "address": "$position_data.whirlpool",
+          "account_type": "Whirlpool"
+        },
+        {
+          "name": "position_mint_program",
+          "kind": "account_owner",
+          "address": "$position_data.position_mint"
+        },
+        {
+          "name": "token_program_a",
+          "kind": "account_owner",
+          "address": "$whirlpool_data.token_mint_a"
+        },
+        {
+          "name": "token_program_b",
+          "kind": "account_owner",
+          "address": "$whirlpool_data.token_mint_b"
+        },
+        {
+          "name": "position_token_account",
+          "kind": "ata",
+          "owner": "$wallet",
+          "mint": "$position_data.position_mint",
+          "token_program": "$position_mint_program"
+        },
+        {
+          "name": "token_owner_account_a",
+          "kind": "ata",
+          "owner": "$wallet",
+          "mint": "$whirlpool_data.token_mint_a",
+          "token_program": "$token_program_a"
+        },
+        {
+          "name": "token_owner_account_b",
+          "kind": "ata",
+          "owner": "$wallet",
+          "mint": "$whirlpool_data.token_mint_b",
+          "token_program": "$token_program_b"
+        },
+        {
+          "kind": "transform",
+          "transform": "increase_liquidity_by_token_amounts_v2__normalize_method"
+        },
+        {
+          "kind": "transform",
+          "transform": "increase_liquidity_by_token_amounts_v2__derive_accounts"
+        }
+      ],
+      "args": {
+        "method": "$method_borsh",
+        "remaining_accounts_info": null
+      },
+      "accounts": {
+        "whirlpool": "$position_data.whirlpool",
+        "token_program_a": "$token_program_a",
+        "token_program_b": "$token_program_b",
+        "position": "$input.position",
+        "position_token_account": "$position_token_account",
+        "token_mint_a": "$whirlpool_data.token_mint_a",
+        "token_mint_b": "$whirlpool_data.token_mint_b",
+        "token_owner_account_a": "$token_owner_account_a",
+        "token_owner_account_b": "$token_owner_account_b",
+        "token_vault_a": "$whirlpool_data.token_vault_a",
+        "token_vault_b": "$whirlpool_data.token_vault_b",
+        "tick_array_lower": "$tick_array_lower",
+        "tick_array_upper": "$tick_array_upper"
+      }
     }
   },
   "transforms": {
@@ -3634,6 +3718,106 @@
         "condition": "$tick_index_is_negative",
         "then": "$tick_sqrt_price_negative",
         "else": "$tick_sqrt_price_positive"
+      }
+    ],
+    "increase_liquidity_by_token_amounts_v2__derive_accounts": [
+      {
+        "name": "ticks_per_array",
+        "kind": "math.mul",
+        "values": [
+          "$whirlpool_data.tick_spacing",
+          88
+        ]
+      },
+      {
+        "name": "tick_array_lower_index",
+        "kind": "math.floor_div",
+        "dividend": "$position_data.tick_lower_index",
+        "divisor": "$ticks_per_array"
+      },
+      {
+        "name": "tick_array_lower_start_index",
+        "kind": "math.mul",
+        "values": [
+          "$tick_array_lower_index",
+          "$ticks_per_array"
+        ]
+      },
+      {
+        "name": "tick_array_upper_index",
+        "kind": "math.floor_div",
+        "dividend": "$position_data.tick_upper_index",
+        "divisor": "$ticks_per_array"
+      },
+      {
+        "name": "tick_array_upper_start_index",
+        "kind": "math.mul",
+        "values": [
+          "$tick_array_upper_index",
+          "$ticks_per_array"
+        ]
+      },
+      {
+        "name": "tick_array_start_indexes",
+        "kind": "list.concat",
+        "lists": [
+          [
+            "$tick_array_lower_start_index"
+          ],
+          [
+            "$tick_array_upper_start_index"
+          ]
+        ]
+      },
+      {
+        "name": "tick_array_addresses",
+        "kind": "pda(seed_spec)",
+        "program_id": "$protocol.programId",
+        "map_over": "$tick_array_start_indexes",
+        "seeds": [
+          {
+            "kind": "utf8",
+            "value": "tick_array"
+          },
+          {
+            "kind": "pubkey",
+            "value": "$position_data.whirlpool"
+          },
+          {
+            "kind": "item_utf8"
+          }
+        ]
+      },
+      {
+        "name": "tick_array_lower",
+        "kind": "list.get",
+        "values": "$tick_array_addresses",
+        "index": 0
+      },
+      {
+        "name": "tick_array_upper",
+        "kind": "list.get",
+        "values": "$tick_array_addresses",
+        "index": 1
+      }
+    ],
+    "increase_liquidity_by_token_amounts_v2__normalize_method": [
+      {
+        "name": "method_by_token_amounts",
+        "kind": "object.create",
+        "fields": {
+          "tokenMaxA": "$input.method.tokenMaxA",
+          "tokenMaxB": "$input.method.tokenMaxB",
+          "minSqrtPrice": "$input.method.minSqrtPrice",
+          "maxSqrtPrice": "$input.method.maxSqrtPrice"
+        }
+      },
+      {
+        "name": "method_borsh",
+        "kind": "object.create",
+        "fields": {
+          "ByTokenAmounts": "$method_by_token_amounts"
+        }
       }
     ]
   },
