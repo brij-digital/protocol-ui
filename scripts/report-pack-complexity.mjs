@@ -121,8 +121,9 @@ async function main() {
     let maxTransform = 0;
     for (const [operationId, opRaw] of opEntries) {
       const op = asObject(opRaw, `${protocolId}.agentRuntime.operation.${operationId}`);
-      const load = Array.isArray(op.load) ? op.load.length : 0;
-      const transform = Array.isArray(op.transform) ? op.transform.length : 0;
+      const steps = Array.isArray(op.steps) ? op.steps : [];
+      const load = steps.filter((step) => step && typeof step === 'object' && !Array.isArray(step) && step.kind !== 'transform').length;
+      const transform = steps.filter((step) => step && typeof step === 'object' && !Array.isArray(step) && step.kind === 'transform').length;
       if (load > maxLoad) {
         maxLoad = load;
       }

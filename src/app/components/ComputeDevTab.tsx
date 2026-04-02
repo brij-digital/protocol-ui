@@ -17,6 +17,8 @@ type ComputeDevTabProps = {
   isWorking: boolean;
 };
 
+type ExplainedTransformStep = Extract<MetaOperationExplain['steps'][number], { phase: 'transform' }>;
+
 function formatValue(value: unknown): string {
   if (typeof value === 'string') {
     return JSON.stringify(value);
@@ -249,7 +251,10 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
         const countEntries = await Promise.all(
           listed.operations.map(async (operation) => {
             const details = await explainRuntimeOperation({ protocolId, operationId: operation.operationId });
-            return [operation.operationId, Array.isArray(details.transform) ? details.transform.length : 0] as const;
+            const transformCount = Array.isArray(details.steps)
+              ? details.steps.filter((entry) => entry && typeof entry === 'object' && (entry as { phase?: string }).phase === 'transform').length
+              : 0;
+            return [operation.operationId, transformCount] as const;
           }),
         );
         if (cancelled) {
@@ -317,8 +322,18 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
       return '';
     }
     const functionName = `${explain.protocolId.replace(/[^a-zA-Z0-9]+/g, '_')}_${explain.operationId}`;
-    const transform = Array.isArray(explain.transform)
-      ? explain.transform.filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === 'object' && !Array.isArray(entry))
+    const transform = Array.isArray(explain.steps)
+      ? explain.steps
+        .filter((entry): entry is ExplainedTransformStep =>
+          !!entry
+          && typeof entry === 'object'
+          && !Array.isArray(entry)
+          && (entry as { phase?: string }).phase === 'transform'
+          && !!(entry as { step?: unknown }).step
+          && typeof (entry as { step?: unknown }).step === 'object'
+          && !Array.isArray((entry as { step?: unknown }).step),
+        )
+        .map((entry) => entry.step)
       : [];
     return renderPseudoFunction(functionName, explain.instruction ?? explain.loadInstruction ?? null, transform);
   }, [explain]);
@@ -361,8 +376,8 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
             <pre>{operationPseudoFunction}</pre>
           </article>
           <article className="compute-panel">
-            <h3>Operation Raw Transform</h3>
-            <pre>{JSON.stringify(explain.transform, null, 2)}</pre>
+            <h3>Operation Raw Steps</h3>
+            <pre>{JSON.stringify(explain.steps, null, 2)}</pre>
           </article>
         </div>
       ) : (

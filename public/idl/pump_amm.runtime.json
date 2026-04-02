@@ -560,7 +560,7 @@
         "pool": "pubkey",
         "slippage_bps": "u16"
       },
-      "load": [
+      "steps": [
         {
           "name": "wallet",
           "kind": "wallet_pubkey"
@@ -709,10 +709,11 @@
             "utf8:pool-v2",
             "$pool_data.base_mint"
           ]
+        },
+        {
+          "kind": "transform",
+          "transform": "preview_buy__transform"
         }
-      ],
-      "transform": [
-        "preview_buy__transform"
       ],
       "args": {
         "base_amount_out": "$base_amount_out",
@@ -819,7 +820,7 @@
         "base_amount_in": "u64",
         "min_quote_amount_out": "u64"
       },
-      "load": [
+      "steps": [
         {
           "name": "wallet",
           "kind": "wallet_pubkey"
@@ -901,10 +902,11 @@
             "utf8:fee_config",
             "$protocol.programId"
           ]
+        },
+        {
+          "kind": "transform",
+          "transform": "preview_sell__transform"
         }
-      ],
-      "transform": [
-        "preview_sell__transform"
       ],
       "args": {
         "base_amount_in": "$input.base_amount_in",

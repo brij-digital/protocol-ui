@@ -251,7 +251,7 @@
         "slippage_bps": "u16",
         "track_volume": "bool"
       },
-      "load": [
+      "steps": [
         {
           "name": "wallet",
           "kind": "wallet_pubkey"
@@ -356,10 +356,11 @@
             "utf8:fee_config",
             "$protocol.programId"
           ]
+        },
+        {
+          "kind": "transform",
+          "transform": "preview_buy_exact_sol_in__transform"
         }
-      ],
-      "transform": [
-        "preview_buy_exact_sol_in__transform"
       ],
       "output": {
         "type": "object",

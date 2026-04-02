@@ -31,7 +31,7 @@
     }
   },
   "transforms": {
-    "quote_exact_in__transform": [
+    "quote_exact_in__derive_tick_arrays": [
       {
         "name": "a_to_b",
         "kind": "compare.equals",
@@ -62,9 +62,24 @@
         ]
       },
       {
+        "name": "b_to_a_anchor_index",
+        "kind": "math.add",
+        "values": [
+          "$whirlpool_data.tick_current_index",
+          "$whirlpool_data.tick_spacing"
+        ]
+      },
+      {
+        "name": "tick_array_anchor_index",
+        "kind": "logic.if",
+        "condition": "$a_to_b",
+        "then": "$whirlpool_data.tick_current_index",
+        "else": "$b_to_a_anchor_index"
+      },
+      {
         "name": "current_array_index",
         "kind": "math.floor_div",
-        "dividend": "$whirlpool_data.tick_current_index",
+        "dividend": "$tick_array_anchor_index",
         "divisor": "$ticks_per_array"
       },
       {
@@ -100,7 +115,9 @@
             "kind": "item_utf8"
           }
         ]
-      },
+      }
+    ],
+    "quote_exact_in__quote_math": [
       {
         "name": "spot_price_numerator",
         "kind": "math.mul",
@@ -284,7 +301,7 @@
         "whirlpool": "pubkey",
         "unwrap_sol_output": "bool"
       },
-      "load": [
+      "steps": [
         {
           "name": "wallet",
           "kind": "wallet_pubkey"
@@ -294,10 +311,21 @@
           "kind": "decode_account",
           "address": "$input.whirlpool",
           "account_type": "Whirlpool"
+        },
+        {
+          "kind": "transform",
+          "transform": "quote_exact_in__derive_tick_arrays"
+        },
+        {
+          "name": "tick_arrays_data",
+          "kind": "decode_accounts",
+          "addresses": "$tick_arrays",
+          "account_type": "TickArray"
+        },
+        {
+          "kind": "transform",
+          "transform": "quote_exact_in__quote_math"
         }
-      ],
-      "transform": [
-        "quote_exact_in__transform"
       ],
       "pre": [
         {

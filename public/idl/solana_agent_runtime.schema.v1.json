@@ -194,16 +194,10 @@
             "type": "string"
           }
         },
-        "load": {
+        "steps": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/loadStepSpec"
-          }
-        },
-        "transform": {
-          "type": "array",
-          "items": {
-            "type": "string"
+            "$ref": "#/$defs/operationStepSpec"
           }
         },
         "output": {
@@ -248,16 +242,10 @@
         "instruction": {
           "type": "string"
         },
-        "load": {
+        "steps": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/loadStepSpec"
-          }
-        },
-        "transform": {
-          "type": "array",
-          "items": {
-            "type": "string"
+            "$ref": "#/$defs/operationStepSpec"
           }
         },
         "args": {
@@ -423,6 +411,30 @@
           "required": [
             "name",
             "kind",
+            "addresses",
+            "account_type"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "decode_accounts"
+            },
+            "addresses": {
+              "$ref": "#/$defs/jsonValue"
+            },
+            "account_type": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "name",
+            "kind",
             "address"
           ],
           "properties": {
@@ -490,6 +502,29 @@
               "items": {
                 "$ref": "#/$defs/resolveSeedSpec"
               }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "operationStepSpec": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/loadStepSpec"
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "transform"
+          ],
+          "properties": {
+            "kind": {
+              "const": "transform"
+            },
+            "transform": {
+              "type": "string"
             }
           },
           "additionalProperties": false

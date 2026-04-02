@@ -175,14 +175,27 @@ function validateTransforms(protocolId, agentRuntime) {
   return new Set(Object.keys(transforms));
 }
 
-function validateTransformRefs(protocolId, sectionLabel, operationId, operation, transformNames) {
-  const transform = operation.transform === undefined
-    ? []
-    : asArray(operation.transform, `${protocolId}.${sectionLabel}.${operationId}.transform`);
-  for (let index = 0; index < transform.length; index += 1) {
-    const ref = asString(transform[index], `${protocolId}.${sectionLabel}.${operationId}.transform[${index}]`);
-    if (!transformNames.has(ref)) {
-      fail(`${protocolId}.${sectionLabel}.${operationId}.transform[${index}] references unknown transform ${ref}.`);
+function validateSteps(protocolId, sectionLabel, operationId, operation, transformNames) {
+  if (operation.steps === undefined) {
+    return;
+  }
+  const steps = asArray(operation.steps, `${protocolId}.${sectionLabel}.${operationId}.steps`);
+  for (let index = 0; index < steps.length; index += 1) {
+    const step = asObject(steps[index], `${protocolId}.${sectionLabel}.${operationId}.steps[${index}]`);
+    const kind = asString(step.kind, `${protocolId}.${sectionLabel}.${operationId}.steps[${index}].kind`);
+    if (kind === 'transform') {
+      const ref = asString(step.transform, `${protocolId}.${sectionLabel}.${operationId}.steps[${index}].transform`);
+      if (!transformNames.has(ref)) {
+        fail(`${protocolId}.${sectionLabel}.${operationId}.steps[${index}] references unknown transform ${ref}.`);
+      }
+      continue;
+    }
+    asString(step.name, `${protocolId}.${sectionLabel}.${operationId}.steps[${index}].name`);
+    if (kind === 'decode_accounts') {
+      if (step.addresses === undefined) {
+        fail(`${protocolId}.${sectionLabel}.${operationId}.steps[${index}].addresses is required.`);
+      }
+      asString(step.account_type, `${protocolId}.${sectionLabel}.${operationId}.steps[${index}].account_type`);
     }
   }
 }
@@ -192,7 +205,7 @@ function validateWrite(protocolId, executionId, execution, instructionNames, tra
   if (op.inputs !== undefined) {
     fail(`${protocolId}.agentRuntime.writes.${executionId}.inputs is no longer allowed; write inputs come from Codama.`);
   }
-  validateTransformRefs(protocolId, 'agentRuntime.writes', executionId, op, transformNames);
+  validateSteps(protocolId, 'agentRuntime.writes', executionId, op, transformNames);
   if (op.instruction !== undefined) {
     const instruction = asString(op.instruction, `${protocolId}.agentRuntime.writes.${executionId}.instruction`);
     if (!instructionNames.has(instruction)) {
@@ -242,7 +255,7 @@ function validateIndexingIndexView(protocolId, indexing, operationId) {
 function validateView(protocolId, operationId, operation, instructionNames, transformNames) {
   const op = validateRuntimeInputs(protocolId, 'agentRuntime.views', operationId, operation);
   void instructionNames;
-  validateTransformRefs(protocolId, 'agentRuntime.views', operationId, op, transformNames);
+  validateSteps(protocolId, 'agentRuntime.views', operationId, op, transformNames);
 }
 
 async function main() {

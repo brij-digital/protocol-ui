@@ -161,13 +161,13 @@ export function renderMetaExplain(explanation: RuntimeOperationExplain): string 
     ([name, spec]) => `- ${name}: ${String(spec.type ?? 'unknown')}`,
   );
 
-  const loadLines = explanation.load.map((step, index) => {
-    const record = step && typeof step === 'object' && !Array.isArray(step) ? (step as Record<string, unknown>) : {};
-    return `${index + 1}. ${String(record.name ?? `step_${index + 1}`)} -> ${String(record.kind ?? 'unknown')}`;
-  });
-  const transformLines = explanation.transform.map((step, index) => {
-    const record = step && typeof step === 'object' && !Array.isArray(step) ? (step as Record<string, unknown>) : {};
-    return `${index + 1}. ${String(record.name ?? `step_${index + 1}`)} -> ${String(record.kind ?? 'unknown')}`;
+  const stepLines = explanation.steps.map((entry, index) => {
+    const record = entry && typeof entry === 'object' && !Array.isArray(entry) ? (entry as Record<string, unknown>) : {};
+    const phase = String(record.phase ?? 'unknown');
+    const step = record.step && typeof record.step === 'object' && !Array.isArray(record.step)
+      ? (record.step as Record<string, unknown>)
+      : {};
+    return `${index + 1}. [${phase}] ${String(step.name ?? record.transform ?? `step_${index + 1}`)} -> ${String(step.kind ?? 'unknown')}`;
   });
 
   return [
@@ -177,11 +177,8 @@ export function renderMetaExplain(explanation: RuntimeOperationExplain): string 
     'Inputs:',
     ...(inputLines.length > 0 ? inputLines : ['- none']),
     '',
-    'Load:',
-    ...(loadLines.length > 0 ? loadLines : ['- none']),
-    '',
-    'Transform:',
-    ...(transformLines.length > 0 ? transformLines : ['- none']),
+    'Steps:',
+    ...(stepLines.length > 0 ? stepLines : ['- none']),
     '',
     'Raw:',
     asPrettyJson(explanation),
