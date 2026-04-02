@@ -90,7 +90,7 @@
         },
         {
           "kind": "transform",
-          "transform": "increase_liquidity_by_token_amounts_v2__derive_accounts"
+          "transform": "position_range__derive_tick_arrays"
         }
       ],
       "args": {
@@ -111,6 +111,223 @@
         "token_vault_b": "$whirlpool_data.token_vault_b",
         "tick_array_lower": "$tick_array_lower",
         "tick_array_upper": "$tick_array_upper"
+      }
+    },
+    "decrease_liquidity_v2": {
+      "instruction": "decrease_liquidity_v2",
+      "steps": [
+        {
+          "name": "wallet",
+          "kind": "wallet_pubkey"
+        },
+        {
+          "name": "position_data",
+          "kind": "decode_account",
+          "address": "$input.position",
+          "account_type": "Position"
+        },
+        {
+          "name": "whirlpool_data",
+          "kind": "decode_account",
+          "address": "$position_data.whirlpool",
+          "account_type": "Whirlpool"
+        },
+        {
+          "name": "position_mint_program",
+          "kind": "account_owner",
+          "address": "$position_data.position_mint"
+        },
+        {
+          "name": "token_program_a",
+          "kind": "account_owner",
+          "address": "$whirlpool_data.token_mint_a"
+        },
+        {
+          "name": "token_program_b",
+          "kind": "account_owner",
+          "address": "$whirlpool_data.token_mint_b"
+        },
+        {
+          "name": "position_token_account",
+          "kind": "ata",
+          "owner": "$wallet",
+          "mint": "$position_data.position_mint",
+          "token_program": "$position_mint_program"
+        },
+        {
+          "name": "token_owner_account_a",
+          "kind": "ata",
+          "owner": "$wallet",
+          "mint": "$whirlpool_data.token_mint_a",
+          "token_program": "$token_program_a"
+        },
+        {
+          "name": "token_owner_account_b",
+          "kind": "ata",
+          "owner": "$wallet",
+          "mint": "$whirlpool_data.token_mint_b",
+          "token_program": "$token_program_b"
+        },
+        {
+          "kind": "transform",
+          "transform": "position_range__derive_tick_arrays"
+        }
+      ],
+      "args": {
+        "liquidity_amount": "$input.liquidity_amount",
+        "token_min_a": "$input.token_min_a",
+        "token_min_b": "$input.token_min_b",
+        "remaining_accounts_info": null
+      },
+      "accounts": {
+        "whirlpool": "$position_data.whirlpool",
+        "token_program_a": "$token_program_a",
+        "token_program_b": "$token_program_b",
+        "position": "$input.position",
+        "position_token_account": "$position_token_account",
+        "token_mint_a": "$whirlpool_data.token_mint_a",
+        "token_mint_b": "$whirlpool_data.token_mint_b",
+        "token_owner_account_a": "$token_owner_account_a",
+        "token_owner_account_b": "$token_owner_account_b",
+        "token_vault_a": "$whirlpool_data.token_vault_a",
+        "token_vault_b": "$whirlpool_data.token_vault_b",
+        "tick_array_lower": "$tick_array_lower",
+        "tick_array_upper": "$tick_array_upper"
+      }
+    },
+    "collect_fees_v2": {
+      "instruction": "collect_fees_v2",
+      "steps": [
+        {
+          "name": "wallet",
+          "kind": "wallet_pubkey"
+        },
+        {
+          "name": "position_data",
+          "kind": "decode_account",
+          "address": "$input.position",
+          "account_type": "Position"
+        },
+        {
+          "name": "whirlpool_data",
+          "kind": "decode_account",
+          "address": "$position_data.whirlpool",
+          "account_type": "Whirlpool"
+        },
+        {
+          "name": "position_mint_program",
+          "kind": "account_owner",
+          "address": "$position_data.position_mint"
+        },
+        {
+          "name": "token_program_a",
+          "kind": "account_owner",
+          "address": "$whirlpool_data.token_mint_a"
+        },
+        {
+          "name": "token_program_b",
+          "kind": "account_owner",
+          "address": "$whirlpool_data.token_mint_b"
+        },
+        {
+          "name": "position_token_account",
+          "kind": "ata",
+          "owner": "$wallet",
+          "mint": "$position_data.position_mint",
+          "token_program": "$position_mint_program"
+        },
+        {
+          "name": "token_owner_account_a",
+          "kind": "ata",
+          "owner": "$wallet",
+          "mint": "$whirlpool_data.token_mint_a",
+          "token_program": "$token_program_a"
+        },
+        {
+          "name": "token_owner_account_b",
+          "kind": "ata",
+          "owner": "$wallet",
+          "mint": "$whirlpool_data.token_mint_b",
+          "token_program": "$token_program_b"
+        }
+      ],
+      "args": {
+        "remaining_accounts_info": null
+      },
+      "accounts": {
+        "whirlpool": "$position_data.whirlpool",
+        "position": "$input.position",
+        "position_token_account": "$position_token_account",
+        "token_mint_a": "$whirlpool_data.token_mint_a",
+        "token_mint_b": "$whirlpool_data.token_mint_b",
+        "token_owner_account_a": "$token_owner_account_a",
+        "token_vault_a": "$whirlpool_data.token_vault_a",
+        "token_owner_account_b": "$token_owner_account_b",
+        "token_vault_b": "$whirlpool_data.token_vault_b",
+        "token_program_a": "$token_program_a",
+        "token_program_b": "$token_program_b"
+      }
+    },
+    "collect_reward_v2": {
+      "instruction": "collect_reward_v2",
+      "steps": [
+        {
+          "name": "wallet",
+          "kind": "wallet_pubkey"
+        },
+        {
+          "name": "position_data",
+          "kind": "decode_account",
+          "address": "$input.position",
+          "account_type": "Position"
+        },
+        {
+          "name": "whirlpool_data",
+          "kind": "decode_account",
+          "address": "$position_data.whirlpool",
+          "account_type": "Whirlpool"
+        },
+        {
+          "name": "position_mint_program",
+          "kind": "account_owner",
+          "address": "$position_data.position_mint"
+        },
+        {
+          "name": "position_token_account",
+          "kind": "ata",
+          "owner": "$wallet",
+          "mint": "$position_data.position_mint",
+          "token_program": "$position_mint_program"
+        },
+        {
+          "kind": "transform",
+          "transform": "collect_reward_v2__derive_reward_accounts"
+        },
+        {
+          "name": "reward_token_program",
+          "kind": "account_owner",
+          "address": "$reward_mint"
+        },
+        {
+          "name": "reward_owner_account",
+          "kind": "ata",
+          "owner": "$wallet",
+          "mint": "$reward_mint",
+          "token_program": "$reward_token_program"
+        }
+      ],
+      "args": {
+        "reward_index": "$input.reward_index",
+        "remaining_accounts_info": null
+      },
+      "accounts": {
+        "whirlpool": "$position_data.whirlpool",
+        "position": "$input.position",
+        "position_token_account": "$position_token_account",
+        "reward_owner_account": "$reward_owner_account",
+        "reward_mint": "$reward_mint",
+        "reward_vault": "$reward_vault",
+        "reward_token_program": "$reward_token_program"
       }
     }
   },
@@ -3720,7 +3937,26 @@
         "else": "$tick_sqrt_price_positive"
       }
     ],
-    "increase_liquidity_by_token_amounts_v2__derive_accounts": [
+    "increase_liquidity_by_token_amounts_v2__normalize_method": [
+      {
+        "name": "method_by_token_amounts",
+        "kind": "object.create",
+        "fields": {
+          "tokenMaxA": "$input.method.tokenMaxA",
+          "tokenMaxB": "$input.method.tokenMaxB",
+          "minSqrtPrice": "$input.method.minSqrtPrice",
+          "maxSqrtPrice": "$input.method.maxSqrtPrice"
+        }
+      },
+      {
+        "name": "method_borsh",
+        "kind": "object.create",
+        "fields": {
+          "ByTokenAmounts": "$method_by_token_amounts"
+        }
+      }
+    ],
+    "position_range__derive_tick_arrays": [
       {
         "name": "ticks_per_array",
         "kind": "math.mul",
@@ -3801,23 +4037,26 @@
         "index": 1
       }
     ],
-    "increase_liquidity_by_token_amounts_v2__normalize_method": [
+    "collect_reward_v2__derive_reward_accounts": [
       {
-        "name": "method_by_token_amounts",
-        "kind": "object.create",
-        "fields": {
-          "tokenMaxA": "$input.method.tokenMaxA",
-          "tokenMaxB": "$input.method.tokenMaxB",
-          "minSqrtPrice": "$input.method.minSqrtPrice",
-          "maxSqrtPrice": "$input.method.maxSqrtPrice"
-        }
+        "name": "reward_info",
+        "kind": "list.get",
+        "values": "$whirlpool_data.reward_infos",
+        "index": "$input.reward_index"
       },
       {
-        "name": "method_borsh",
-        "kind": "object.create",
-        "fields": {
-          "ByTokenAmounts": "$method_by_token_amounts"
-        }
+        "name": "reward_mint",
+        "kind": "coalesce",
+        "values": [
+          "$reward_info.mint"
+        ]
+      },
+      {
+        "name": "reward_vault",
+        "kind": "coalesce",
+        "values": [
+          "$reward_info.vault"
+        ]
       }
     ]
   },
