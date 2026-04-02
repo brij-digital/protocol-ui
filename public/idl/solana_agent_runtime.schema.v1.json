@@ -411,6 +411,102 @@
           "required": [
             "name",
             "kind",
+            "dividend",
+            "divisor"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "math.mod"
+            },
+            "dividend": {
+              "$ref": "#/$defs/jsonValue"
+            },
+            "divisor": {
+              "$ref": "#/$defs/jsonValue"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "name",
+            "kind",
+            "value",
+            "shift"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "math.shift_left"
+            },
+            "value": {
+              "$ref": "#/$defs/jsonValue"
+            },
+            "shift": {
+              "$ref": "#/$defs/jsonValue"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "name",
+            "kind",
+            "value",
+            "shift"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "math.shift_right"
+            },
+            "value": {
+              "$ref": "#/$defs/jsonValue"
+            },
+            "shift": {
+              "$ref": "#/$defs/jsonValue"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "name",
+            "kind",
+            "left",
+            "right"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "math.bit_and"
+            },
+            "left": {
+              "$ref": "#/$defs/jsonValue"
+            },
+            "right": {
+              "$ref": "#/$defs/jsonValue"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "name",
+            "kind",
             "items",
             "output"
           ],
@@ -729,6 +825,26 @@
             },
             "allow_empty": {
               "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "name",
+            "kind",
+            "lists"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "list.concat"
+            },
+            "lists": {
+              "$ref": "#/$defs/jsonValue"
             }
           },
           "additionalProperties": false
