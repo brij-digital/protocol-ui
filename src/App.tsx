@@ -8,15 +8,17 @@ import { TradingViewTestTab } from './app/components/TradingViewTestTab';
 import { ViewPlaygroundTab } from './app/components/ViewPlaygroundTab';
 import { AgentTab } from './app/components/AgentTab';
 import { RunnerTab } from './app/components/RunnerTab';
+import { AdminDashboardTab } from './app/components/AdminDashboardTab';
 
 const VIEW_API_BASE_URL = '';
 const RUNNER_VIEW_API_BASE_URL = '';
+const ADMIN_API_BASE_URL = 'https://api.brijmail.com';
 
-type AppTab = 'indexViews' | 'pump' | 'raw' | 'compute' | 'tv' | 'agent' | 'runner';
+type AppTab = 'indexViews' | 'pump' | 'raw' | 'compute' | 'tv' | 'agent' | 'runner' | 'admin';
 type AppMode = 'normal' | 'advanced';
 const DISABLED_TABS = ['Apps', 'Command', 'Explorer'] as const;
 const NORMAL_TABS: AppTab[] = ['runner', 'indexViews', 'compute'];
-const ADVANCED_TABS: AppTab[] = ['agent', 'pump', 'raw', 'tv'];
+const ADVANCED_TABS: AppTab[] = ['admin', 'agent', 'pump', 'raw', 'tv'];
 
 const TAB_HASHES: Record<AppTab, string> = {
   agent: 'agent',
@@ -26,6 +28,7 @@ const TAB_HASHES: Record<AppTab, string> = {
   raw: 'raw',
   compute: 'compute',
   tv: 'tradingview',
+  admin: 'admin',
 };
 
 function parseTabFromLocationHash(): AppTab {
@@ -122,6 +125,17 @@ function App() {
               Agent
             </button>
           ) : null}
+          {visibleTabs.includes('admin') ? (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'admin'}
+              className={activeTab === 'admin' ? 'active' : ''}
+              onClick={() => switchTab('admin')}
+            >
+              Admin
+            </button>
+          ) : null}
           {visibleTabs.includes('pump') ? (
             <button
               type="button"
@@ -215,6 +229,8 @@ function App() {
           <ComputeDevTab isWorking={false} />
         ) : activeTab === 'agent' ? (
           <AgentTab viewApiBaseUrl={VIEW_API_BASE_URL} />
+        ) : activeTab === 'admin' ? (
+          <AdminDashboardTab adminApiBaseUrl={ADMIN_API_BASE_URL} />
         ) : activeTab === 'runner' ? (
           <RunnerTab viewApiBaseUrl={RUNNER_VIEW_API_BASE_URL} />
         ) : activeTab === 'tv' ? (
