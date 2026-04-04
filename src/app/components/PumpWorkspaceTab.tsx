@@ -208,6 +208,11 @@ export function PumpWorkspaceTab({ viewApiBaseUrl }: PumpWorkspaceTabProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const selectedRanked = rankedTokens.find((item) => item.mint === selectedMint) ?? null;
+  const workspaceLiquidity = selectedRanked?.liquidityQuote ?? context?.liquidityQuote ?? null;
+  const workspaceVolume = selectedRanked?.volumeWindowQuote ?? null;
+  const workspaceTrades = selectedRanked?.tradeCountWindow ?? null;
+  const workspaceUniqueTraders = selectedRanked?.uniqueTradersWindow ?? null;
+  const workspaceLatestTradeAt = selectedRanked?.lastTradeAt ?? context?.latestTradeAt ?? null;
 
   useEffect(() => {
     if (!chartContainerRef.current) {
@@ -315,9 +320,9 @@ export function PumpWorkspaceTab({ viewApiBaseUrl }: PumpWorkspaceTabProps) {
       pool,
       marketType: typeof resolved.marketType === 'string' ? resolved.marketType : 'amm',
       quoteMint: typeof resolved.quoteMint === 'string' ? resolved.quoteMint : DEFAULT_QUOTE_MINT,
-      priceQuote: typeof resolved.priceQuote === 'number' ? resolved.priceQuote : null,
-      marketCapQuote: typeof resolved.marketCapQuote === 'number' ? resolved.marketCapQuote : null,
-      liquidityQuote: typeof resolved.liquidityQuote === 'number' ? resolved.liquidityQuote : null,
+      priceQuote: null,
+      marketCapQuote: null,
+      liquidityQuote: null,
       volume24hQuote: null,
       priceChange5mPct: null,
       priceChange1hPct: null,
@@ -325,11 +330,11 @@ export function PumpWorkspaceTab({ viewApiBaseUrl }: PumpWorkspaceTabProps) {
       latestTradeAt: null,
       latestTradeSide: null,
       freshnessMs: null,
-      confidence: 'low',
-      confidenceScore: 0,
-      tradeable: true,
+      confidence: undefined,
+      confidenceScore: undefined,
+      tradeable: undefined,
       warnings: [],
-      summary: 'Canonical Pump snapshot workspace.',
+      summary: 'Indexed Pump workspace using canonical ranked tokens and pool metadata.',
       checks: [],
       actionContext: undefined,
     } as TokenTradeContext);
@@ -582,28 +587,24 @@ export function PumpWorkspaceTab({ viewApiBaseUrl }: PumpWorkspaceTabProps) {
               <>
                 <div className="pump-hero-grid">
                   <div className="pump-hero-card">
-                    <span>Price</span>
-                    <strong>{formatPriceLabel(context.priceQuote ?? 0)}</strong>
-                  </div>
-                  <div className="pump-hero-card">
-                    <span>Market Cap</span>
-                    <strong>{formatCompact(context.marketCapQuote)}</strong>
-                  </div>
-                  <div className="pump-hero-card">
                     <span>Liquidity</span>
-                    <strong>{formatCompact(context.liquidityQuote)}</strong>
+                    <strong>{formatCompact(workspaceLiquidity)}</strong>
                   </div>
                   <div className="pump-hero-card">
-                    <span>24h Volume</span>
-                    <strong>{formatCompact(context.volume24hQuote)}</strong>
+                    <span>Window Volume</span>
+                    <strong>{formatCompact(workspaceVolume)}</strong>
+                  </div>
+                  <div className="pump-hero-card">
+                    <span>Trades</span>
+                    <strong>{workspaceTrades ?? '—'}</strong>
+                  </div>
+                  <div className="pump-hero-card">
+                    <span>Unique Traders</span>
+                    <strong>{workspaceUniqueTraders ?? '—'}</strong>
                   </div>
                   <div className="pump-hero-card">
                     <span>Latest Trade</span>
-                    <strong>{context.latestTradeAt ?? '—'}</strong>
-                  </div>
-                  <div className="pump-hero-card">
-                    <span>Confidence</span>
-                    <strong>{context.confidence ?? '—'}{typeof context.confidenceScore === 'number' ? ` (${context.confidenceScore.toFixed(3)})` : ''}</strong>
+                    <strong>{workspaceLatestTradeAt ?? '—'}</strong>
                   </div>
                 </div>
 
