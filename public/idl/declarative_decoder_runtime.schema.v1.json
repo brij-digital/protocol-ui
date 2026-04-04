@@ -14,6 +14,10 @@
     "protocolId": {
       "type": "string"
     },
+    "active_window_days": {
+      "type": ["integer", "null"],
+      "minimum": 1
+    },
     "label": {
       "type": "string"
     },

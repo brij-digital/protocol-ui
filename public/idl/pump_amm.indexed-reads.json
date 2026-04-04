@@ -3,6 +3,7 @@
   "schema": "declarative-decoder-runtime.v1",
   "version": "0.1.0",
   "protocolId": "pump-amm-mainnet",
+  "active_window_days": 30,
   "label": "Pump AMM Indexed Reads",
   "programId": "$protocol.programId",
   "operations": {

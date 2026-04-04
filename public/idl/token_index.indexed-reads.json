@@ -3,6 +3,7 @@
   "schema": "declarative-decoder-runtime.v1",
   "version": "0.1.0",
   "protocolId": "token-index-mainnet",
+  "active_window_days": null,
   "label": "Token Index Indexed Reads",
   "programId": "11111111111111111111111111111111",
   "operations": {
