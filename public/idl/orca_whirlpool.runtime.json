@@ -63,12 +63,18 @@
         "owner": "$wallet",
         "position": "$position",
         "position_mint": "$input.position_mint",
+        "positionMint": "$input.position_mint",
         "position_token_account": "$position_token_account",
+        "positionTokenAccount": "$position_token_account",
         "whirlpool": "$input.whirlpool",
         "token_2022_program": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+        "token2022Program": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
         "system_program": "11111111111111111111111111111111",
+        "systemProgram": "11111111111111111111111111111111",
         "associated_token_program": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
-        "metadata_update_auth": "3axbTs2z5GBy6usVbNVoqEgZMng3vZvMnAoX29BFfwhr"
+        "associatedTokenProgram": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+        "metadata_update_auth": "3axbTs2z5GBy6usVbNVoqEgZMng3vZvMnAoX29BFfwhr",
+        "metadataUpdateAuth": "3axbTs2z5GBy6usVbNVoqEgZMng3vZvMnAoX29BFfwhr"
       }
     },
     "close_position": {
@@ -100,11 +106,15 @@
       "args": {},
       "accounts": {
         "position_authority": "$wallet",
+        "positionAuthority": "$wallet",
         "receiver": "$wallet",
         "position": "$input.position",
         "position_mint": "$position_data.position_mint",
+        "positionMint": "$position_data.position_mint",
         "position_token_account": "$position_token_account",
-        "token_2022_program": "$position_mint_program"
+        "positionTokenAccount": "$position_token_account",
+        "token_2022_program": "$position_mint_program",
+        "token2022Program": "$position_mint_program"
       }
     },
     "increase_liquidity_by_token_amounts_v2": {
@@ -4297,28 +4307,32 @@
         "output": "$liquidity"
       },
       {
+        "name": "liquidity_delta_from_token_a_in_range_or_zero",
+        "kind": "logic.if",
+        "condition": "$current_above_range",
+        "then": "0",
+        "else": "$liquidity_from_token_a_in_range"
+      },
+      {
         "name": "liquidity_delta_from_token_a",
         "kind": "logic.if",
         "condition": "$current_below_range",
         "then": "$liquidity_from_token_a_below",
-        "else": {
-          "kind": "logic.if",
-          "condition": "$current_above_range",
-          "then": "0",
-          "else": "$liquidity_from_token_a_in_range"
-        }
+        "else": "$liquidity_delta_from_token_a_in_range_or_zero"
+      },
+      {
+        "name": "liquidity_delta_from_token_b_in_range_or_zero",
+        "kind": "logic.if",
+        "condition": "$current_below_range",
+        "then": "0",
+        "else": "$liquidity_from_token_b_in_range"
       },
       {
         "name": "liquidity_delta_from_token_b",
         "kind": "logic.if",
         "condition": "$current_above_range",
         "then": "$liquidity_from_token_b_above",
-        "else": {
-          "kind": "logic.if",
-          "condition": "$current_below_range",
-          "then": "0",
-          "else": "$liquidity_from_token_b_in_range"
-        }
+        "else": "$liquidity_delta_from_token_b_in_range_or_zero"
       },
       {
         "name": "liquidity_delta",
@@ -4376,28 +4390,32 @@
         "output": "$value"
       },
       {
+        "name": "token_est_a_in_range_or_zero",
+        "kind": "logic.if",
+        "condition": "$current_above_range",
+        "then": "0",
+        "else": "$token_est_a_in_range"
+      },
+      {
         "name": "token_est_a",
         "kind": "logic.if",
         "condition": "$current_below_range",
         "then": "$token_est_a_below",
-        "else": {
-          "kind": "logic.if",
-          "condition": "$current_above_range",
-          "then": "0",
-          "else": "$token_est_a_in_range"
-        }
+        "else": "$token_est_a_in_range_or_zero"
+      },
+      {
+        "name": "token_est_b_in_range_or_zero",
+        "kind": "logic.if",
+        "condition": "$current_below_range",
+        "then": "0",
+        "else": "$token_est_b_in_range"
       },
       {
         "name": "token_est_b",
         "kind": "logic.if",
         "condition": "$current_above_range",
         "then": "$token_est_b_above",
-        "else": {
-          "kind": "logic.if",
-          "condition": "$current_below_range",
-          "then": "0",
-          "else": "$token_est_b_in_range"
-        }
+        "else": "$token_est_b_in_range_or_zero"
       },
       {
         "name": "slippage_denominator",
@@ -4546,28 +4564,32 @@
         "output": "$liquidity"
       },
       {
+        "name": "liquidity_delta_from_token_a_in_range_or_zero",
+        "kind": "logic.if",
+        "condition": "$current_above_range",
+        "then": "0",
+        "else": "$liquidity_from_token_a_in_range"
+      },
+      {
         "name": "liquidity_delta_from_token_a",
         "kind": "logic.if",
         "condition": "$current_below_range",
         "then": "$liquidity_from_token_a_below",
-        "else": {
-          "kind": "logic.if",
-          "condition": "$current_above_range",
-          "then": "0",
-          "else": "$liquidity_from_token_a_in_range"
-        }
+        "else": "$liquidity_delta_from_token_a_in_range_or_zero"
+      },
+      {
+        "name": "liquidity_delta_from_token_b_in_range_or_zero",
+        "kind": "logic.if",
+        "condition": "$current_below_range",
+        "then": "0",
+        "else": "$liquidity_from_token_b_in_range"
       },
       {
         "name": "liquidity_delta_from_token_b",
         "kind": "logic.if",
         "condition": "$current_above_range",
         "then": "$liquidity_from_token_b_above",
-        "else": {
-          "kind": "logic.if",
-          "condition": "$current_below_range",
-          "then": "0",
-          "else": "$liquidity_from_token_b_in_range"
-        }
+        "else": "$liquidity_delta_from_token_b_in_range_or_zero"
       },
       {
         "name": "liquidity_delta",
@@ -4625,28 +4647,32 @@
         "output": "$value"
       },
       {
+        "name": "token_est_a_in_range_or_zero",
+        "kind": "logic.if",
+        "condition": "$current_above_range",
+        "then": "0",
+        "else": "$token_est_a_in_range"
+      },
+      {
         "name": "token_est_a",
         "kind": "logic.if",
         "condition": "$current_below_range",
         "then": "$token_est_a_below",
-        "else": {
-          "kind": "logic.if",
-          "condition": "$current_above_range",
-          "then": "0",
-          "else": "$token_est_a_in_range"
-        }
+        "else": "$token_est_a_in_range_or_zero"
+      },
+      {
+        "name": "token_est_b_in_range_or_zero",
+        "kind": "logic.if",
+        "condition": "$current_below_range",
+        "then": "0",
+        "else": "$token_est_b_in_range"
       },
       {
         "name": "token_est_b",
         "kind": "logic.if",
         "condition": "$current_above_range",
         "then": "$token_est_b_above",
-        "else": {
-          "kind": "logic.if",
-          "condition": "$current_below_range",
-          "then": "0",
-          "else": "$token_est_b_in_range"
-        }
+        "else": "$token_est_b_in_range_or_zero"
       },
       {
         "name": "slippage_denominator",
