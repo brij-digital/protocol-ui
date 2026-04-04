@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Indexing Spec V1 Reference</title>
+    <title>Declarative Decoder Runtime V1</title>
     <style>
       :root {
         color-scheme: light;
@@ -67,6 +67,21 @@
         margin: 8px 0 0;
         padding-left: 20px;
       }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      pre {
+        margin: 10px 0 0;
+        overflow: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+        padding: 12px;
+        border-radius: 12px;
+        background: var(--code-bg);
+        border: 1px solid var(--code-line);
+        font-size: 12px;
+        line-height: 1.5;
+      }
       .grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -95,21 +110,6 @@
         font-size: 14px;
       }
       th { background: #f8fafc; }
-      code {
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      }
-      pre {
-        margin: 10px 0 0;
-        overflow: auto;
-        white-space: pre-wrap;
-        word-break: break-word;
-        padding: 12px;
-        border-radius: 12px;
-        background: var(--code-bg);
-        border: 1px solid var(--code-line);
-        font-size: 12px;
-        line-height: 1.5;
-      }
       .links {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -130,405 +130,226 @@
         font-size: 12px;
         word-break: break-all;
       }
-      .flow {
-        display: grid;
-        gap: 8px;
-      }
-      .flow div {
-        border-left: 3px solid #c7d5eb;
-        padding-left: 10px;
-      }
     </style>
   </head>
   <body>
     <main class="page">
       <section class="hero">
-        <p class="eyebrow">Indexing Spec V1 Reference</p>
-        <h1>Declarative ingest, canonical records, and indexed query surfaces</h1>
+        <p class="eyebrow">Declarative Decoder Runtime V1</p>
+        <h1>Ingest specs and indexed reads specs</h1>
         <p>
-          This page documents the current <code>declarative-decoder-runtime.v1</code> contract.
-          It covers decoder artifacts, ingest sources, match rules, pipelines,
-          projections, and indexed read surfaces through <code>operations.*.index_view</code>.
+          <code>declarative-decoder-runtime.v1</code> now covers two related document shapes:
+          <code>*.ingest.json</code> for ingest and canonical emission, and
+          <code>*.indexed-reads.json</code> for indexed querying and projection.
         </p>
       </section>
 
       <section class="card">
-        <h2>Scope boundary</h2>
+        <h2>Architecture</h2>
+        <pre>Chain events -> [Ingest spec] -> Raw canonical facts -> Postgres
+                                                     |
+Client request -> [Indexed reads spec] -> Filter/Sort/Aggregate -> Response</pre>
+      </section>
+
+      <section class="card">
+        <h2>Design rules</h2>
         <div class="grid">
           <div class="box">
-            <strong>Indexing spec owns</strong>
+            <strong>Ingest pipelines store only raw canonical facts</strong>
             <ul>
-              <li>decoder artifacts</li>
-              <li>ingest source definitions</li>
-              <li>match and routing rules</li>
-              <li>canonical record and state pipelines</li>
-              <li>projections</li>
-              <li>indexed read and discovery views</li>
+              <li>Direct values from event and account payloads</li>
+              <li>Small pure normalization like unit conversion or renaming</li>
+              <li>No joins such as <code>state.lookup</code></li>
+              <li>No external calls such as <code>rpc.token_supply</code></li>
+              <li>No baked business metrics like price, liquidity, or market cap</li>
             </ul>
           </div>
           <div class="box">
-            <strong>Indexing spec does not own</strong>
+            <strong>Indexed reads expose stored facts</strong>
             <ul>
-              <li>Codama write execution</li>
-              <li>transaction drafting</li>
-              <li>wallet submission</li>
-              <li>runner orchestration</li>
+              <li>Filter, sort, aggregate, reshape</li>
+              <li>No enrichment at query time</li>
+            </ul>
+          </div>
+          <div class="box">
+            <strong>Runtime views own enrichment</strong>
+            <ul>
+              <li>Price</li>
+              <li>Market cap</li>
+              <li>Liquidity</li>
+              <li>Any richer derived metric computed at read time</li>
             </ul>
           </div>
         </div>
       </section>
 
       <section class="card">
-        <h2>Mental model</h2>
-        <div class="flow">
-          <div><strong>1. decoderArtifacts</strong><br />Declare how raw program data gets decoded.</div>
-          <div><strong>2. sources</strong><br />Declare where updates come from.</div>
-          <div><strong>3. matchRules</strong><br />Route each decoded update into a named pipeline.</div>
-          <div><strong>4. pipelines</strong><br />Extract, resolve, compute, and emit canonical records or state.</div>
-          <div><strong>5. projectionSpecs</strong><br />Materialize rankings, feeds, snapshots, series, or context views.</div>
-          <div><strong>6. operations.*.index_view</strong><br />Expose indexed query surfaces to callers.</div>
-        </div>
-        <p>
-          This makes the indexing spec an ingest-and-query contract, not a transaction-execution contract.
-        </p>
+        <h2>Registry fields</h2>
+        <pre>{
+  "id": "pump-amm-mainnet",
+  "ingestSpecPath": "/idl/pump_amm.ingest.json",
+  "indexedReadsPath": "/idl/pump_amm.indexed-reads.json"
+}</pre>
+        <ul>
+          <li><code>ingestSpecPath</code> is used by the Carbon plan compiler.</li>
+          <li><code>indexedReadsPath</code> is used by the canonical view runner and query layer.</li>
+          <li><code>indexingSpecPath</code> is deprecated and kept only as fallback.</li>
+        </ul>
       </section>
 
       <section class="card">
-        <h2>Top-level shape</h2>
+        <h2>Ingest Spec</h2>
+        <p>The ingest document owns decoding, routing, canonical extraction, normalization, and emission.</p>
+
+        <h3>Top-level shape</h3>
         <pre>{
-  "$schema": "/idl/declarative_decoder_runtime.schema.v1.json",
   "schema": "declarative-decoder-runtime.v1",
   "protocolId": "pump-amm-mainnet",
+  "programId": "$protocol.programId",
   "decoderArtifacts": {},
   "sources": {},
   "matchRules": [],
-  "pipelines": {},
-  "projectionSpecs": {},
-  "operations": {}
+  "pipelines": {}
 }</pre>
-        <table>
-          <thead><tr><th>Attribute</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
-          <tbody>
-            <tr><td><code>$schema</code></td><td>No</td><td>string</td><td>JSON schema path.</td></tr>
-            <tr><td><code>schema</code></td><td>Yes</td><td>string</td><td>Must be <code>declarative-decoder-runtime.v1</code>.</td></tr>
-            <tr><td><code>version</code></td><td>No</td><td>string</td><td>Spec revision string.</td></tr>
-            <tr><td><code>protocolId</code></td><td>Yes</td><td>string</td><td>Protocol identifier.</td></tr>
-            <tr><td><code>label</code></td><td>No</td><td>string</td><td>Human label.</td></tr>
-            <tr><td><code>programId</code></td><td>No</td><td>string</td><td>Program id or template.</td></tr>
-            <tr><td><code>decoderArtifacts</code></td><td>Yes</td><td>object</td><td>Map of artifact id to <code>decoderArtifactSpec</code>.</td></tr>
-            <tr><td><code>sources</code></td><td>Yes</td><td>object</td><td>Map of source id to <code>sourceSpec</code>.</td></tr>
-            <tr><td><code>matchRules</code></td><td>Yes</td><td>array</td><td>Array of <code>matchRuleSpec</code>.</td></tr>
-            <tr><td><code>pipelines</code></td><td>Yes</td><td>object</td><td>Map of pipeline id to <code>pipelineSpec</code>.</td></tr>
-            <tr><td><code>projectionSpecs</code></td><td>No</td><td>object</td><td>Map of projection id to <code>projectionSpec</code>.</td></tr>
-            <tr><td><code>operations</code></td><td>No</td><td>object</td><td>Map of operation id to <code>operationSpec</code>.</td></tr>
-          </tbody>
-        </table>
-      </section>
 
-      <section class="card">
-        <h2><code>decoderArtifactSpec</code></h2>
-        <table>
-          <thead><tr><th>Attribute</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
-          <tbody>
-            <tr><td><code>kind</code></td><td>Yes</td><td>string</td><td><code>generated_idl_decoder</code> or <code>precompiled_decoder</code>.</td></tr>
-            <tr><td><code>family</code></td><td>No</td><td>string</td><td><code>anchor</code>, <code>codama</code>, or <code>custom</code>.</td></tr>
-            <tr><td><code>codamaPath</code></td><td>Cond.</td><td>string</td><td>Required when <code>family = codama</code>.</td></tr>
-            <tr><td><code>artifact</code></td><td>Yes</td><td>string</td><td>Runtime artifact id.</td></tr>
-            <tr><td><code>entrypoint</code></td><td>No</td><td>string</td><td>Custom decoder entrypoint.</td></tr>
-            <tr><td><code>notes</code></td><td>No</td><td>string</td><td>Free-form note.</td></tr>
-          </tbody>
-        </table>
-      </section>
-
-      <section class="card">
-        <h2><code>sourceSpec</code></h2>
-        <table>
-          <thead><tr><th>Attribute</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
-          <tbody>
-            <tr><td><code>kind</code></td><td>Yes</td><td>string</td><td><code>rpc_transaction_crawler</code>, <code>rpc_block_subscribe</code>, <code>rpc_program_subscribe</code>, <code>rpc_account_snapshot</code>, <code>yellowstone_grpc</code>, or <code>custom</code>.</td></tr>
-            <tr><td><code>programId</code></td><td>No</td><td>string</td><td>Program id or template.</td></tr>
-            <tr><td><code>commitment</code></td><td>No</td><td>string</td><td><code>processed</code>, <code>confirmed</code>, or <code>finalized</code>.</td></tr>
-            <tr><td><code>decoderRef</code></td><td>Yes</td><td>string</td><td>Decoder artifact id.</td></tr>
-            <tr><td><code>decodeTargets</code></td><td>No</td><td>array</td><td>Any of <code>instruction</code>, <code>log_event</code>, <code>account</code>, <code>transaction</code>.</td></tr>
-            <tr><td><code>filters</code></td><td>No</td><td>object</td><td>Source-specific filter object.</td></tr>
-            <tr><td><code>cursor</code></td><td>No</td><td>object</td><td><code>cursorSpec</code>.</td></tr>
-          </tbody>
-        </table>
-
-        <h3><code>cursorSpec</code></h3>
-        <table>
-          <thead><tr><th>Attribute</th><th>Required</th><th>Type</th></tr></thead>
-          <tbody>
-            <tr><td><code>kind</code></td><td>No</td><td><code>signature</code>, <code>slot</code>, <code>time</code>, or <code>opaque</code></td></tr>
-            <tr><td><code>field</code></td><td>No</td><td>string</td></tr>
-          </tbody>
-        </table>
-
-        <h3><code>sourceTargetsSpec</code></h3>
-        <table>
-          <thead><tr><th>Attribute</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
-          <tbody>
-            <tr><td><code>kind</code></td><td>Yes</td><td><code>missing_state_from_records</code>, <code>incomplete_state_from_state</code>, or <code>incomplete_state_from_records</code></td><td>Backfill strategy.</td></tr>
-            <tr><td><code>stateRecordName</code></td><td>Yes</td><td>string</td><td>Target state record name.</td></tr>
-            <tr><td><code>missingFields</code></td><td>No</td><td>array</td><td>Fields still missing on state.</td></tr>
-            <tr><td><code>recordNames</code></td><td>No</td><td>array</td><td>Driving record names.</td></tr>
-            <tr><td><code>addressField</code></td><td>No</td><td><code>resource_id</code> or <code>subject_id</code></td><td>Address source field.</td></tr>
-            <tr><td><code>lookbackMinutes</code></td><td>No</td><td>integer</td><td>Backfill lookback window.</td></tr>
-            <tr><td><code>limit</code></td><td>No</td><td>integer</td><td>Max addresses to target.</td></tr>
-          </tbody>
-        </table>
-      </section>
-
-      <section class="card">
-        <h2><code>matchRuleSpec</code></h2>
-        <table>
-          <thead><tr><th>Attribute</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
-          <tbody>
-            <tr><td><code>source</code></td><td>Yes</td><td>string</td><td>Source id.</td></tr>
-            <tr><td><code>match</code></td><td>Yes</td><td>object</td><td><code>matchPredicateSpec</code>.</td></tr>
-            <tr><td><code>pipeline</code></td><td>Yes</td><td>string</td><td>Pipeline id.</td></tr>
-          </tbody>
-        </table>
-        <p>
-          Inside <code>match</code>, the main attributes are
-          <code>decodedType</code>, optional <code>name</code>, optional
-          <code>instruction</code>/<code>event</code>/<code>account</code>, and optional <code>where</code>.
-        </p>
-      </section>
-
-      <section class="card">
-        <h2><code>pipelineSpec</code></h2>
-        <table>
-          <thead><tr><th>Attribute</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
-          <tbody>
-            <tr><td><code>extract</code></td><td>No</td><td>object</td><td>Named extracted fields.</td></tr>
-            <tr><td><code>resolve</code></td><td>No</td><td>array</td><td>Array of <code>resolveStepSpec</code>.</td></tr>
-            <tr><td><code>compute</code></td><td>No</td><td>array</td><td>Array of <code>computeStepSpec</code>.</td></tr>
-            <tr><td><code>emit</code></td><td>No</td><td>object</td><td><code>emitSpec</code>.</td></tr>
-          </tbody>
-        </table>
-        <p>
-          Common pattern: extract stable names from the update, resolve missing chain or canonical context,
-          compute normalized values, then emit canonical records or state.
-        </p>
-
-        <h3><code>resolveStepSpec</code></h3>
-        <table>
-          <thead><tr><th>Attribute</th><th>Required</th><th>Type</th></tr></thead>
-          <tbody>
-            <tr><td><code>name</code></td><td>Yes</td><td>string</td></tr>
-            <tr><td><code>resolve</code></td><td>Yes</td><td><code>rpc.token_supply</code>, <code>rpc.account_info</code>, <code>rpc.token_account_balance</code>, <code>state.lookup</code>, <code>resource.lookup</code>, or <code>custom</code></td></tr>
-            <tr><td><code>required</code></td><td>No</td><td>boolean</td></tr>
-            <tr><td><code>requiredFields</code></td><td>No</td><td>array</td></tr>
-            <tr><td>extra attributes</td><td>No</td><td>resolver-specific templates</td></tr>
-          </tbody>
-        </table>
-
-        <h3><code>computeStepSpec</code></h3>
-        <table>
-          <thead><tr><th>Attribute</th><th>Required</th><th>Type</th></tr></thead>
-          <tbody>
-            <tr><td><code>name</code></td><td>Yes</td><td>string</td></tr>
-            <tr><td><code>compute</code></td><td>Yes</td><td><code>math.amount_ui</code>, <code>math.safe_div</code>, <code>math.mul</code>, <code>math.add</code>, <code>math.sub</code>, <code>math.avg</code>, <code>compare.gt</code>, <code>compare.gte</code>, <code>compare.lt</code>, <code>compare.eq</code>, <code>logic.if</code>, <code>string.concat</code>, <code>coalesce</code>, or <code>wasm</code></td></tr>
-            <tr><td><code>module</code></td><td>No</td><td>string</td></tr>
-            <tr><td><code>entrypoint</code></td><td>No</td><td>string</td></tr>
-            <tr><td>extra attributes</td><td>No</td><td>compute-specific templates</td></tr>
-          </tbody>
-        </table>
-
-        <h3><code>emitSpec</code></h3>
-        <p>
-          <code>emit</code> can contain <code>record</code>, <code>state</code>, or both.
-          Both use the same core fields: <code>recordKind</code>, <code>recordName</code>,
-          <code>subjectId</code>, optional <code>resourceId</code>, optional <code>signature</code>,
-          optional <code>slot</code>, optional <code>eventTime</code>, and <code>payload</code>.
-          <code>record</code> also supports optional <code>participantId</code>.
-        </p>
-      </section>
-
-      <section class="card">
-        <h2><code>projectionSpec</code></h2>
-        <table>
-          <thead><tr><th>Attribute</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
-          <tbody>
-            <tr><td><code>projectionKind</code></td><td>Yes</td><td><code>series</code>, <code>feed</code>, <code>ranking</code>, <code>snapshot</code>, or <code>context</code></td><td>Materialization type.</td></tr>
-            <tr><td><code>source</code></td><td>Yes</td><td>object</td><td><code>projectionSourceSpec</code>.</td></tr>
-            <tr><td><code>bucket</code></td><td>No</td><td>string</td><td>Time bucket string.</td></tr>
-            <tr><td><code>groupBy</code></td><td>No</td><td>array</td><td>Grouping fields.</td></tr>
-            <tr><td><code>timeField</code></td><td>No</td><td>string</td><td>Time field.</td></tr>
-            <tr><td><code>aggregations</code></td><td>No</td><td>array</td><td><code>projectionAggregationSpec</code>[]</td></tr>
-            <tr><td><code>sortBy</code></td><td>No</td><td>array</td><td><code>sortSpec</code>[]</td></tr>
-          </tbody>
-        </table>
-
-        <h3><code>projectionSourceSpec</code></h3>
-        <p>
-          Main attributes:
-          <code>canonicalSource</code>, <code>protocolId</code>, optional
-          <code>recordKind</code>, optional <code>recordName</code>, optional <code>seriesId</code>,
-          optional <code>subjectInput</code>, optional <code>resourceInput</code>, and optional <code>timeField</code>.
-        </p>
-
-        <h3><code>projectionAggregationSpec</code></h3>
-        <p>
-          Required attributes:
-          <code>name</code>, <code>field</code>, <code>fn</code>.
-          Supported functions:
-          <code>first</code>, <code>last</code>, <code>min</code>, <code>max</code>,
-          <code>sum</code>, <code>avg</code>, <code>count</code>, <code>count_distinct</code>.
-        </p>
-      </section>
-
-      <section class="card">
-        <h2><code>operations.*</code></h2>
-        <p>
-          The indexing spec can expose operations in two ways:
-          <code>contract_view</code> and <code>index_view</code>.
-          The important one in practice is <code>index_view</code>, which owns indexed read and discovery surfaces.
-        </p>
-
-        <h3><code>runtimeInputSpec</code></h3>
-        <table>
-          <thead><tr><th>Attribute</th><th>Required</th><th>Type</th></tr></thead>
-          <tbody>
-            <tr><td><code>type</code></td><td>Yes</td><td>string</td></tr>
-            <tr><td><code>required</code></td><td>No</td><td>boolean</td></tr>
-            <tr><td><code>default</code></td><td>No</td><td>template or literal</td></tr>
-          </tbody>
-        </table>
-
-        <h3><code>readOutputSpec</code></h3>
-        <table>
-          <thead><tr><th>Attribute</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
-          <tbody>
-            <tr><td><code>type</code></td><td>Yes</td><td><code>array</code>, <code>object</code>, <code>scalar</code>, or <code>list</code></td><td>Returned shape.</td></tr>
-            <tr><td><code>source</code></td><td>Yes</td><td>string</td><td>Runtime expression for the returned value.</td></tr>
-            <tr><td><code>object_schema</code></td><td>No</td><td>object</td><td>Schema for <code>type = object</code>.</td></tr>
-            <tr><td><code>item_schema</code></td><td>No</td><td>object</td><td>Schema for array or list items.</td></tr>
-            <tr><td><code>scalar_type</code></td><td>No</td><td>string</td><td>Scalar type for <code>type = scalar</code>.</td></tr>
-          </tbody>
-        </table>
-
-        <h3><code>canonicalViewSpec</code></h3>
-        <p>
-          Main attributes:
-          <code>source</code>, <code>protocol_id</code>, optional <code>record_kind</code>,
-          optional <code>record_name</code>, optional <code>series_id</code>, optional
-          <code>subject_input</code>, optional <code>resource_input</code>, optional
-          <code>subject_field</code>, optional <code>resource_field</code>, optional <code>time_field</code>.
-        </p>
-
-        <h3><code>viewProjectionSpec</code></h3>
-        <p>
-          Main attributes:
-          <code>projection_kind</code>, optional <code>source_operation</code>, optional
-          <code>bucket</code>, optional <code>group_by</code>, optional <code>aggregations</code>,
-          optional <code>sort_by</code>.
-        </p>
-
-        <h3><code>indexViewSpec</code></h3>
-        <table>
-          <thead><tr><th>Attribute</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
-          <tbody>
-            <tr><td><code>kind</code></td><td>Yes</td><td><code>search</code>, <code>account</code>, <code>feed</code>, <code>series</code>, <code>ranking</code>, or <code>context</code></td><td>Indexed view shape.</td></tr>
-            <tr><td><code>inputs</code></td><td>No</td><td>object</td><td>Input map using <code>runtimeInputSpec</code>.</td></tr>
-            <tr><td><code>read_output</code></td><td>No</td><td>object</td><td>Typed read contract for the indexed view.</td></tr>
-            <tr><td><code>source_kind</code></td><td>No</td><td>string</td><td>Source mode.</td></tr>
-            <tr><td><code>freshness</code></td><td>No</td><td>object</td><td>Freshness policy.</td></tr>
-            <tr><td><code>entity_type</code></td><td>No</td><td>string</td><td>Entity label.</td></tr>
-            <tr><td><code>title</code></td><td>No</td><td>string</td><td>UI title.</td></tr>
-            <tr><td><code>description</code></td><td>No</td><td>string</td><td>UI description.</td></tr>
-            <tr><td><code>sync_disabled</code></td><td>No</td><td>boolean</td><td>Disable sync flag.</td></tr>
-            <tr><td><code>bootstrap</code></td><td>No</td><td>object</td><td>Bootstrap config.</td></tr>
-            <tr><td><code>refresh</code></td><td>No</td><td>object</td><td>Refresh config.</td></tr>
-            <tr><td><code>query</code></td><td>No</td><td>object</td><td>Query config.</td></tr>
-            <tr><td><code>target</code></td><td>No</td><td>object</td><td>Target config.</td></tr>
-            <tr><td><code>select</code></td><td>No</td><td>object</td><td>Select config.</td></tr>
-            <tr><td><code>canonical</code></td><td>Cond.</td><td>object</td><td><code>canonicalViewSpec</code>.</td></tr>
-            <tr><td><code>projection</code></td><td>Cond.</td><td>object</td><td><code>viewProjectionSpec</code>.</td></tr>
-          </tbody>
-        </table>
-        <p>
-          Rule:
-          if <code>source_kind = account_changes</code>, then <code>bootstrap</code> and <code>query</code> are required.
-          Otherwise, <code>canonical</code> and <code>projection</code> are required.
-        </p>
-
-        <h3><code>contractViewSpec</code></h3>
-        <p>
-          Current required field is only <code>kind = account</code>.
-          It also allows optional <code>source_kind</code>, <code>freshness</code>, <code>entity_type</code>,
-          <code>title</code>, <code>description</code>, <code>bootstrap</code>, <code>refresh</code>,
-          <code>query</code>, <code>target</code>, and <code>select</code>.
-        </p>
-      </section>
-
-      <section class="card">
-        <h2>Concrete Pump AMM example</h2>
+        <h3><code>decoderArtifacts</code></h3>
         <pre>{
-  "sources": {
-    "pump_swap_crawler": {
-      "kind": "rpc_transaction_crawler",
-      "decoderRef": "pump_swap",
-      "decodeTargets": ["instruction", "log_event"]
-    }
-  },
-  "matchRules": [
-    {
-      "source": "pump_swap_crawler",
-      "match": { "decodedType": "event", "name": "BuyEvent" },
-      "pipeline": "trade_buy"
-    }
-  ],
-  "pipelines": {
-    "trade_buy": {
-      "resolve": [
-        {
-          "name": "poolMeta",
-          "resolve": "state.lookup",
-          "recordName": "PoolMetadata",
-          "subjectId": "$decoded.pool",
-          "required": true
-        }
-      ],
-      "compute": [
-        {
-          "name": "priceQuote",
-          "compute": "math.safe_div",
-          "dividend": "$quoteAmountUi",
-          "divisor": "$baseAmountUi"
-        }
-      ],
-      "emit": {
-        "record": {
-          "recordKind": "event",
-          "recordName": "BuyEvent",
-          "subjectId": "$ctx.mint",
-          "resourceId": "$ctx.pool",
-          "payload": {}
-        }
+  "pump_swap": {
+    "kind": "generated_idl_decoder",
+    "family": "codama",
+    "codamaPath": "/idl/pump_amm.codama.json",
+    "artifact": "pump_swap"
+  }
+}</pre>
+
+        <h3><code>sources</code></h3>
+        <pre>{
+  "pump_swap_crawler": {
+    "kind": "rpc_transaction_crawler",
+    "programId": "$protocol.programId",
+    "commitment": "confirmed",
+    "decoderRef": "pump_swap",
+    "decodeTargets": ["instruction", "log_event"]
+  }
+}</pre>
+
+        <h3><code>matchRules</code></h3>
+        <pre>[
+  {
+    "source": "pump_swap_crawler",
+    "match": { "decodedType": "event", "name": "BuyEvent" },
+    "pipeline": "trade_buy"
+  }
+]</pre>
+
+        <h3><code>pipelines</code></h3>
+        <p>Each pipeline has <code>extract -> compute -> emit</code>. In new ingest specs, no <code>resolve</code> steps.</p>
+        <pre>{
+  "trade_buy": {
+    "extract": {
+      "pool": "$decoded.pool",
+      "user": "$decoded.user",
+      "side": "buy",
+      "baseAmountAtomic": "$decoded.base_amount_out",
+      "quoteAmountAtomic": "$decoded.quote_amount_in"
+    },
+    "compute": [
+      {
+        "name": "baseAmountUi",
+        "compute": "math.amount_ui",
+        "amount": "$ctx.baseAmountAtomic",
+        "decimals": 9
+      }
+    ],
+    "emit": {
+      "record": {
+        "recordName": "BuyEvent",
+        "subjectId": "$ctx.pool",
+        "payload": { "...": "raw facts only" }
       }
     }
   }
 }</pre>
-        <p>
-          This shows the core pattern:
-          a decoded update enters through a source, a match rule routes it into a pipeline,
-          the pipeline resolves canonical context, computes normalized values,
-          then emits a canonical record that later powers indexed views.
-        </p>
+
+        <h3>Allowed compute ops in ingest</h3>
+        <ul>
+          <li><code>math.amount_ui</code></li>
+          <li><code>math.add</code>, <code>math.sub</code>, <code>math.mul</code>, <code>math.safe_div</code></li>
+          <li><code>compare.gt</code>, <code>compare.equals</code></li>
+          <li><code>logic.if</code></li>
+          <li><code>coalesce</code></li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>Indexed Reads Spec</h2>
+        <p>The indexed-reads document owns queryable operations over canonical records and state.</p>
+
+        <h3>Top-level shape</h3>
+        <pre>{
+  "schema": "declarative-decoder-runtime.v1",
+  "protocolId": "pump-amm-mainnet",
+  "programId": "$protocol.programId",
+  "operations": {}
+}</pre>
+
+        <h3><code>operations</code></h3>
+        <pre>{
+  "trade_feed": {
+    "index_view": {
+      "kind": "search",
+      "canonical": {
+        "source": "indexed_idl_records",
+        "protocol_id": "pump-amm-mainnet",
+        "record_kind": "event",
+        "record_name": ["BuyEvent", "SellEvent"]
+      },
+      "projection": {
+        "projection_kind": "feed",
+        "sort_by": [{ "field": "eventTime", "dir": "desc" }]
+      }
+    }
+  }
+}</pre>
+
+        <h3>Projection kinds</h3>
+        <table>
+          <thead>
+            <tr><th>Kind</th><th>Description</th><th>Allowed ops</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>feed</code></td><td>Chronological event stream</td><td>sort, limit</td></tr>
+            <tr><td><code>snapshot</code></td><td>Latest state per subject</td><td>filter, sort</td></tr>
+            <tr><td><code>series</code></td><td>Time-bucketed aggregation</td><td>aggregate, bucket</td></tr>
+            <tr><td><code>ranking</code></td><td>Scored or sorted items</td><td>filter, sort, score</td></tr>
+            <tr><td><code>search</code></td><td>Filterable state queries</td><td>filter, sort</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="card">
+        <h2>Deprecated features</h2>
+        <ul>
+          <li><code>resolve</code> steps in ingest pipelines are deprecated.</li>
+          <li><code>indexingSpecPath</code> in registry is deprecated.</li>
+          <li>Top-level <code>projectionSpecs</code> in ingest is deprecated.</li>
+        </ul>
       </section>
 
       <section class="card">
         <h2>Useful links</h2>
         <div class="links">
-          <a class="link-card" href="/idl/declarative_decoder_runtime.schema.v1.json" target="_blank" rel="noreferrer">
-            <strong>Indexing schema</strong>
-            <span>/idl/declarative_decoder_runtime.schema.v1.json</span>
-          </a>
           <a class="link-card" href="/idl/pump_amm.ingest.json" target="_blank" rel="noreferrer">
-            <strong>Pump AMM ingest spec</strong>
+            <strong>Pump AMM ingest</strong>
             <span>/idl/pump_amm.ingest.json</span>
+          </a>
+          <a class="link-card" href="/idl/pump_amm.indexed-reads.json" target="_blank" rel="noreferrer">
+            <strong>Pump AMM indexed reads</strong>
+            <span>/idl/pump_amm.indexed-reads.json</span>
+          </a>
+          <a class="link-card" href="/idl/orca_whirlpool.ingest.json" target="_blank" rel="noreferrer">
+            <strong>Orca ingest</strong>
+            <span>/idl/orca_whirlpool.ingest.json</span>
           </a>
           <a class="link-card" href="/idl/orca_whirlpool.indexed-reads.json" target="_blank" rel="noreferrer">
             <strong>Orca indexed reads</strong>
