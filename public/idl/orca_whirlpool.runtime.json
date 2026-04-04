@@ -29,6 +29,84 @@
         "tick_array2": "$input.tick_array2"
       }
     },
+    "open_position": {
+      "instruction": "open_position_with_token_extensions",
+      "steps": [
+        {
+          "name": "wallet",
+          "kind": "wallet_pubkey"
+        },
+        {
+          "name": "position",
+          "kind": "pda",
+          "program_id": "$protocol.programId",
+          "seeds": [
+            "utf8:position",
+            "$input.position_mint"
+          ]
+        },
+        {
+          "name": "position_token_account",
+          "kind": "ata",
+          "owner": "$wallet",
+          "mint": "$input.position_mint",
+          "token_program": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+        }
+      ],
+      "args": {
+        "tick_lower_index": "$input.tick_lower_index",
+        "tick_upper_index": "$input.tick_upper_index",
+        "with_token_metadata_extension": "$input.with_token_metadata_extension"
+      },
+      "accounts": {
+        "funder": "$wallet",
+        "owner": "$wallet",
+        "position": "$position",
+        "position_mint": "$input.position_mint",
+        "position_token_account": "$position_token_account",
+        "whirlpool": "$input.whirlpool",
+        "token_2022_program": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+        "system_program": "11111111111111111111111111111111",
+        "associated_token_program": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+        "metadata_update_auth": "3axbTs2z5GBy6usVbNVoqEgZMng3vZvMnAoX29BFfwhr"
+      }
+    },
+    "close_position": {
+      "instruction": "close_position_with_token_extensions",
+      "steps": [
+        {
+          "name": "wallet",
+          "kind": "wallet_pubkey"
+        },
+        {
+          "name": "position_data",
+          "kind": "decode_account",
+          "address": "$input.position",
+          "account_type": "Position"
+        },
+        {
+          "name": "position_mint_program",
+          "kind": "account_owner",
+          "address": "$position_data.position_mint"
+        },
+        {
+          "name": "position_token_account",
+          "kind": "ata",
+          "owner": "$wallet",
+          "mint": "$position_data.position_mint",
+          "token_program": "$position_mint_program"
+        }
+      ],
+      "args": {},
+      "accounts": {
+        "position_authority": "$wallet",
+        "receiver": "$wallet",
+        "position": "$input.position",
+        "position_mint": "$position_data.position_mint",
+        "position_token_account": "$position_token_account",
+        "token_2022_program": "$position_mint_program"
+      }
+    },
     "increase_liquidity_by_token_amounts_v2": {
       "instruction": "increase_liquidity_by_token_amounts_v2",
       "steps": [
@@ -4059,6 +4137,582 @@
         ]
       }
     ],
+    "lp_quote__liquidity_from_token_a": [
+      {
+        "name": "sqrt_price_lower",
+        "kind": "math.min",
+        "values": [
+          "$sqrt_price_0",
+          "$sqrt_price_1"
+        ]
+      },
+      {
+        "name": "sqrt_price_upper",
+        "kind": "math.max",
+        "values": [
+          "$sqrt_price_0",
+          "$sqrt_price_1"
+        ]
+      },
+      {
+        "name": "sqrt_price_diff",
+        "kind": "math.sub",
+        "values": [
+          "$sqrt_price_upper",
+          "$sqrt_price_lower"
+        ]
+      },
+      {
+        "name": "sqrt_price_product_q64",
+        "kind": "math.mul_div_floor",
+        "multiplicand": "$sqrt_price_lower",
+        "multiplier": "$sqrt_price_upper",
+        "divisor": "18446744073709551616"
+      },
+      {
+        "name": "liquidity",
+        "kind": "math.mul_div_floor",
+        "multiplicand": "$token_amount",
+        "multiplier": "$sqrt_price_product_q64",
+        "divisor": "$sqrt_price_diff"
+      }
+    ],
+    "lp_quote__liquidity_from_token_b": [
+      {
+        "name": "sqrt_price_lower",
+        "kind": "math.min",
+        "values": [
+          "$sqrt_price_0",
+          "$sqrt_price_1"
+        ]
+      },
+      {
+        "name": "sqrt_price_upper",
+        "kind": "math.max",
+        "values": [
+          "$sqrt_price_0",
+          "$sqrt_price_1"
+        ]
+      },
+      {
+        "name": "sqrt_price_diff",
+        "kind": "math.sub",
+        "values": [
+          "$sqrt_price_upper",
+          "$sqrt_price_lower"
+        ]
+      },
+      {
+        "name": "token_amount_x64",
+        "kind": "math.shift_left",
+        "value": "$token_amount",
+        "shift": 64
+      },
+      {
+        "name": "liquidity",
+        "kind": "math.floor_div",
+        "dividend": "$token_amount_x64",
+        "divisor": "$sqrt_price_diff"
+      }
+    ],
+    "quote_increase_liquidity__quote_math": [
+      {
+        "name": "token_a_specified",
+        "kind": "compare.equals",
+        "left": "$whirlpool_data.token_mint_a",
+        "right": "$input.specified_token_mint"
+      },
+      {
+        "name": "tick_lower_sqrt_price_x64",
+        "kind": "transform",
+        "transform": "quote_exact_in__tick_index_to_sqrt_price_x64",
+        "bindings": {
+          "tick_index": "$position_data.tick_lower_index"
+        },
+        "output": "$tick_sqrt_price_x64"
+      },
+      {
+        "name": "tick_upper_sqrt_price_x64",
+        "kind": "transform",
+        "transform": "quote_exact_in__tick_index_to_sqrt_price_x64",
+        "bindings": {
+          "tick_index": "$position_data.tick_upper_index"
+        },
+        "output": "$tick_sqrt_price_x64"
+      },
+      {
+        "name": "current_below_range",
+        "kind": "compare.lte",
+        "left": "$whirlpool_data.sqrt_price",
+        "right": "$tick_lower_sqrt_price_x64"
+      },
+      {
+        "name": "current_above_range",
+        "kind": "compare.gte",
+        "left": "$whirlpool_data.sqrt_price",
+        "right": "$tick_upper_sqrt_price_x64"
+      },
+      {
+        "name": "liquidity_from_token_a_below",
+        "kind": "transform",
+        "transform": "lp_quote__liquidity_from_token_a",
+        "bindings": {
+          "token_amount": "$input.specified_token_amount",
+          "sqrt_price_0": "$tick_lower_sqrt_price_x64",
+          "sqrt_price_1": "$tick_upper_sqrt_price_x64"
+        },
+        "output": "$liquidity"
+      },
+      {
+        "name": "liquidity_from_token_a_in_range",
+        "kind": "transform",
+        "transform": "lp_quote__liquidity_from_token_a",
+        "bindings": {
+          "token_amount": "$input.specified_token_amount",
+          "sqrt_price_0": "$whirlpool_data.sqrt_price",
+          "sqrt_price_1": "$tick_upper_sqrt_price_x64"
+        },
+        "output": "$liquidity"
+      },
+      {
+        "name": "liquidity_from_token_b_above",
+        "kind": "transform",
+        "transform": "lp_quote__liquidity_from_token_b",
+        "bindings": {
+          "token_amount": "$input.specified_token_amount",
+          "sqrt_price_0": "$tick_lower_sqrt_price_x64",
+          "sqrt_price_1": "$tick_upper_sqrt_price_x64"
+        },
+        "output": "$liquidity"
+      },
+      {
+        "name": "liquidity_from_token_b_in_range",
+        "kind": "transform",
+        "transform": "lp_quote__liquidity_from_token_b",
+        "bindings": {
+          "token_amount": "$input.specified_token_amount",
+          "sqrt_price_0": "$tick_lower_sqrt_price_x64",
+          "sqrt_price_1": "$whirlpool_data.sqrt_price"
+        },
+        "output": "$liquidity"
+      },
+      {
+        "name": "liquidity_delta_from_token_a",
+        "kind": "logic.if",
+        "condition": "$current_below_range",
+        "then": "$liquidity_from_token_a_below",
+        "else": {
+          "kind": "logic.if",
+          "condition": "$current_above_range",
+          "then": "0",
+          "else": "$liquidity_from_token_a_in_range"
+        }
+      },
+      {
+        "name": "liquidity_delta_from_token_b",
+        "kind": "logic.if",
+        "condition": "$current_above_range",
+        "then": "$liquidity_from_token_b_above",
+        "else": {
+          "kind": "logic.if",
+          "condition": "$current_below_range",
+          "then": "0",
+          "else": "$liquidity_from_token_b_in_range"
+        }
+      },
+      {
+        "name": "liquidity_delta",
+        "kind": "logic.if",
+        "condition": "$token_a_specified",
+        "then": "$liquidity_delta_from_token_a",
+        "else": "$liquidity_delta_from_token_b"
+      },
+      {
+        "name": "token_est_a_below",
+        "kind": "transform",
+        "transform": "quote_exact_in__amount_delta_a",
+        "bindings": {
+          "curr_liquidity": "$liquidity_delta",
+          "curr_sqrt_price": "$tick_lower_sqrt_price_x64",
+          "target_sqrt_price": "$tick_upper_sqrt_price_x64",
+          "round_up": true
+        },
+        "output": "$value"
+      },
+      {
+        "name": "token_est_a_in_range",
+        "kind": "transform",
+        "transform": "quote_exact_in__amount_delta_a",
+        "bindings": {
+          "curr_liquidity": "$liquidity_delta",
+          "curr_sqrt_price": "$whirlpool_data.sqrt_price",
+          "target_sqrt_price": "$tick_upper_sqrt_price_x64",
+          "round_up": true
+        },
+        "output": "$value"
+      },
+      {
+        "name": "token_est_b_in_range",
+        "kind": "transform",
+        "transform": "quote_exact_in__amount_delta_b",
+        "bindings": {
+          "curr_liquidity": "$liquidity_delta",
+          "curr_sqrt_price": "$tick_lower_sqrt_price_x64",
+          "target_sqrt_price": "$whirlpool_data.sqrt_price",
+          "round_up": true
+        },
+        "output": "$value"
+      },
+      {
+        "name": "token_est_b_above",
+        "kind": "transform",
+        "transform": "quote_exact_in__amount_delta_b",
+        "bindings": {
+          "curr_liquidity": "$liquidity_delta",
+          "curr_sqrt_price": "$tick_lower_sqrt_price_x64",
+          "target_sqrt_price": "$tick_upper_sqrt_price_x64",
+          "round_up": true
+        },
+        "output": "$value"
+      },
+      {
+        "name": "token_est_a",
+        "kind": "logic.if",
+        "condition": "$current_below_range",
+        "then": "$token_est_a_below",
+        "else": {
+          "kind": "logic.if",
+          "condition": "$current_above_range",
+          "then": "0",
+          "else": "$token_est_a_in_range"
+        }
+      },
+      {
+        "name": "token_est_b",
+        "kind": "logic.if",
+        "condition": "$current_above_range",
+        "then": "$token_est_b_above",
+        "else": {
+          "kind": "logic.if",
+          "condition": "$current_below_range",
+          "then": "0",
+          "else": "$token_est_b_in_range"
+        }
+      },
+      {
+        "name": "slippage_denominator",
+        "kind": "coalesce",
+        "values": [
+          "10000"
+        ]
+      },
+      {
+        "name": "slippage_numerator",
+        "kind": "math.add",
+        "values": [
+          "$slippage_denominator",
+          "$input.slippage_bps"
+        ]
+      },
+      {
+        "name": "token_max_a",
+        "kind": "math.mul_div_ceil",
+        "multiplicand": "$token_est_a",
+        "multiplier": "$slippage_numerator",
+        "divisor": "$slippage_denominator"
+      },
+      {
+        "name": "token_max_b",
+        "kind": "math.mul_div_ceil",
+        "multiplicand": "$token_est_b",
+        "multiplier": "$slippage_numerator",
+        "divisor": "$slippage_denominator"
+      },
+      {
+        "name": "position",
+        "kind": "coalesce",
+        "values": [
+          "$input.position"
+        ]
+      },
+      {
+        "name": "whirlpool",
+        "kind": "coalesce",
+        "values": [
+          "$position_data.whirlpool"
+        ]
+      },
+      {
+        "name": "specified_token_mint",
+        "kind": "coalesce",
+        "values": [
+          "$input.specified_token_mint"
+        ]
+      },
+      {
+        "name": "specified_token_amount",
+        "kind": "coalesce",
+        "values": [
+          "$input.specified_token_amount"
+        ]
+      },
+      {
+        "name": "slippage_bps",
+        "kind": "coalesce",
+        "values": [
+          "$input.slippage_bps"
+        ]
+      }
+    ],
+    "quote_decrease_liquidity__quote_math": [
+      {
+        "name": "token_a_specified",
+        "kind": "compare.equals",
+        "left": "$whirlpool_data.token_mint_a",
+        "right": "$input.specified_token_mint"
+      },
+      {
+        "name": "tick_lower_sqrt_price_x64",
+        "kind": "transform",
+        "transform": "quote_exact_in__tick_index_to_sqrt_price_x64",
+        "bindings": {
+          "tick_index": "$position_data.tick_lower_index"
+        },
+        "output": "$tick_sqrt_price_x64"
+      },
+      {
+        "name": "tick_upper_sqrt_price_x64",
+        "kind": "transform",
+        "transform": "quote_exact_in__tick_index_to_sqrt_price_x64",
+        "bindings": {
+          "tick_index": "$position_data.tick_upper_index"
+        },
+        "output": "$tick_sqrt_price_x64"
+      },
+      {
+        "name": "current_below_range",
+        "kind": "compare.lte",
+        "left": "$whirlpool_data.sqrt_price",
+        "right": "$tick_lower_sqrt_price_x64"
+      },
+      {
+        "name": "current_above_range",
+        "kind": "compare.gte",
+        "left": "$whirlpool_data.sqrt_price",
+        "right": "$tick_upper_sqrt_price_x64"
+      },
+      {
+        "name": "liquidity_from_token_a_below",
+        "kind": "transform",
+        "transform": "lp_quote__liquidity_from_token_a",
+        "bindings": {
+          "token_amount": "$input.specified_token_amount",
+          "sqrt_price_0": "$tick_lower_sqrt_price_x64",
+          "sqrt_price_1": "$tick_upper_sqrt_price_x64"
+        },
+        "output": "$liquidity"
+      },
+      {
+        "name": "liquidity_from_token_a_in_range",
+        "kind": "transform",
+        "transform": "lp_quote__liquidity_from_token_a",
+        "bindings": {
+          "token_amount": "$input.specified_token_amount",
+          "sqrt_price_0": "$whirlpool_data.sqrt_price",
+          "sqrt_price_1": "$tick_upper_sqrt_price_x64"
+        },
+        "output": "$liquidity"
+      },
+      {
+        "name": "liquidity_from_token_b_above",
+        "kind": "transform",
+        "transform": "lp_quote__liquidity_from_token_b",
+        "bindings": {
+          "token_amount": "$input.specified_token_amount",
+          "sqrt_price_0": "$tick_lower_sqrt_price_x64",
+          "sqrt_price_1": "$tick_upper_sqrt_price_x64"
+        },
+        "output": "$liquidity"
+      },
+      {
+        "name": "liquidity_from_token_b_in_range",
+        "kind": "transform",
+        "transform": "lp_quote__liquidity_from_token_b",
+        "bindings": {
+          "token_amount": "$input.specified_token_amount",
+          "sqrt_price_0": "$tick_lower_sqrt_price_x64",
+          "sqrt_price_1": "$whirlpool_data.sqrt_price"
+        },
+        "output": "$liquidity"
+      },
+      {
+        "name": "liquidity_delta_from_token_a",
+        "kind": "logic.if",
+        "condition": "$current_below_range",
+        "then": "$liquidity_from_token_a_below",
+        "else": {
+          "kind": "logic.if",
+          "condition": "$current_above_range",
+          "then": "0",
+          "else": "$liquidity_from_token_a_in_range"
+        }
+      },
+      {
+        "name": "liquidity_delta_from_token_b",
+        "kind": "logic.if",
+        "condition": "$current_above_range",
+        "then": "$liquidity_from_token_b_above",
+        "else": {
+          "kind": "logic.if",
+          "condition": "$current_below_range",
+          "then": "0",
+          "else": "$liquidity_from_token_b_in_range"
+        }
+      },
+      {
+        "name": "liquidity_delta",
+        "kind": "logic.if",
+        "condition": "$token_a_specified",
+        "then": "$liquidity_delta_from_token_a",
+        "else": "$liquidity_delta_from_token_b"
+      },
+      {
+        "name": "token_est_a_below",
+        "kind": "transform",
+        "transform": "quote_exact_in__amount_delta_a",
+        "bindings": {
+          "curr_liquidity": "$liquidity_delta",
+          "curr_sqrt_price": "$tick_lower_sqrt_price_x64",
+          "target_sqrt_price": "$tick_upper_sqrt_price_x64",
+          "round_up": false
+        },
+        "output": "$value"
+      },
+      {
+        "name": "token_est_a_in_range",
+        "kind": "transform",
+        "transform": "quote_exact_in__amount_delta_a",
+        "bindings": {
+          "curr_liquidity": "$liquidity_delta",
+          "curr_sqrt_price": "$whirlpool_data.sqrt_price",
+          "target_sqrt_price": "$tick_upper_sqrt_price_x64",
+          "round_up": false
+        },
+        "output": "$value"
+      },
+      {
+        "name": "token_est_b_in_range",
+        "kind": "transform",
+        "transform": "quote_exact_in__amount_delta_b",
+        "bindings": {
+          "curr_liquidity": "$liquidity_delta",
+          "curr_sqrt_price": "$tick_lower_sqrt_price_x64",
+          "target_sqrt_price": "$whirlpool_data.sqrt_price",
+          "round_up": false
+        },
+        "output": "$value"
+      },
+      {
+        "name": "token_est_b_above",
+        "kind": "transform",
+        "transform": "quote_exact_in__amount_delta_b",
+        "bindings": {
+          "curr_liquidity": "$liquidity_delta",
+          "curr_sqrt_price": "$tick_lower_sqrt_price_x64",
+          "target_sqrt_price": "$tick_upper_sqrt_price_x64",
+          "round_up": false
+        },
+        "output": "$value"
+      },
+      {
+        "name": "token_est_a",
+        "kind": "logic.if",
+        "condition": "$current_below_range",
+        "then": "$token_est_a_below",
+        "else": {
+          "kind": "logic.if",
+          "condition": "$current_above_range",
+          "then": "0",
+          "else": "$token_est_a_in_range"
+        }
+      },
+      {
+        "name": "token_est_b",
+        "kind": "logic.if",
+        "condition": "$current_above_range",
+        "then": "$token_est_b_above",
+        "else": {
+          "kind": "logic.if",
+          "condition": "$current_below_range",
+          "then": "0",
+          "else": "$token_est_b_in_range"
+        }
+      },
+      {
+        "name": "slippage_denominator",
+        "kind": "coalesce",
+        "values": [
+          "10000"
+        ]
+      },
+      {
+        "name": "slippage_numerator",
+        "kind": "math.sub",
+        "values": [
+          "$slippage_denominator",
+          "$input.slippage_bps"
+        ]
+      },
+      {
+        "name": "token_min_a",
+        "kind": "math.mul_div_floor",
+        "multiplicand": "$token_est_a",
+        "multiplier": "$slippage_numerator",
+        "divisor": "$slippage_denominator"
+      },
+      {
+        "name": "token_min_b",
+        "kind": "math.mul_div_floor",
+        "multiplicand": "$token_est_b",
+        "multiplier": "$slippage_numerator",
+        "divisor": "$slippage_denominator"
+      },
+      {
+        "name": "position",
+        "kind": "coalesce",
+        "values": [
+          "$input.position"
+        ]
+      },
+      {
+        "name": "whirlpool",
+        "kind": "coalesce",
+        "values": [
+          "$position_data.whirlpool"
+        ]
+      },
+      {
+        "name": "specified_token_mint",
+        "kind": "coalesce",
+        "values": [
+          "$input.specified_token_mint"
+        ]
+      },
+      {
+        "name": "specified_token_amount",
+        "kind": "coalesce",
+        "values": [
+          "$input.specified_token_amount"
+        ]
+      },
+      {
+        "name": "slippage_bps",
+        "kind": "coalesce",
+        "values": [
+          "$input.slippage_bps"
+        ]
+      }
+    ],
     "quote_exact_out__next_sqrt_price_from_a_round_up": [
       {
         "name": "amount_is_zero",
@@ -6204,6 +6858,230 @@
     ]
   },
   "views": {
+    "quote_increase_liquidity": {
+      "inputs": {
+        "position": "pubkey",
+        "specified_token_mint": "token_mint",
+        "specified_token_amount": "u64",
+        "slippage_bps": "u16"
+      },
+      "steps": [
+        {
+          "name": "wallet",
+          "kind": "wallet_pubkey"
+        },
+        {
+          "name": "position_data",
+          "kind": "decode_account",
+          "address": "$input.position",
+          "account_type": "Position"
+        },
+        {
+          "name": "whirlpool_data",
+          "kind": "decode_account",
+          "address": "$position_data.whirlpool",
+          "account_type": "Whirlpool"
+        },
+        {
+          "name": "position_mint_program",
+          "kind": "account_owner",
+          "address": "$position_data.position_mint"
+        },
+        {
+          "name": "token_program_a",
+          "kind": "account_owner",
+          "address": "$whirlpool_data.token_mint_a"
+        },
+        {
+          "name": "token_program_b",
+          "kind": "account_owner",
+          "address": "$whirlpool_data.token_mint_b"
+        },
+        {
+          "name": "position_token_account",
+          "kind": "ata",
+          "owner": "$wallet",
+          "mint": "$position_data.position_mint",
+          "token_program": "$position_mint_program"
+        },
+        {
+          "name": "token_owner_account_a",
+          "kind": "ata",
+          "owner": "$wallet",
+          "mint": "$whirlpool_data.token_mint_a",
+          "token_program": "$token_program_a"
+        },
+        {
+          "name": "token_owner_account_b",
+          "kind": "ata",
+          "owner": "$wallet",
+          "mint": "$whirlpool_data.token_mint_b",
+          "token_program": "$token_program_b"
+        },
+        {
+          "kind": "transform",
+          "transform": "position_range__derive_tick_arrays"
+        },
+        {
+          "kind": "transform",
+          "transform": "quote_increase_liquidity__quote_math"
+        }
+      ],
+      "output": {
+        "type": "object",
+        "source": "$derived",
+        "object_schema": {
+          "entity_type": "orca_quote_increase_liquidity",
+          "identity_fields": [
+            "position"
+          ],
+          "fields": {
+            "position": {
+              "type": "pubkey"
+            },
+            "whirlpool": {
+              "type": "pubkey"
+            },
+            "specified_token_mint": {
+              "type": "pubkey"
+            },
+            "specified_token_amount": {
+              "type": "u64"
+            },
+            "slippage_bps": {
+              "type": "u16"
+            },
+            "liquidity_delta": {
+              "type": "u128"
+            },
+            "token_est_a": {
+              "type": "u64"
+            },
+            "token_est_b": {
+              "type": "u64"
+            },
+            "token_max_a": {
+              "type": "u64"
+            },
+            "token_max_b": {
+              "type": "u64"
+            }
+          }
+        }
+      }
+    },
+    "quote_decrease_liquidity": {
+      "inputs": {
+        "position": "pubkey",
+        "specified_token_mint": "token_mint",
+        "specified_token_amount": "u64",
+        "slippage_bps": "u16"
+      },
+      "steps": [
+        {
+          "name": "wallet",
+          "kind": "wallet_pubkey"
+        },
+        {
+          "name": "position_data",
+          "kind": "decode_account",
+          "address": "$input.position",
+          "account_type": "Position"
+        },
+        {
+          "name": "whirlpool_data",
+          "kind": "decode_account",
+          "address": "$position_data.whirlpool",
+          "account_type": "Whirlpool"
+        },
+        {
+          "name": "position_mint_program",
+          "kind": "account_owner",
+          "address": "$position_data.position_mint"
+        },
+        {
+          "name": "token_program_a",
+          "kind": "account_owner",
+          "address": "$whirlpool_data.token_mint_a"
+        },
+        {
+          "name": "token_program_b",
+          "kind": "account_owner",
+          "address": "$whirlpool_data.token_mint_b"
+        },
+        {
+          "name": "position_token_account",
+          "kind": "ata",
+          "owner": "$wallet",
+          "mint": "$position_data.position_mint",
+          "token_program": "$position_mint_program"
+        },
+        {
+          "name": "token_owner_account_a",
+          "kind": "ata",
+          "owner": "$wallet",
+          "mint": "$whirlpool_data.token_mint_a",
+          "token_program": "$token_program_a"
+        },
+        {
+          "name": "token_owner_account_b",
+          "kind": "ata",
+          "owner": "$wallet",
+          "mint": "$whirlpool_data.token_mint_b",
+          "token_program": "$token_program_b"
+        },
+        {
+          "kind": "transform",
+          "transform": "position_range__derive_tick_arrays"
+        },
+        {
+          "kind": "transform",
+          "transform": "quote_decrease_liquidity__quote_math"
+        }
+      ],
+      "output": {
+        "type": "object",
+        "source": "$derived",
+        "object_schema": {
+          "entity_type": "orca_quote_decrease_liquidity",
+          "identity_fields": [
+            "position"
+          ],
+          "fields": {
+            "position": {
+              "type": "pubkey"
+            },
+            "whirlpool": {
+              "type": "pubkey"
+            },
+            "specified_token_mint": {
+              "type": "pubkey"
+            },
+            "specified_token_amount": {
+              "type": "u64"
+            },
+            "slippage_bps": {
+              "type": "u16"
+            },
+            "liquidity_delta": {
+              "type": "u128"
+            },
+            "token_est_a": {
+              "type": "u64"
+            },
+            "token_est_b": {
+              "type": "u64"
+            },
+            "token_min_a": {
+              "type": "u64"
+            },
+            "token_min_b": {
+              "type": "u64"
+            }
+          }
+        }
+      }
+    },
     "quote_exact_in": {
       "load_instruction": "swap_v2",
       "load_instruction_bindings": {
