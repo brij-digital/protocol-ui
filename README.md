@@ -8,15 +8,15 @@ It provides:
 
 ## Related Repos
 
-- Runtime package: [brij-digital/apppack-runtime](https://github.com/brij-digital/apppack-runtime)
-- View/index service: [brij-digital/apppack-view-service](https://github.com/brij-digital/apppack-view-service)
+- Runtime package repo: [brij-digital/protocol-runtime](https://github.com/brij-digital/protocol-runtime)
+- View/index service repo: [brij-digital/protocol-indexing](https://github.com/brij-digital/protocol-indexing)
 
 ## Repo Relationship
 
 This is one of the three main AppPack repositories:
-- `apppack-runtime`: shared runtime package published to GitHub Packages
-- `ec-ai-wallet`: this web app, which consumes the published runtime package
-- `apppack-view-service`: backend read/index service, which also consumes the published runtime package
+- `protocol-runtime`: shared runtime package repo published to GitHub Packages
+- `protocol-ui`: this web app repo, which consumes the published runtime package
+- `protocol-indexing`: backend read/index service repo, which also consumes the published runtime package
 
 Package installs in this repo are expected to resolve the runtime from GitHub Packages under the `@brij-digital` scope.
 
@@ -216,7 +216,7 @@ npm run ci:protocol-packs:rpc
 - [PROJECT_STATE.md](PROJECT_STATE.md)
 - [MAINTAINER_GUIDE.md](MAINTAINER_GUIDE.md)
 - [CONTRIBUTING.md](CONTRIBUTING.md)
-- [docs/runtime-spec.md](https://github.com/brij-digital/apppack-runtime/blob/main/docs/runtime-spec.md)
+- [docs/runtime-spec.md](https://github.com/brij-digital/protocol-runtime/blob/main/docs/runtime-spec.md)
 - [docs/aidl-authoring.md](docs/aidl-authoring.md)
 - [docs/pack-builder.md](docs/pack-builder.md)
 - [docs/protocol-pack-ci.md](docs/protocol-pack-ci.md)
@@ -227,6 +227,6 @@ npm run ci:protocol-packs:rpc
 
 AppPack should be treated primarily as an agent-native execution platform.
 In that model:
-- `apppack-runtime` is the shared execution engine
-- `apppack-view-service` is the indexed search/read backend
-- `ec-ai-wallet` is the reference client and protocol-pack authoring environment
+- `protocol-runtime` is the shared execution engine repo
+- `protocol-indexing` is the indexed search/read backend repo
+- `protocol-ui` is the reference client and protocol-pack authoring repo

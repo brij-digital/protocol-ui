@@ -16,10 +16,10 @@ createdb apppack_local
 
 ## 2. Local view service
 
-In `apppack-view-service`:
+In `protocol-indexing`:
 
 ```bash
-cd /Users/antoine/Documents/github/Espresso\ Cash/apppack-view-service
+cd /Users/antoine/Documents/github/Espresso\ Cash/protocol-indexing
 cp local.env.example .env
 # then replace SOLANA_RPC_URL with your Helius RPC URL
 npm run dev
@@ -28,7 +28,7 @@ npm run dev
 In a second terminal:
 
 ```bash
-cd /Users/antoine/Documents/github/Espresso\ Cash/apppack-view-service
+cd /Users/antoine/Documents/github/Espresso\ Cash/protocol-indexing
 npm run dev:worker
 ```
 
@@ -36,10 +36,10 @@ The API will be available at `http://localhost:8080`.
 
 ## 3. Local wallet playground
 
-In `ec-ai-wallet`:
+In `protocol-ui`:
 
 ```bash
-cd /Users/antoine/Documents/github/Espresso\ Cash/ec-ai-wallet
+cd /Users/antoine/Documents/github/Espresso\ Cash/protocol-ui
 cp local.env.example .env.local
 npm run dev
 ```

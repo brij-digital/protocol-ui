@@ -57,7 +57,7 @@ Before merging, check:
 
 ## Required Commands
 
-For pack changes in `ec-ai-wallet`:
+For pack changes in `protocol-ui`:
 
 ```bash
 npm run aidl:compile
@@ -65,14 +65,14 @@ npm run build
 npm run ci:protocol-packs
 ```
 
-For runtime changes in `apppack-runtime`:
+For runtime changes in `protocol-runtime`:
 
 ```bash
 npm run build
 npm test
 ```
 
-For view-service changes in `apppack-view-service`:
+For view-service changes in `protocol-indexing`:
 
 ```bash
 npm run build
