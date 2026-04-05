@@ -25,10 +25,10 @@ npm run ci:protocol-packs
 ```
 
 ### Runtime primitive or parser fix
-Make the change in `apppack-runtime`, add tests there, then bump dependency here if needed.
+Make the change in `protocol-runtime`, add tests there, then bump dependency here if needed.
 
 ### View/read issue
-Make the change in `apppack-view-service`.
+Make the change in `protocol-indexing`.
 
 ## Pack Authoring Kit
 

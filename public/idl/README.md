@@ -4,7 +4,7 @@ Treat this README as the explicit ownership header for the directory.
 
 Protocol artifacts in this directory are synced from [`protocol-registry`](/Users/antoine/.openclaw/workspace-coding/brij-digital/protocol-registry).
 
-Shared schema files in that registry are owned by [`apppack-runtime/schemas`](/Users/antoine/.openclaw/workspace-coding/brij-digital/apppack-runtime/schemas).
+Shared schema files in that registry are owned by [`protocol-runtime/schemas`](/Users/antoine/.openclaw/workspace-coding/brij-digital/protocol-runtime/schemas).
 
 Do not hand-edit:
 - `declarative_decoder_runtime.schema.v1.json`
@@ -16,7 +16,7 @@ Use:
 - `npm run registry:check`
 
 Schema ownership rule:
-- edit only [`apppack-runtime/schemas`](/Users/antoine/.openclaw/workspace-coding/brij-digital/apppack-runtime/schemas), then sync those into [`protocol-registry`](/Users/antoine/.openclaw/workspace-coding/brij-digital/protocol-registry)
+- edit only [`protocol-runtime/schemas`](/Users/antoine/.openclaw/workspace-coding/brij-digital/protocol-runtime/schemas), then sync those into [`protocol-registry`](/Users/antoine/.openclaw/workspace-coding/brij-digital/protocol-registry)
 - never edit the copies here by hand
 - if drift is reported, rerun `npm run registry:sync`
 

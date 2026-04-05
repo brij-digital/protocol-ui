@@ -5,7 +5,7 @@ const ROOT = process.cwd();
 const TARGET_DIR = path.join(ROOT, 'public/idl');
 const RUNTIME_DIR = process.env.APPPACK_RUNTIME_DIR?.trim()
   ? path.resolve(process.env.APPPACK_RUNTIME_DIR.trim())
-  : path.resolve(ROOT, '../apppack-runtime');
+  : path.resolve(ROOT, '../protocol-runtime');
 const SOURCE_DIR = path.join(RUNTIME_DIR, 'schemas');
 const FILES = [
   'declarative_decoder_runtime.schema.v1.json',

@@ -14,7 +14,7 @@ The goal is to keep protocol logic in data, not in UI glue or one-off SDK code.
 
 ## Repositories
 
-### 1. `ec-ai-wallet`
+### 1. `protocol-ui`
 Role:
 - web app
 - pack authoring workspace
@@ -29,7 +29,7 @@ Owns:
 - App UI and command execution surface
 - pack CI scripts and fixtures
 
-### 2. `apppack-runtime`
+### 2. `protocol-runtime`
 Role:
 - generic runtime
 
@@ -43,7 +43,7 @@ Must not own:
 - protocol-specific hacks
 - UI-specific behavior
 
-### 3. `apppack-view-service`
+### 3. `protocol-indexing`
 Role:
 - read/view execution service
 - indexed account cache
