@@ -5,73 +5,77 @@ type ViewPlaygroundTabProps = {
   viewKind: 'index';
 };
 
-type RegistryProtocol = {
+type RegistryIndexing = {
   id: string;
-  name?: string;
-  indexedReadsPath?: string | null;
+  entitySchemaPath?: string | null;
   status?: string;
 };
 
 type RegistryResponse = {
-  protocols?: RegistryProtocol[];
+  indexings?: RegistryIndexing[];
 };
 
-type RuntimeInputDef = {
-  default?: unknown;
+type EntityFieldSpec = {
+  type?: string;
+  filterable?: boolean;
+  primaryKey?: boolean;
 };
 
-type IndexViewOperation = {
-  kind?: string;
-  inputs?: Record<string, RuntimeInputDef>;
+type EntityEmitSpec = {
+  id?: string | string[];
+  timeField?: string;
+  defaultOrderBy?: string[];
+  fields?: Record<string, EntityFieldSpec>;
 };
 
-type IndexingOperation = {
-  description?: string;
-  index_view?: IndexViewOperation;
+type EntitySourceSpec = {
+  from?: string;
+  recordKind?: string;
+  recordName?: string | string[];
 };
 
-type IndexingSpec = {
-  operations?: Record<string, IndexingOperation>;
+type EntityDefinition = {
+  source?: EntitySourceSpec;
+  emit?: EntityEmitSpec;
+};
+
+type EntitySchema = {
+  indexingId?: string;
+  entities?: Record<string, EntityDefinition>;
 };
 
 type CatalogEntry = {
-  protocolId: string;
-  protocolLabel: string;
-  operationId: string;
-  operationLabel: string;
-  description: string;
-  inputTemplate: string;
+  indexingId: string;
+  entityName: string;
+  label: string;
+  sourceLabel: string;
+  filterableFields: string[];
+  primaryKeyFields: string[];
+  timeField: string | null;
+  orderBy: string;
   limit: string;
+  whereTemplate: string;
+};
+
+type HealthIndexing = {
+  indexing_id?: string;
+  status?: string;
 };
 
 type HealthResponse = {
   ok?: boolean;
-  service?: string;
+  status?: string;
+  indexings?: HealthIndexing[];
 };
 
-type ViewRunResponse = {
+type EntityListResponse = {
   ok: boolean;
+  indexingId?: string;
+  entity?: string;
   items?: unknown[];
   meta?: Record<string, unknown>;
   error?: string;
 };
-
-function buildInputTemplate(inputs?: Record<string, RuntimeInputDef>): string {
-  const template: Record<string, unknown> = {};
-  for (const [key, input] of Object.entries(inputs ?? {})) {
-    if (Object.prototype.hasOwnProperty.call(input, 'default')) {
-      template[key] = input.default;
-    }
-  }
-  return JSON.stringify(template, null, 2);
-}
-
-function defaultLimitForOperation(operationId: string): string {
-  if (operationId.includes('snapshot') || operationId.includes('resolve')) {
-    return '1';
-  }
-  return '20';
-}
 
 function formatJson(value: unknown): string {
   return JSON.stringify(value, null, 2);
@@ -87,24 +91,80 @@ function summarizeValue(value: unknown): string {
   return formatJson(value);
 }
 
-export function ViewPlaygroundTab({ viewApiBaseUrl, viewKind }: ViewPlaygroundTabProps) {
+function buildSourceLabel(source?: EntitySourceSpec): string {
+  const from = source?.from ?? 'unknown';
+  const kind = source?.recordKind ?? 'record';
+  const recordName = source?.recordName;
+  const names = Array.isArray(recordName) ? recordName.join(', ') : recordName;
+  return [from, kind, names].filter(Boolean).join(' / ');
+}
+
+function buildWhereTemplate(fields: string[]): string {
+  if (fields.length === 0) {
+    return '{}';
+  }
+  const template = Object.fromEntries(fields.slice(0, 2).map((field) => [field, '']));
+  return JSON.stringify(template, null, 2);
+}
+
+function defaultLimitForEntity(primaryKeyFields: string[], timeField: string | null): string {
+  if (primaryKeyFields.length > 0 && !timeField) {
+    return '1';
+  }
+  return '20';
+}
+
+function describeHealth(snapshot: HealthResponse): string {
+  const indexings = snapshot.indexings ?? [];
+  const stale = indexings.filter((item) => item.status === 'stale').length;
+  const degraded = indexings.filter((item) => item.status === 'degraded').length;
+  const failing = indexings.filter((item) => item.status === 'failing').length;
+  return [
+    `status=${snapshot.status ?? 'unknown'}`,
+    `indexings=${indexings.length}`,
+    `stale=${stale}`,
+    `degraded=${degraded}`,
+    `failing=${failing}`,
+  ].join(' | ');
+}
+
+function normalizeWhereInput(value: unknown): Record<string, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Filters JSON must be an object.');
+  }
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([, entry]) => entry !== '' && entry !== null && entry !== undefined)
+      .map(([key, entry]) => {
+        if (typeof entry === 'string' || typeof entry === 'number' || typeof entry === 'boolean') {
+          return [key, String(entry)];
+        }
+        throw new Error(`Filter ${key} must be a string, number, or boolean.`);
+      }),
+  );
+}
+
+export function ViewPlaygroundTab({ viewApiBaseUrl }: ViewPlaygroundTabProps) {
   const [catalog, setCatalog] = useState<CatalogEntry[]>([]);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [isCatalogLoading, setIsCatalogLoading] = useState(true);
-  const [protocolId, setProtocolId] = useState('');
-  const [operationId, setOperationId] = useState('');
-  const [inputText, setInputText] = useState('{}');
+  const [indexingId, setIndexingId] = useState('');
+  const [entityName, setEntityName] = useState('');
+  const [whereText, setWhereText] = useState('{}');
   const [limitText, setLimitText] = useState('20');
+  const [orderByText, setOrderByText] = useState('');
+  const [fromText, setFromText] = useState('');
+  const [toText, setToText] = useState('');
   const [healthText, setHealthText] = useState<string | null>(null);
   const [resultText, setResultText] = useState<string | null>(null);
   const [errorText, setErrorText] = useState<string | null>(null);
-  const [result, setResult] = useState<ViewRunResponse | null>(null);
+  const [result, setResult] = useState<EntityListResponse | null>(null);
   const [isHealthLoading, setIsHealthLoading] = useState(false);
   const [isRunLoading, setIsRunLoading] = useState(false);
 
   const trimmedBaseUrl = useMemo(() => viewApiBaseUrl.trim().replace(/\/+$/, ''), [viewApiBaseUrl]);
-  const title = 'Index Views';
-  const description = 'Run indexed discovery, feeds, rankings, and canonical read contracts declared in indexed-read specs.';
+  const title = 'Indexed Entities';
+  const description = 'Browse materialized layer-2 entities served by the indexing API. This replaces the old indexed-read /view-run flow.';
 
   useEffect(() => {
     let cancelled = false;
@@ -113,46 +173,47 @@ export function ViewPlaygroundTab({ viewApiBaseUrl, viewKind }: ViewPlaygroundTa
       setIsCatalogLoading(true);
       setCatalogError(null);
       try {
-        const registryResponse = await fetch('/idl/registry.json');
+        const registryResponse = await fetch('/idl/registry.json', { cache: 'no-store' });
         if (!registryResponse.ok) {
           throw new Error(`Failed to load registry (${registryResponse.status}).`);
         }
         const registry = (await registryResponse.json()) as RegistryResponse;
         const loaded: CatalogEntry[] = [];
 
-        for (const protocol of registry.protocols ?? []) {
-          if (protocol.status === 'inactive' || !protocol.indexedReadsPath) {
+        for (const indexing of registry.indexings ?? []) {
+          if (indexing.status === 'inactive' || !indexing.entitySchemaPath) {
             continue;
           }
-          const indexingResponse = await fetch(protocol.indexedReadsPath);
-          if (!indexingResponse.ok) {
+          const entityResponse = await fetch(indexing.entitySchemaPath, { cache: 'no-store' });
+          if (!entityResponse.ok) {
             continue;
           }
-          const indexing = (await indexingResponse.json()) as IndexingSpec;
-          const operations = indexing.operations ?? {};
-          for (const [opId, operation] of Object.entries(operations)) {
-            const view = operation.index_view;
-            if (!view) {
-              continue;
-            }
+          const entitySchema = (await entityResponse.json()) as EntitySchema;
+          for (const [nextEntityName, definition] of Object.entries(entitySchema.entities ?? {})) {
+            const fields = definition.emit?.fields ?? {};
+            const filterableFields = Object.entries(fields)
+              .filter(([, spec]) => spec.filterable || spec.primaryKey)
+              .map(([fieldName]) => fieldName);
+            const primaryKeyFields = Object.entries(fields)
+              .filter(([, spec]) => spec.primaryKey)
+              .map(([fieldName]) => fieldName);
+            const timeField = definition.emit?.timeField ?? null;
             loaded.push({
-              protocolId: protocol.id,
-              protocolLabel: protocol.name ?? protocol.id,
-              operationId: opId,
-              operationLabel: opId,
-              description: operation.description ?? '',
-              inputTemplate: buildInputTemplate(view.inputs),
-              limit: defaultLimitForOperation(opId),
+              indexingId: entitySchema.indexingId ?? indexing.id,
+              entityName: nextEntityName,
+              label: `${entitySchema.indexingId ?? indexing.id} / ${nextEntityName}`,
+              sourceLabel: buildSourceLabel(definition.source),
+              filterableFields,
+              primaryKeyFields,
+              timeField,
+              orderBy: (definition.emit?.defaultOrderBy ?? []).join(','),
+              limit: defaultLimitForEntity(primaryKeyFields, timeField),
+              whereTemplate: buildWhereTemplate(filterableFields),
             });
           }
         }
 
-        loaded.sort((a, b) => {
-          if (a.protocolLabel !== b.protocolLabel) {
-            return a.protocolLabel.localeCompare(b.protocolLabel);
-          }
-          return a.operationLabel.localeCompare(b.operationLabel);
-        });
+        loaded.sort((left, right) => left.label.localeCompare(right.label));
 
         if (cancelled) {
           return;
@@ -161,19 +222,25 @@ export function ViewPlaygroundTab({ viewApiBaseUrl, viewKind }: ViewPlaygroundTa
         setCatalog(loaded);
         const first = loaded[0] ?? null;
         if (first) {
-          setProtocolId(first.protocolId);
-          setOperationId(first.operationId);
-          setInputText(first.inputTemplate);
+          setIndexingId(first.indexingId);
+          setEntityName(first.entityName);
+          setWhereText(first.whereTemplate);
           setLimitText(first.limit);
+          setOrderByText(first.orderBy);
+          setFromText('');
+          setToText('');
         } else {
-          setProtocolId('');
-          setOperationId('');
-          setInputText('{}');
+          setIndexingId('');
+          setEntityName('');
+          setWhereText('{}');
           setLimitText('20');
+          setOrderByText('');
+          setFromText('');
+          setToText('');
         }
       } catch (error) {
         if (!cancelled) {
-          setCatalogError(error instanceof Error ? error.message : 'Failed to load view catalog.');
+          setCatalogError(error instanceof Error ? error.message : 'Failed to load entity catalog.');
         }
       } finally {
         if (!cancelled) {
@@ -186,13 +253,21 @@ export function ViewPlaygroundTab({ viewApiBaseUrl, viewKind }: ViewPlaygroundTa
     return () => {
       cancelled = true;
     };
-  }, [viewKind]);
+  }, []);
+
+  const selectedEntry = useMemo(
+    () => catalog.find((entry) => entry.indexingId === indexingId && entry.entityName === entityName) ?? null,
+    [catalog, entityName, indexingId],
+  );
 
   const applyCatalogEntry = (entry: CatalogEntry) => {
-    setProtocolId(entry.protocolId);
-    setOperationId(entry.operationId);
-    setInputText(entry.inputTemplate);
+    setIndexingId(entry.indexingId);
+    setEntityName(entry.entityName);
+    setWhereText(entry.whereTemplate);
     setLimitText(entry.limit);
+    setOrderByText(entry.orderBy);
+    setFromText('');
+    setToText('');
     setErrorText(null);
     setResultText(null);
     setResult(null);
@@ -207,12 +282,7 @@ export function ViewPlaygroundTab({ viewApiBaseUrl, viewKind }: ViewPlaygroundTa
       if (!response.ok) {
         throw new Error(`Health check failed with ${response.status}.`);
       }
-      setHealthText(
-        [
-          `service=${body.service ?? 'unknown'}`,
-          `index_only=true`,
-        ].join(' | '),
-      );
+      setHealthText(describeHealth(body));
     } catch (error) {
       setHealthText(null);
       setErrorText(error instanceof Error ? error.message : 'Health check failed.');
@@ -229,34 +299,46 @@ export function ViewPlaygroundTab({ viewApiBaseUrl, viewKind }: ViewPlaygroundTa
     setResult(null);
 
     try {
-      const parsedInput = JSON.parse(inputText) as Record<string, unknown>;
+      const parsedWhere = normalizeWhereInput(JSON.parse(whereText) as Record<string, unknown>);
+      const url = new URL(
+        `${trimmedBaseUrl || window.location.origin}/entity/${encodeURIComponent(indexingId)}/${encodeURIComponent(entityName)}`,
+      );
+
       const parsedLimit = limitText.trim().length > 0 ? Number.parseInt(limitText, 10) : undefined;
-      if (typeof parsedLimit === 'number' && (!Number.isFinite(parsedLimit) || parsedLimit <= 0)) {
-        throw new Error('Limit must be a positive integer when provided.');
+      if (typeof parsedLimit === 'number') {
+        if (!Number.isFinite(parsedLimit) || parsedLimit <= 0) {
+          throw new Error('Limit must be a positive integer when provided.');
+        }
+        url.searchParams.set('limit', String(parsedLimit));
+      }
+      if (orderByText.trim().length > 0) {
+        url.searchParams.set('orderBy', orderByText.trim());
+      }
+      if (fromText.trim().length > 0) {
+        url.searchParams.set('from', fromText.trim());
+      }
+      if (toText.trim().length > 0) {
+        url.searchParams.set('to', toText.trim());
+      }
+      for (const [field, value] of Object.entries(parsedWhere)) {
+        url.searchParams.set(`where[${field}]`, value);
       }
 
-      const response = await fetch(`${trimmedBaseUrl}/view-run`, {
-        method: 'POST',
+      const response = await fetch(url.toString(), {
         headers: {
-          'content-type': 'application/json',
+          accept: 'application/json',
         },
-        body: JSON.stringify({
-          protocol_id: protocolId,
-          operation_id: operationId,
-          input: parsedInput,
-          ...(typeof parsedLimit === 'number' ? { limit: parsedLimit } : {}),
-        }),
       });
 
-      const body = (await response.json()) as ViewRunResponse;
+      const body = (await response.json()) as EntityListResponse;
       if (!response.ok || !body.ok) {
-        throw new Error(body.error ?? `View run failed with ${response.status}.`);
+        throw new Error(body.error ?? `Entity query failed with ${response.status}.`);
       }
 
       setResult(body);
-      setResultText(`items=${body.items?.length ?? 0}` + (body.meta ? ' | meta present' : ''));
+      setResultText(`items=${body.items?.length ?? 0}` + (body.meta ? ` | source=${String(body.meta.source ?? 'unknown')}` : ''));
     } catch (error) {
-      setErrorText(error instanceof Error ? error.message : 'View run failed.');
+      setErrorText(error instanceof Error ? error.message : 'Entity query failed.');
     } finally {
       setIsRunLoading(false);
     }
@@ -271,14 +353,14 @@ export function ViewPlaygroundTab({ viewApiBaseUrl, viewKind }: ViewPlaygroundTa
         </div>
         <div className="view-playground-target">
           <span>Target</span>
-          <code>{trimmedBaseUrl}</code>
+          <code>{trimmedBaseUrl}/entity/{'{indexing}'}/{'{entity}'}</code>
         </div>
       </div>
 
       <div className="view-playground-presets">
         {catalog.map((entry) => (
-          <button key={`${entry.protocolId}::${entry.operationId}`} type="button" onClick={() => applyCatalogEntry(entry)}>
-            {entry.protocolLabel} / {entry.operationLabel}
+          <button key={`${entry.indexingId}::${entry.entityName}`} type="button" onClick={() => applyCatalogEntry(entry)}>
+            {entry.label}
           </button>
         ))}
         <button type="button" onClick={handleHealthCheck} disabled={isHealthLoading}>
@@ -288,31 +370,50 @@ export function ViewPlaygroundTab({ viewApiBaseUrl, viewKind }: ViewPlaygroundTa
 
       {catalogError ? <p className="view-playground-error">{catalogError}</p> : null}
       {healthText ? <p className="view-playground-info">{healthText}</p> : null}
+      {selectedEntry ? (
+        <p className="view-playground-info">
+          source={selectedEntry.sourceLabel}
+          {selectedEntry.timeField ? ` | timeField=${selectedEntry.timeField}` : ''}
+          {selectedEntry.filterableFields.length > 0 ? ` | filters=${selectedEntry.filterableFields.join(', ')}` : ''}
+        </p>
+      ) : null}
       {errorText ? <p className="view-playground-error">{errorText}</p> : null}
       {resultText ? <p className="view-playground-info">{resultText}</p> : null}
-      {isCatalogLoading ? <p className="view-playground-empty">Loading runtime view catalog...</p> : null}
-      {!isCatalogLoading && catalog.length === 0 ? <p className="view-playground-empty">No runtime views are defined for this view type.</p> : null}
+      {isCatalogLoading ? <p className="view-playground-empty">Loading entity catalog...</p> : null}
+      {!isCatalogLoading && catalog.length === 0 ? <p className="view-playground-empty">No materialized entities are declared in the current registry.</p> : null}
 
       <form className="view-playground-form" onSubmit={handleRun}>
         <label>
-          Protocol ID
-          <input value={protocolId} onChange={(event) => setProtocolId(event.target.value)} disabled={isRunLoading || catalog.length === 0} />
+          Indexing ID
+          <input value={indexingId} onChange={(event) => setIndexingId(event.target.value)} disabled={isRunLoading || catalog.length === 0} />
         </label>
         <label>
-          Operation ID
-          <input value={operationId} onChange={(event) => setOperationId(event.target.value)} disabled={isRunLoading || catalog.length === 0} />
+          Entity
+          <input value={entityName} onChange={(event) => setEntityName(event.target.value)} disabled={isRunLoading || catalog.length === 0} />
         </label>
         <label>
           Limit
           <input value={limitText} onChange={(event) => setLimitText(event.target.value)} disabled={isRunLoading || catalog.length === 0} />
         </label>
+        <label>
+          Order By
+          <input value={orderByText} onChange={(event) => setOrderByText(event.target.value)} disabled={isRunLoading || catalog.length === 0} />
+        </label>
+        <label>
+          From
+          <input value={fromText} onChange={(event) => setFromText(event.target.value)} disabled={isRunLoading || catalog.length === 0} placeholder="2026-04-06T00:00:00Z" />
+        </label>
+        <label>
+          To
+          <input value={toText} onChange={(event) => setToText(event.target.value)} disabled={isRunLoading || catalog.length === 0} placeholder="2026-04-06T23:59:59Z" />
+        </label>
         <label className="view-playground-form-full">
-          Input JSON
-          <textarea value={inputText} onChange={(event) => setInputText(event.target.value)} disabled={isRunLoading || catalog.length === 0} rows={12} />
+          Filters JSON
+          <textarea value={whereText} onChange={(event) => setWhereText(event.target.value)} disabled={isRunLoading || catalog.length === 0} rows={12} />
         </label>
         <div className="view-playground-actions">
           <button type="submit" disabled={isRunLoading || catalog.length === 0}>
-            {isRunLoading ? 'Running...' : 'Run View'}
+            {isRunLoading ? 'Querying...' : 'Run Query'}
           </button>
         </div>
       </form>
@@ -341,7 +442,7 @@ export function ViewPlaygroundTab({ viewApiBaseUrl, viewKind }: ViewPlaygroundTa
               ))}
             </div>
           ) : (
-            <p className="view-playground-empty">Run a view to inspect items here.</p>
+            <p className="view-playground-empty">Run an entity query to inspect items here.</p>
           )}
         </section>
 

@@ -166,7 +166,7 @@ function App() {
               className={activeTab === 'indexViews' ? 'active' : ''}
               onClick={() => switchTab('indexViews')}
             >
-              Index Views
+              Entities
             </button>
           ) : null}
           {visibleTabs.includes('raw') ? (
