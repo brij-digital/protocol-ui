@@ -81,6 +81,18 @@ function formatJson(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
 
+async function readJsonResponse<T>(response: Response): Promise<T> {
+  const raw = await response.text();
+  if (!raw.trim()) {
+    throw new Error(`Empty response body (${response.status}).`);
+  }
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    throw new Error(`Expected JSON response but received non-JSON body (${response.status}).`);
+  }
+}
+
 function summarizeValue(value: unknown): string {
   if (typeof value === 'string') {
     return value;
@@ -278,7 +290,7 @@ export function ViewPlaygroundTab({ viewApiBaseUrl }: ViewPlaygroundTabProps) {
     setErrorText(null);
     try {
       const response = await fetch(`${trimmedBaseUrl}/health`);
-      const body = (await response.json()) as HealthResponse;
+      const body = await readJsonResponse<HealthResponse>(response);
       if (!response.ok) {
         throw new Error(`Health check failed with ${response.status}.`);
       }
@@ -330,7 +342,7 @@ export function ViewPlaygroundTab({ viewApiBaseUrl }: ViewPlaygroundTabProps) {
         },
       });
 
-      const body = (await response.json()) as EntityListResponse;
+      const body = await readJsonResponse<EntityListResponse>(response);
       if (!response.ok || !body.ok) {
         throw new Error(body.error ?? `Entity query failed with ${response.status}.`);
       }

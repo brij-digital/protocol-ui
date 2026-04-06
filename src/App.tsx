@@ -10,8 +10,8 @@ import { AgentTab } from './app/components/AgentTab';
 import { RunnerTab } from './app/components/RunnerTab';
 import { AdminDashboardTab } from './app/components/AdminDashboardTab';
 
-const VIEW_API_BASE_URL = '';
-const RUNNER_VIEW_API_BASE_URL = '';
+const VIEW_API_BASE_URL = 'https://api.brijmail.com';
+const RUNNER_VIEW_API_BASE_URL = 'https://api.brijmail.com';
 const ADMIN_API_BASE_URL = 'https://api.brijmail.com';
 
 type AppTab = 'indexViews' | 'pump' | 'raw' | 'compute' | 'tv' | 'agent' | 'runner' | 'admin';
