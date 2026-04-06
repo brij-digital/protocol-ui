@@ -1,13 +1,4 @@
 {
   "schema": "solana-action-runner-registry.v1",
-  "runners": [
-    {
-      "actionId": "quote_swap_orca",
-      "path": "/idl/quote_swap_orca.runner.json"
-    },
-    {
-      "actionId": "draft_swap_orca",
-      "path": "/idl/draft_swap_orca.runner.json"
-    }
-  ]
+  "runners": []
 }

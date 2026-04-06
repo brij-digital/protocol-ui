@@ -35,23 +35,11 @@ async function main() {
   const synced = [];
   const outOfDate = [];
 
-  // Sync registry.json itself (but keep wallet's own version with /idl/ paths)
-  // We need to rewrite paths from /codama/X.json to /idl/X.codama.json etc.
+  // Sync registry.json itself for the wallet /idl/ layout.
   const walletRegistry = JSON.parse(JSON.stringify(registry));
-  
-  // Keep token-index in wallet registry (it's wallet-only)
-  // Add it back from the existing wallet registry
-  try {
-    const existingReg = await readJson(path.join(TARGET_DIR, 'registry.json'));
-    const tokenIndex = existingReg.protocols?.find(p => p.id === 'token-index-mainnet');
-    if (tokenIndex) {
-      walletRegistry.protocols.push(tokenIndex);
-    }
-  } catch {}
 
   // Rewrite paths for wallet (flat /idl/ structure)
   for (const p of walletRegistry.protocols) {
-    if (p.id === 'token-index-mainnet') continue;
     const slug = p.id.replace('-mainnet', '').replace(/-/g, '_');
     p.codamaIdlPath = `/idl/${slug}.codama.json`;
     p.agentRuntimePath = `/idl/${slug}.runtime.json`;
