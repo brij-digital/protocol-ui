@@ -20,10 +20,16 @@ type ComputeDevTabProps = {
 };
 
 type ExplainedTransformStep = Extract<MetaOperationExplain['steps'][number], { phase: 'transform' }>;
+type ComputeSection = 'overview' | 'writes' | 'views' | 'transforms';
 type RuntimeSpecOperation = {
   summary: MetaOperationSummary;
   explain: MetaOperationExplain;
   transformSteps: Record<string, unknown>[];
+  pseudoFunction: string;
+};
+type RuntimeNamedTransform = {
+  name: string;
+  steps: Record<string, unknown>[];
   pseudoFunction: string;
 };
 
@@ -216,11 +222,30 @@ function renderPseudoFunction(functionName: string, instruction: string | null, 
   return lines.join('\n');
 }
 
+function getDefaultSection(options: {
+  writes: RuntimeSpecOperation[];
+  views: RuntimeSpecOperation[];
+  transforms: RuntimeNamedTransform[];
+}): ComputeSection {
+  if (options.writes.length > 0) {
+    return 'writes';
+  }
+  if (options.views.length > 0) {
+    return 'views';
+  }
+  if (options.transforms.length > 0) {
+    return 'transforms';
+  }
+  return 'overview';
+}
+
 export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
   const [protocols, setProtocols] = useState<ProtocolSummary[]>([]);
   const [protocolId, setProtocolId] = useState('');
   const [runtimePack, setRuntimePack] = useState<RuntimePack | null>(null);
   const [operations, setOperations] = useState<RuntimeSpecOperation[]>([]);
+  const [selectedSection, setSelectedSection] = useState<ComputeSection>('overview');
+  const [selectedEntryId, setSelectedEntryId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -261,6 +286,8 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
     setProtocolId(nextProtocolId);
     setRuntimePack(null);
     setOperations([]);
+    setSelectedSection('overview');
+    setSelectedEntryId('');
     setError(null);
   }
 
@@ -300,14 +327,49 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
         if (cancelled) {
           return;
         }
+        const nextNamedTransforms = Object.entries(pack.transforms ?? {})
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([name, steps]) => {
+            const normalizedSteps = steps.filter(
+              (step): step is Record<string, unknown> => !!step && typeof step === 'object' && !Array.isArray(step),
+            );
+            return {
+              name,
+              steps: normalizedSteps,
+              pseudoFunction: renderPseudoFunction(
+                `${pack.protocolId.replace(/[^a-zA-Z0-9]+/g, '_')}_${name}`,
+                null,
+                normalizedSteps,
+              ),
+            } satisfies RuntimeNamedTransform;
+          });
+        const nextWrites = explainedOperations.filter((operation) => operation.summary.executionKind === 'write');
+        const nextViews = explainedOperations.filter((operation) => operation.summary.executionKind === 'view');
+        const defaultSection = getDefaultSection({
+          writes: nextWrites,
+          views: nextViews,
+          transforms: nextNamedTransforms,
+        });
         setRuntimePack(pack);
         setOperations(explainedOperations);
+        setSelectedSection(defaultSection);
+        setSelectedEntryId(
+          defaultSection === 'writes'
+            ? (nextWrites[0]?.summary.operationId ?? '')
+            : defaultSection === 'views'
+              ? (nextViews[0]?.summary.operationId ?? '')
+              : defaultSection === 'transforms'
+                ? (nextNamedTransforms[0]?.name ?? '')
+                : '',
+        );
       } catch (caught) {
         if (!cancelled) {
           const message = caught instanceof Error ? caught.message : String(caught);
           setError(message);
           setRuntimePack(null);
           setOperations([]);
+          setSelectedSection('overview');
+          setSelectedEntryId('');
         }
       } finally {
         if (!cancelled) {
@@ -331,9 +393,91 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
   );
 
   const namedTransforms = useMemo(
-    () => Object.entries(runtimePack?.transforms ?? {}).sort(([left], [right]) => left.localeCompare(right)),
+    () =>
+      Object.entries(runtimePack?.transforms ?? {})
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([name, steps]) => {
+          const normalizedSteps = steps.filter(
+            (step): step is Record<string, unknown> => !!step && typeof step === 'object' && !Array.isArray(step),
+          );
+          return {
+            name,
+            steps: normalizedSteps,
+            pseudoFunction: renderPseudoFunction(
+              `${runtimePack?.protocolId.replace(/[^a-zA-Z0-9]+/g, '_') ?? 'runtime'}_${name}`,
+              null,
+              normalizedSteps,
+            ),
+          } satisfies RuntimeNamedTransform;
+        }),
     [runtimePack],
   );
+
+  const selectedSectionOptions = useMemo(
+    () => [
+      { value: 'overview' as const, label: 'Overview' },
+      { value: 'writes' as const, label: `Writes (${writes.length})` },
+      { value: 'views' as const, label: `Views (${views.length})` },
+      { value: 'transforms' as const, label: `Named Transforms (${namedTransforms.length})` },
+    ],
+    [namedTransforms.length, views.length, writes.length],
+  );
+
+  const selectedEntryOptions = useMemo(() => {
+    if (selectedSection === 'writes') {
+      return writes.map((operation) => ({
+        value: operation.summary.operationId,
+        label: `${operation.summary.operationId} (${operation.transformSteps.length} transform step${operation.transformSteps.length === 1 ? '' : 's'})`,
+      }));
+    }
+    if (selectedSection === 'views') {
+      return views.map((operation) => ({
+        value: operation.summary.operationId,
+        label: `${operation.summary.operationId} (${operation.transformSteps.length} transform step${operation.transformSteps.length === 1 ? '' : 's'})`,
+      }));
+    }
+    if (selectedSection === 'transforms') {
+      return namedTransforms.map((transform) => ({
+        value: transform.name,
+        label: `${transform.name} (${transform.steps.length} step${transform.steps.length === 1 ? '' : 's'})`,
+      }));
+    }
+    return [];
+  }, [namedTransforms, selectedSection, views, writes]);
+
+  const selectedOperation = useMemo(() => {
+    if (selectedSection === 'writes') {
+      return writes.find((operation) => operation.summary.operationId === selectedEntryId) ?? null;
+    }
+    if (selectedSection === 'views') {
+      return views.find((operation) => operation.summary.operationId === selectedEntryId) ?? null;
+    }
+    return null;
+  }, [selectedEntryId, selectedSection, views, writes]);
+
+  const selectedTransform = useMemo(() => {
+    if (selectedSection !== 'transforms') {
+      return null;
+    }
+    return namedTransforms.find((transform) => transform.name === selectedEntryId) ?? null;
+  }, [namedTransforms, selectedEntryId, selectedSection]);
+
+  function handleSectionSelect(nextSection: ComputeSection) {
+    setSelectedSection(nextSection);
+    if (nextSection === 'writes') {
+      setSelectedEntryId(writes[0]?.summary.operationId ?? '');
+      return;
+    }
+    if (nextSection === 'views') {
+      setSelectedEntryId(views[0]?.summary.operationId ?? '');
+      return;
+    }
+    if (nextSection === 'transforms') {
+      setSelectedEntryId(namedTransforms[0]?.name ?? '');
+      return;
+    }
+    setSelectedEntryId('');
+  }
 
   return (
     <section className="compute-shell" aria-live="polite">
@@ -348,6 +492,40 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
             ))}
           </select>
         </label>
+        <label>
+          Section
+          <select
+            value={selectedSection}
+            onChange={(event) => handleSectionSelect(event.target.value as ComputeSection)}
+            disabled={isWorking || loading || !runtimePack}
+          >
+            {selectedSectionOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {selectedSection !== 'overview' ? (
+          <label>
+            Entry
+            <select
+              value={selectedEntryId}
+              onChange={(event) => setSelectedEntryId(event.target.value)}
+              disabled={isWorking || loading || selectedEntryOptions.length === 0}
+            >
+              {selectedEntryOptions.length > 0 ? (
+                selectedEntryOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))
+              ) : (
+                <option value="">No entries</option>
+              )}
+            </select>
+          </label>
+        ) : null}
       </div>
 
       {error ? <p className="compute-error">Error: {error}</p> : null}
@@ -370,77 +548,81 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
             </div>
           </article>
 
-          <article className="compute-panel">
-            <h3>Writes</h3>
-            {writes.length > 0 ? (
-              <div className="compute-catalog">
-                {writes.map((operation) => (
-                  <details key={operation.summary.operationId} className="compute-entry" open>
-                    <summary>
-                      <strong>{operation.summary.operationId}</strong>
-                      <span>{operation.transformSteps.length} transform step{operation.transformSteps.length === 1 ? '' : 's'}</span>
-                    </summary>
-                    <div className="compute-entry-body">
-                      <pre>{operation.pseudoFunction}</pre>
-                      <pre>{JSON.stringify(operation.explain, null, 2)}</pre>
-                    </div>
-                  </details>
-                ))}
-              </div>
-            ) : (
-              <p className="compute-empty">No write operations in this runtime pack.</p>
-            )}
-          </article>
+          {selectedSection === 'overview' ? (
+            <article className="compute-panel">
+              <h3>Pack JSON</h3>
+              <pre>{JSON.stringify(runtimePack, null, 2)}</pre>
+            </article>
+          ) : null}
 
-          <article className="compute-panel">
-            <h3>Views</h3>
-            {views.length > 0 ? (
-              <div className="compute-catalog">
-                {views.map((operation) => (
-                  <details key={operation.summary.operationId} className="compute-entry" open>
-                    <summary>
-                      <strong>{operation.summary.operationId}</strong>
-                      <span>{operation.transformSteps.length} transform step{operation.transformSteps.length === 1 ? '' : 's'}</span>
-                    </summary>
-                    <div className="compute-entry-body">
-                      <pre>{operation.pseudoFunction}</pre>
-                      <pre>{JSON.stringify(operation.explain, null, 2)}</pre>
-                    </div>
-                  </details>
-                ))}
-              </div>
-            ) : (
-              <p className="compute-empty">No view operations in this runtime pack.</p>
-            )}
-          </article>
+          {selectedSection === 'writes' ? (
+            <article className="compute-panel">
+              <h3>Write Operation</h3>
+              {selectedOperation ? (
+                <div className="compute-entry-body">
+                  <p className="compute-empty">
+                    <strong>{selectedOperation.summary.operationId}</strong>
+                    {' '}
+                    with
+                    {' '}
+                    {selectedOperation.transformSteps.length}
+                    {' '}
+                    transform step{selectedOperation.transformSteps.length === 1 ? '' : 's'}.
+                  </p>
+                  <pre>{selectedOperation.pseudoFunction}</pre>
+                  <pre>{JSON.stringify(selectedOperation.explain, null, 2)}</pre>
+                </div>
+              ) : (
+                <p className="compute-empty">No write operations in this runtime pack.</p>
+              )}
+            </article>
+          ) : null}
 
-          <article className="compute-panel">
-            <h3>Named Transforms</h3>
-            {namedTransforms.length > 0 ? (
-              <div className="compute-catalog">
-                {namedTransforms.map(([transformName, steps]) => (
-                  <details key={transformName} className="compute-entry" open>
-                    <summary>
-                      <strong>{transformName}</strong>
-                      <span>{steps.length} step{steps.length === 1 ? '' : 's'}</span>
-                    </summary>
-                    <div className="compute-entry-body">
-                      <pre>
-                        {renderPseudoFunction(
-                          `${runtimePack.protocolId.replace(/[^a-zA-Z0-9]+/g, '_')}_${transformName}`,
-                          null,
-                          steps.filter((step): step is Record<string, unknown> => !!step && typeof step === 'object' && !Array.isArray(step)),
-                        )}
-                      </pre>
-                      <pre>{JSON.stringify(steps, null, 2)}</pre>
-                    </div>
-                  </details>
-                ))}
-              </div>
-            ) : (
-              <p className="compute-empty">No named reusable transforms in this runtime pack.</p>
-            )}
-          </article>
+          {selectedSection === 'views' ? (
+            <article className="compute-panel">
+              <h3>View Operation</h3>
+              {selectedOperation ? (
+                <div className="compute-entry-body">
+                  <p className="compute-empty">
+                    <strong>{selectedOperation.summary.operationId}</strong>
+                    {' '}
+                    with
+                    {' '}
+                    {selectedOperation.transformSteps.length}
+                    {' '}
+                    transform step{selectedOperation.transformSteps.length === 1 ? '' : 's'}.
+                  </p>
+                  <pre>{selectedOperation.pseudoFunction}</pre>
+                  <pre>{JSON.stringify(selectedOperation.explain, null, 2)}</pre>
+                </div>
+              ) : (
+                <p className="compute-empty">No view operations in this runtime pack.</p>
+              )}
+            </article>
+          ) : null}
+
+          {selectedSection === 'transforms' ? (
+            <article className="compute-panel">
+              <h3>Named Transform</h3>
+              {selectedTransform ? (
+                <div className="compute-entry-body">
+                  <p className="compute-empty">
+                    <strong>{selectedTransform.name}</strong>
+                    {' '}
+                    with
+                    {' '}
+                    {selectedTransform.steps.length}
+                    {' '}
+                    step{selectedTransform.steps.length === 1 ? '' : 's'}.
+                  </p>
+                  <pre>{selectedTransform.pseudoFunction}</pre>
+                  <pre>{JSON.stringify(selectedTransform.steps, null, 2)}</pre>
+                </div>
+              ) : (
+                <p className="compute-empty">No named reusable transforms in this runtime pack.</p>
+              )}
+            </article>
+          ) : null}
         </div>
       ) : (
         <p className="compute-empty">{loading ? 'Loading runtime spec...' : 'Select a protocol.'}</p>

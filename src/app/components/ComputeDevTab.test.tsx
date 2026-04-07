@@ -130,6 +130,8 @@ describe('ComputeDevTab', () => {
     render(<ComputeDevTab isWorking={false} />);
 
     await screen.findByText('Runtime Pack');
+    expect(await screen.findByDisplayValue('Writes (1)')).toBeTruthy();
+    expect(await screen.findByDisplayValue('collect_reward_v2 (1 transform step)')).toBeTruthy();
     await screen.findByText(/function pump_mainnet_collect_reward_v2\(ctx\)/);
 
     runtimeMocks.explainRuntimeOperationMock.mockClear();
@@ -138,8 +140,9 @@ describe('ComputeDevTab', () => {
       target: { value: 'marinade-mainnet' },
     });
 
+    expect(await screen.findByDisplayValue('Writes (1)')).toBeTruthy();
+    expect(await screen.findByDisplayValue('deposit_stake_account (1 transform step)')).toBeTruthy();
     await screen.findByText(/function marinade_mainnet_deposit_stake_account/);
-    await screen.findByText('No named reusable transforms in this runtime pack.');
 
     expect(
       runtimeMocks.explainRuntimeOperationMock.mock.calls.some(
@@ -157,8 +160,15 @@ describe('ComputeDevTab', () => {
   it('shows named transforms alongside operations', async () => {
     render(<ComputeDevTab isWorking={false} />);
 
-    await screen.findByText('Named Transforms');
-    expect(await screen.findByText('collect_reward_v2__helper')).toBeTruthy();
+    await screen.findByText(/function pump_mainnet_collect_reward_v2\(ctx\)/);
+
+    fireEvent.change(await screen.findByLabelText('Section'), {
+      target: { value: 'transforms' },
+    });
+
+    expect(await screen.findByDisplayValue('Named Transforms (1)')).toBeTruthy();
+    expect(await screen.findByDisplayValue('collect_reward_v2__helper (1 step)')).toBeTruthy();
+    expect(await screen.findByText('Named Transform')).toBeTruthy();
     expect(await screen.findByText(/function pump_mainnet_collect_reward_v2__helper\(ctx\)/)).toBeTruthy();
   });
 });
