@@ -8,6 +8,9 @@ const REGISTRY_DIR = process.env.APPPACK_REGISTRY_DIR?.trim()
 const TARGET_DIR = path.join(ROOT, 'public', 'idl');
 
 const CHECK_MODE = process.argv.includes('--check');
+const STALE_COMPAT_PATTERNS = [
+  /^[a-z0-9_]+\.indexed-reads\.json$/u,
+];
 
 async function readJson(filePath) {
   return JSON.parse(await fs.readFile(filePath, 'utf8'));
@@ -36,9 +39,6 @@ function rewriteRootPathForWalletLayout(assetPath) {
   if (assetPath.startsWith('/indexing/ingest/')) {
     return `/idl/${toRegistryStem(assetPath).replace(/-/gu, '_')}.ingest.json`;
   }
-  if (assetPath.startsWith('/indexing/indexed-reads/')) {
-    return `/idl/${toRegistryStem(assetPath).replace(/-/gu, '_')}.indexed-reads.json`;
-  }
   if (assetPath.startsWith('/indexing/entities/')) {
     return `/idl/${toRegistryStem(assetPath).replace(/-/gu, '_')}.entities.json`;
   }
@@ -65,7 +65,6 @@ function rewriteWalletJson(value) {
         || key === 'codamaPath'
         || key === 'codamaIdlPath'
         || key === 'agentRuntimePath'
-        || key === 'indexedReadsPath'
         || key === 'entitySchemaPath'
         || key === 'ingestSpecPath'
       )
@@ -130,7 +129,7 @@ async function main() {
     const slug = toWalletSlug(p.id);
     p.codamaIdlPath = `/idl/${slug}.codama.json`;
     p.agentRuntimePath = `/idl/${slug}.runtime.json`;
-    if (p.indexedReadsPath) p.indexedReadsPath = `/idl/${slug}.indexed-reads.json`;
+    delete p.indexedReadsPath;
     delete p.ingestSpecPath;
   }
 
@@ -182,14 +181,13 @@ async function main() {
       [`runtime/${regSlug}.json`, `${slug}.runtime.json`],
       [`codama/${regSlug}.json`, `${slug}.codama.json`],
     ];
-    if (p.indexedReadsPath) mappings.push([`indexing/indexed-reads/${regSlug}.json`, `${slug}.indexed-reads.json`]);
 
     for (const [regFile, walletFile] of mappings) {
       try {
-        const sync = regFile.startsWith('runtime/') || regFile.startsWith('indexing/indexed-reads/')
+        const sync = regFile.startsWith('runtime/')
           ? syncJsonFile
           : syncFile;
-        const transform = regFile.startsWith('runtime/') || regFile.startsWith('indexing/indexed-reads/')
+        const transform = regFile.startsWith('runtime/')
           ? rewriteWalletJson
           : undefined;
         await sync(
@@ -249,6 +247,18 @@ async function main() {
       synced.push(name);
     } catch (e) {
       outOfDate.push(e.message);
+    }
+  }
+
+  const staleCompatFiles = (await fs.readdir(TARGET_DIR))
+    .filter((name) => STALE_COMPAT_PATTERNS.some((pattern) => pattern.test(name)));
+  if (CHECK_MODE) {
+    for (const fileName of staleCompatFiles) {
+      outOfDate.push(`Unexpected stale compat artifact: ${fileName}`);
+    }
+  } else {
+    for (const fileName of staleCompatFiles) {
+      await fs.unlink(path.join(TARGET_DIR, fileName));
     }
   }
 

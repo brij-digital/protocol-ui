@@ -35,13 +35,13 @@ Protocol pack ownership rule:
 Generated protocol artifacts in this directory now include:
 - canonical protocol specs: `*.codama.json`
 - declarative ingest specs: `*.ingest.json`
-- declarative indexed-read specs: `*.indexed-reads.json`
+- declarative entity specs: `*.entities.json`
 - declarative runtime specs: `*.runtime.json`
 
 Current ownership model:
 - `*.codama.json` are the protocol source of truth
 - `*.ingest.json` own event/account ingestion and canonical record emission
-- `*.indexed-reads.json` own indexed reads and discovery
+- `*.entities.json` own materialized layer-2 entity tables
 - `*.runtime.json` own deterministic compute and write preparation
 - downstream repos must sync these files instead of editing their own copies
 

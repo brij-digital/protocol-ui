@@ -58,16 +58,14 @@ Each active protocol pack is now split into 3 layers:
 
 2. `Indexing Spec`
 - ingest specs: `*.ingest.json`
-- indexed reads specs: `*.indexed-reads.json`
-- discovery
-- feeds
-- ranking
-- series
+- entity specs: `*.entities.json`
+- layer-1 ingest declarations
+- layer-2 materialized entity definitions
 - examples:
   - [public/idl/orca_whirlpool.ingest.json](public/idl/orca_whirlpool.ingest.json)
-  - [public/idl/orca_whirlpool.indexed-reads.json](public/idl/orca_whirlpool.indexed-reads.json)
+  - [public/idl/orca_whirlpool.entities.json](public/idl/orca_whirlpool.entities.json)
   - [public/idl/pump_amm.ingest.json](public/idl/pump_amm.ingest.json)
-  - [public/idl/pump_amm.indexed-reads.json](public/idl/pump_amm.indexed-reads.json)
+  - [public/idl/pump_amm.entities.json](public/idl/pump_amm.entities.json)
 
 3. `Runtime Spec`
 - deterministic compute

@@ -243,16 +243,6 @@ function validateWrite(protocolId, executionId, execution, instructionNames, tra
   }
 }
 
-function validateIndexingIndexView(protocolId, indexing, operationId) {
-  const operations = asOptionalObject(indexing.operations, `${protocolId}.indexing.operations`);
-  const operation = asObject(operations[operationId], `${protocolId}.indexing.operations.${operationId}`);
-  const indexView = validateRuntimeInputs(protocolId, 'indexing.operations', operationId, asObject(
-    operation.index_view,
-    `${protocolId}.indexing.operations.${operationId}.index_view`,
-  ), 'typedObject');
-  asString(indexView.kind, `${protocolId}.indexing.operations.${operationId}.index_view.kind`);
-}
-
 function validateView(protocolId, operationId, operation, instructionNames, transformNames) {
   const op = validateRuntimeInputs(protocolId, 'agentRuntime.views', operationId, operation);
   void instructionNames;
@@ -387,26 +377,6 @@ async function main() {
     const views = asOptionalObject(agentRuntime.views, `${protocolId}.agentRuntime.views`);
     const writes = asOptionalObject(agentRuntime.writes, `${protocolId}.agentRuntime.writes`);
 
-    if (typeof manifest.indexedReadsPath === 'string' && manifest.indexedReadsPath.length > 0) {
-      const indexedReadsPath = resolvePublicAssetPath(manifest.indexedReadsPath, `${protocolId}.indexedReadsPath`);
-      const indexedReads = asObject(await readJson(indexedReadsPath, `${protocolId} indexed reads`), `${protocolId} indexed reads`);
-      if (indexedReads.schema !== 'declarative-decoder-runtime.v1') {
-        fail(`${protocolId}: indexedReadsPath must point to declarative-decoder-runtime.v1.`);
-      }
-      if (asString(indexedReads.protocolId, `${protocolId}.indexedReads.protocolId`) !== protocolId) {
-        fail(`${protocolId}: indexedReads.protocolId mismatch.`);
-      }
-
-      const indexedReadOperations = asOptionalObject(indexedReads.operations, `${protocolId}.indexedReads.operations`);
-      for (const [operationId, operationRaw] of Object.entries(indexedReadOperations)) {
-        const operation = asObject(operationRaw, `${protocolId}.indexing.operations.${operationId}`);
-        if (operation.index_view === undefined) {
-          continue;
-        }
-        validateIndexingIndexView(protocolId, indexedReads, operationId);
-        operationCount += 1;
-      }
-    }
     for (const [operationId, operationRaw] of Object.entries(views)) {
       validateView(protocolId, operationId, operationRaw, instructionNames, transformNames);
       operationCount += 1;

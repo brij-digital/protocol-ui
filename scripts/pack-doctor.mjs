@@ -122,9 +122,6 @@ async function main() {
       ...source,
       filePath: resolvePublicAssetPath(source.ingestSpecPath, `${source.indexingId}/${source.sourceId}.ingestSpecPath`),
     }));
-    const indexedReadsPath = manifest.indexedReadsPath
-      ? resolvePublicAssetPath(manifest.indexedReadsPath, `${id}.indexedReadsPath`)
-      : null;
 
     const protocolErrors = [];
     const protocolWarnings = [];
@@ -154,11 +151,6 @@ async function main() {
       if (!ingest.exists) {
         protocolErrors.push(`Missing ingest spec file for ${ingest.indexingId}/${ingest.sourceId}: ${path.relative(ROOT, ingest.filePath)}`);
       }
-    }
-
-    const indexedReadsExists = indexedReadsPath ? await pathExists(indexedReadsPath) : false;
-    if (indexedReadsPath && !indexedReadsExists) {
-      protocolErrors.push(`Missing indexed reads file: ${path.relative(ROOT, indexedReadsPath)}`);
     }
 
     if (codamaExists) {
@@ -222,22 +214,8 @@ async function main() {
       }
     }
 
-    if (indexedReadsExists && indexedReadsPath) {
-      try {
-        const indexedReads = asObject(await readJson(indexedReadsPath, `${id} indexed reads`), `${id} indexed reads`);
-        if (indexedReads.schema !== 'declarative-decoder-runtime.v1') {
-          protocolErrors.push(`Unsupported indexed reads schema: ${String(indexedReads.schema ?? '')}`);
-        }
-        if (asString(indexedReads.protocolId, `${id}.indexedReads.protocolId`) !== id) {
-          protocolErrors.push(`indexedReads protocolId mismatch: ${String(indexedReads.protocolId)} != ${id}`);
-        }
-      } catch (error) {
-        protocolErrors.push(error instanceof Error ? error.message : String(error));
-      }
-    }
-
-    if (!agentRuntimePath || !indexedReadsPath) {
-      protocolWarnings.push('Missing agentRuntimePath or indexedReadsPath; protocol is not fully split.');
+    if (!agentRuntimePath) {
+      protocolWarnings.push('Missing agentRuntimePath; protocol is not fully runtime-backed.');
     }
 
     if (protocolErrors.length > 0) {
@@ -264,12 +242,6 @@ async function main() {
     } else {
       console.log('- ingest: none');
     }
-    if (indexedReadsPath) {
-      console.log(`- indexed reads: ${path.relative(ROOT, indexedReadsPath)} ${indexedReadsExists ? 'OK' : 'MISSING'}`);
-    } else {
-      console.log('- indexed reads: none');
-    }
-
     for (const warn of protocolWarnings) {
       console.log(`  WARN: ${warn}`);
     }

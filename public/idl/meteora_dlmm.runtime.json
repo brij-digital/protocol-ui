@@ -7,5 +7,106 @@
   "label": "Meteora DLMM",
   "writes": {},
   "views": {},
-  "transforms": {}
+  "transforms": {
+    "derive_position_related_pdas": [
+      {
+        "name": "position",
+        "kind": "pda(seed_spec)",
+        "program_id": "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo",
+        "seeds": [
+          {
+            "kind": "utf8",
+            "value": "position"
+          },
+          {
+            "kind": "pubkey",
+            "value": "$lb_pair"
+          },
+          {
+            "kind": "pubkey",
+            "value": "$base"
+          },
+          {
+            "kind": "i32_le",
+            "value": "$lower_bin_id"
+          },
+          {
+            "kind": "i32_le",
+            "value": "$width"
+          }
+        ]
+      },
+      {
+        "name": "reserve_x",
+        "kind": "pda(seed_spec)",
+        "program_id": "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo",
+        "seeds": [
+          {
+            "kind": "pubkey",
+            "value": "$lb_pair"
+          },
+          {
+            "kind": "pubkey",
+            "value": "$token_x"
+          }
+        ]
+      },
+      {
+        "name": "reserve_y",
+        "kind": "pda(seed_spec)",
+        "program_id": "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo",
+        "seeds": [
+          {
+            "kind": "pubkey",
+            "value": "$lb_pair"
+          },
+          {
+            "kind": "pubkey",
+            "value": "$token_y"
+          }
+        ]
+      },
+      {
+        "name": "oracle",
+        "kind": "pda(seed_spec)",
+        "program_id": "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo",
+        "seeds": [
+          {
+            "kind": "utf8",
+            "value": "oracle"
+          },
+          {
+            "kind": "pubkey",
+            "value": "$lb_pair"
+          }
+        ]
+      },
+      {
+        "name": "bitmap",
+        "kind": "pda(seed_spec)",
+        "program_id": "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo",
+        "seeds": [
+          {
+            "kind": "utf8",
+            "value": "bitmap"
+          },
+          {
+            "kind": "pubkey",
+            "value": "$lb_pair"
+          }
+        ]
+      },
+      {
+        "name": "event_authority",
+        "kind": "pda(seed_spec)",
+        "program_id": "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo",
+        "seeds": [
+          {
+            "kind": "utf8",
+            "value": "__event_authority"
+          }
+        ]
+      }
+    ]
+  }
 }

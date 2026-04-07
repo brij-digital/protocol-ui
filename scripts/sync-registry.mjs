@@ -21,7 +21,7 @@ const MANAGED_TARGET_PATTERNS = [
   /^registry\.json$/,
   /^action_runners\.json$/,
   /\.runner\.json$/,
-  /^[a-z0-9_]+\.(codama|runtime|ingest|indexed-reads|directory\.db|seed|compute)\.json$/,
+  /^[a-z0-9_]+\.(codama|runtime|ingest|entities|directory\.db|seed|compute)\.json$/,
 ];
 
 function fail(message) {

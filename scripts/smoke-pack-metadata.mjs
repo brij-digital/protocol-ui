@@ -30,15 +30,11 @@ async function main() {
       fail(`Protocol ${protocol.id ?? 'unknown'} still declares appPath.`);
     }
     const agentRuntimePath = typeof protocol.agentRuntimePath === 'string' ? protocol.agentRuntimePath : null;
-    const indexedReadsPath = typeof protocol.indexedReadsPath === 'string' ? protocol.indexedReadsPath : null;
     if (!agentRuntimePath) {
       continue;
     }
     if (!agentRuntimePath.startsWith('/idl/')) {
       fail(`Protocol ${protocol.id ?? 'unknown'} has invalid agentRuntimePath.`);
-    }
-    if (indexedReadsPath && !indexedReadsPath.startsWith('/idl/')) {
-      fail(`Protocol ${protocol.id ?? 'unknown'} has invalid indexedReadsPath.`);
     }
     const agentRuntimeFilePath = path.join(IDL_DIR, agentRuntimePath.slice('/idl/'.length));
     const agentRuntime = await loadJson(agentRuntimeFilePath);
@@ -60,22 +56,8 @@ async function main() {
     if (!hasCapabilities) {
       fail(`${agentRuntimeFilePath} is missing agent runtime capabilities.`);
     }
-    let hasIndexedReads = false;
-    if (indexedReadsPath) {
-      const indexedReadsFilePath = path.join(IDL_DIR, indexedReadsPath.slice('/idl/'.length));
-      const indexedReads = await loadJson(indexedReadsFilePath);
-      if (!indexedReads || typeof indexedReads !== 'object' || Array.isArray(indexedReads)) {
-        fail(`${indexedReadsFilePath} did not parse as a JSON object.`);
-      }
-      hasIndexedReads =
-        indexedReads.operations && typeof indexedReads.operations === 'object' && !Array.isArray(indexedReads.operations)
-        && Object.values(indexedReads.operations).some(
-          (operation) => operation && typeof operation === 'object' && !Array.isArray(operation)
-            && operation.index_view && typeof operation.index_view === 'object' && !Array.isArray(operation.index_view),
-        );
-    }
     loadedRuntimePacks += 1;
-    if (!hasCapabilities && !hasIndexedReads) {
+    if (!hasCapabilities) {
       fail(`${agentRuntimeFilePath} exposes no usable capabilities.`);
     }
   }

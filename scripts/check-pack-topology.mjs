@@ -104,18 +104,6 @@ async function main() {
       }
     }
 
-    if (protocol.indexedReadsPath) {
-      const indexedReads = asObject(
-        await readJson(resolveIdlPath(protocol.indexedReadsPath, `${protocolId}.indexedReadsPath`), `${protocolId} indexed reads`),
-        `${protocolId} indexed reads`,
-      );
-      if (indexedReads.schema !== 'declarative-decoder-runtime.v1') {
-        fail(`${protocolId}: indexed reads schema must be declarative-decoder-runtime.v1.`);
-      }
-      if (asString(indexedReads.protocolId, `${protocolId}.indexedReads.protocolId`) !== protocolId) {
-        fail(`${protocolId}: indexedReads.protocolId mismatch.`);
-      }
-    }
     runtimeBackedCount += 1;
   }
 
