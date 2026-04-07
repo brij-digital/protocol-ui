@@ -3,6 +3,8 @@ import { listIdlProtocols } from '@brij-digital/apppack-runtime/idlDeclarativeRu
 import {
   explainRuntimeOperation,
   listRuntimeOperations,
+  loadRuntimePack,
+  type RuntimePack,
   type RuntimeOperationExplain as MetaOperationExplain,
   type RuntimeOperationSummary as MetaOperationSummary,
 } from '@brij-digital/apppack-runtime/runtimeOperationRuntime';
@@ -18,6 +20,28 @@ type ComputeDevTabProps = {
 };
 
 type ExplainedTransformStep = Extract<MetaOperationExplain['steps'][number], { phase: 'transform' }>;
+type RuntimeSpecOperation = {
+  summary: MetaOperationSummary;
+  explain: MetaOperationExplain;
+  transformSteps: Record<string, unknown>[];
+  pseudoFunction: string;
+};
+
+function extractTransformSteps(explain: MetaOperationExplain): Record<string, unknown>[] {
+  return Array.isArray(explain.steps)
+    ? explain.steps
+      .filter((entry): entry is ExplainedTransformStep =>
+        !!entry
+        && typeof entry === 'object'
+        && !Array.isArray(entry)
+        && (entry as { phase?: string }).phase === 'transform'
+        && !!(entry as { step?: unknown }).step
+        && typeof (entry as { step?: unknown }).step === 'object'
+        && !Array.isArray((entry as { step?: unknown }).step),
+      )
+      .map((entry) => entry.step)
+    : [];
+}
 
 function formatValue(value: unknown): string {
   if (typeof value === 'string') {
@@ -195,10 +219,8 @@ function renderPseudoFunction(functionName: string, instruction: string | null, 
 export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
   const [protocols, setProtocols] = useState<ProtocolSummary[]>([]);
   const [protocolId, setProtocolId] = useState('');
-  const [operations, setOperations] = useState<MetaOperationSummary[]>([]);
-  const [operationComputeCounts, setOperationComputeCounts] = useState<Record<string, number>>({});
-  const [operationId, setOperationId] = useState('');
-  const [explain, setExplain] = useState<MetaOperationExplain | null>(null);
+  const [runtimePack, setRuntimePack] = useState<RuntimePack | null>(null);
+  const [operations, setOperations] = useState<RuntimeSpecOperation[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -235,45 +257,57 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
     [protocols, protocolId],
   );
 
+  function handleProtocolSelect(nextProtocolId: string) {
+    setProtocolId(nextProtocolId);
+    setRuntimePack(null);
+    setOperations([]);
+    setError(null);
+  }
+
   useEffect(() => {
     if (!protocolId) {
+      setRuntimePack(null);
       setOperations([]);
-      setOperationComputeCounts({});
-      setOperationId('');
       return;
     }
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setRuntimePack(null);
+    setOperations([]);
     void (async () => {
       try {
-        const listed = await listRuntimeOperations({ protocolId });
-        const countEntries = await Promise.all(
+        const [pack, listed] = await Promise.all([
+          loadRuntimePack(protocolId),
+          listRuntimeOperations({ protocolId }),
+        ]);
+        const explainedOperations = await Promise.all(
           listed.operations.map(async (operation) => {
             const details = await explainRuntimeOperation({ protocolId, operationId: operation.operationId });
-            const transformCount = Array.isArray(details.steps)
-              ? details.steps.filter((entry) => entry && typeof entry === 'object' && (entry as { phase?: string }).phase === 'transform').length
-              : 0;
-            return [operation.operationId, transformCount] as const;
+            const transformSteps = extractTransformSteps(details);
+            return {
+              summary: operation,
+              explain: details,
+              transformSteps,
+              pseudoFunction: renderPseudoFunction(
+                `${details.protocolId.replace(/[^a-zA-Z0-9]+/g, '_')}_${details.operationId}`,
+                details.instruction ?? details.loadInstruction ?? null,
+                transformSteps,
+              ),
+            } satisfies RuntimeSpecOperation;
           }),
         );
         if (cancelled) {
           return;
         }
-        const counts = Object.fromEntries(countEntries);
-        const computeOperations = listed.operations.filter((operation) => (counts[operation.operationId] ?? 0) > 0);
-        setOperations(computeOperations);
-        setOperationComputeCounts(counts);
-        const preferred =
-          computeOperations[0]?.operationId ?? '';
-        setOperationId(preferred);
+        setRuntimePack(pack);
+        setOperations(explainedOperations);
       } catch (caught) {
         if (!cancelled) {
           const message = caught instanceof Error ? caught.message : String(caught);
           setError(message);
+          setRuntimePack(null);
           setOperations([]);
-          setOperationComputeCounts({});
-          setOperationId('');
         }
       } finally {
         if (!cancelled) {
@@ -286,77 +320,30 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
     };
   }, [protocolId]);
 
-  useEffect(() => {
-    if (!protocolId || !operationId) {
-      setExplain(null);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    void (async () => {
-      try {
-        const nextExplain = await explainRuntimeOperation({ protocolId, operationId });
-        if (!cancelled) {
-          setExplain(nextExplain);
-        }
-      } catch (caught) {
-        if (!cancelled) {
-          const message = caught instanceof Error ? caught.message : String(caught);
-          setError(message);
-          setExplain(null);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [protocolId, operationId]);
+  const writes = useMemo(
+    () => operations.filter((operation) => operation.summary.executionKind === 'write'),
+    [operations],
+  );
 
-  const operationPseudoFunction = useMemo(() => {
-    if (!explain) {
-      return '';
-    }
-    const functionName = `${explain.protocolId.replace(/[^a-zA-Z0-9]+/g, '_')}_${explain.operationId}`;
-    const transform = Array.isArray(explain.steps)
-      ? explain.steps
-        .filter((entry): entry is ExplainedTransformStep =>
-          !!entry
-          && typeof entry === 'object'
-          && !Array.isArray(entry)
-          && (entry as { phase?: string }).phase === 'transform'
-          && !!(entry as { step?: unknown }).step
-          && typeof (entry as { step?: unknown }).step === 'object'
-          && !Array.isArray((entry as { step?: unknown }).step),
-        )
-        .map((entry) => entry.step)
-      : [];
-    return renderPseudoFunction(functionName, explain.instruction ?? explain.loadInstruction ?? null, transform);
-  }, [explain]);
+  const views = useMemo(
+    () => operations.filter((operation) => operation.summary.executionKind === 'view'),
+    [operations],
+  );
+
+  const namedTransforms = useMemo(
+    () => Object.entries(runtimePack?.transforms ?? {}).sort(([left], [right]) => left.localeCompare(right)),
+    [runtimePack],
+  );
 
   return (
     <section className="compute-shell" aria-live="polite">
       <div className="compute-controls">
         <label>
           Protocol
-          <select value={protocolId} onChange={(event) => setProtocolId(event.target.value)} disabled={isWorking || loading}>
+          <select value={protocolId} onChange={(event) => handleProtocolSelect(event.target.value)} disabled={isWorking || loading}>
             {protocols.map((protocol) => (
               <option key={protocol.id} value={protocol.id}>
                 {protocol.name} ({protocol.id})
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Operation
-          <select value={operationId} onChange={(event) => setOperationId(event.target.value)} disabled={isWorking || loading || operations.length === 0}>
-            {operations.map((operation) => (
-              <option key={operation.operationId} value={operation.operationId}>
-                {operation.operationId} ({operation.executionKind}, {operationComputeCounts[operation.operationId] ?? 0} transform)
               </option>
             ))}
           </select>
@@ -366,22 +353,97 @@ export function ComputeDevTab({ isWorking }: ComputeDevTabProps) {
       {error ? <p className="compute-error">Error: {error}</p> : null}
       {selectedProtocol ? (
         <p className="compute-empty">
-          Runtime transform logic is loaded directly from `{selectedProtocol.id}.runtime.json` agent packs.
+          Runtime spec is loaded directly from `{selectedProtocol.id}.runtime.json` agent packs.
         </p>
       ) : null}
-      {explain ? (
-        <div className="compute-panels">
+      {runtimePack ? (
+        <div className="compute-spec">
           <article className="compute-panel">
-            <h3>Operation Pseudo JS</h3>
-            <pre>{operationPseudoFunction}</pre>
+            <h3>Runtime Pack</h3>
+            <div className="compute-meta-grid">
+              <div><strong>Protocol</strong><span>{runtimePack.protocolId}</span></div>
+              <div><strong>Program</strong><code>{runtimePack.programId}</code></div>
+              <div><strong>Codama</strong><code>{runtimePack.codamaPath}</code></div>
+              <div><strong>Writes</strong><span>{writes.length}</span></div>
+              <div><strong>Views</strong><span>{views.length}</span></div>
+              <div><strong>Named transforms</strong><span>{namedTransforms.length}</span></div>
+            </div>
           </article>
+
           <article className="compute-panel">
-            <h3>Operation Raw Steps</h3>
-            <pre>{JSON.stringify(explain.steps, null, 2)}</pre>
+            <h3>Writes</h3>
+            {writes.length > 0 ? (
+              <div className="compute-catalog">
+                {writes.map((operation) => (
+                  <details key={operation.summary.operationId} className="compute-entry" open>
+                    <summary>
+                      <strong>{operation.summary.operationId}</strong>
+                      <span>{operation.transformSteps.length} transform step{operation.transformSteps.length === 1 ? '' : 's'}</span>
+                    </summary>
+                    <div className="compute-entry-body">
+                      <pre>{operation.pseudoFunction}</pre>
+                      <pre>{JSON.stringify(operation.explain, null, 2)}</pre>
+                    </div>
+                  </details>
+                ))}
+              </div>
+            ) : (
+              <p className="compute-empty">No write operations in this runtime pack.</p>
+            )}
+          </article>
+
+          <article className="compute-panel">
+            <h3>Views</h3>
+            {views.length > 0 ? (
+              <div className="compute-catalog">
+                {views.map((operation) => (
+                  <details key={operation.summary.operationId} className="compute-entry" open>
+                    <summary>
+                      <strong>{operation.summary.operationId}</strong>
+                      <span>{operation.transformSteps.length} transform step{operation.transformSteps.length === 1 ? '' : 's'}</span>
+                    </summary>
+                    <div className="compute-entry-body">
+                      <pre>{operation.pseudoFunction}</pre>
+                      <pre>{JSON.stringify(operation.explain, null, 2)}</pre>
+                    </div>
+                  </details>
+                ))}
+              </div>
+            ) : (
+              <p className="compute-empty">No view operations in this runtime pack.</p>
+            )}
+          </article>
+
+          <article className="compute-panel">
+            <h3>Named Transforms</h3>
+            {namedTransforms.length > 0 ? (
+              <div className="compute-catalog">
+                {namedTransforms.map(([transformName, steps]) => (
+                  <details key={transformName} className="compute-entry" open>
+                    <summary>
+                      <strong>{transformName}</strong>
+                      <span>{steps.length} step{steps.length === 1 ? '' : 's'}</span>
+                    </summary>
+                    <div className="compute-entry-body">
+                      <pre>
+                        {renderPseudoFunction(
+                          `${runtimePack.protocolId.replace(/[^a-zA-Z0-9]+/g, '_')}_${transformName}`,
+                          null,
+                          steps.filter((step): step is Record<string, unknown> => !!step && typeof step === 'object' && !Array.isArray(step)),
+                        )}
+                      </pre>
+                      <pre>{JSON.stringify(steps, null, 2)}</pre>
+                    </div>
+                  </details>
+                ))}
+              </div>
+            ) : (
+              <p className="compute-empty">No named reusable transforms in this runtime pack.</p>
+            )}
           </article>
         </div>
       ) : (
-        <p className="compute-empty">{loading ? 'Loading runtime spec...' : 'Select a protocol and operation.'}</p>
+        <p className="compute-empty">{loading ? 'Loading runtime spec...' : 'Select a protocol.'}</p>
       )}
     </section>
   );
