@@ -23,7 +23,8 @@
       "decoderRef": "orca_whirlpool",
       "decodeTargets": [
         "instruction",
-        "log_event"
+        "log_event",
+        "account"
       ],
       "filters": {}
     }
@@ -36,6 +37,22 @@
         "name": "TradedEvent"
       },
       "pipeline": "whirlpool_trade"
+    },
+    {
+      "source": "orca_whirlpool_crawler",
+      "match": {
+        "decodedType": "account",
+        "name": "Whirlpool"
+      },
+      "pipeline": "whirlpool_snapshot"
+    },
+    {
+      "source": "orca_whirlpool_crawler",
+      "match": {
+        "decodedType": "account",
+        "name": "Position"
+      },
+      "pipeline": "position_snapshot"
     }
   ],
   "pipelines": {
@@ -194,6 +211,43 @@
             "liquidity": "$ctx.liquidity",
             "tickCurrentIndex": "$ctx.tickCurrentIndex",
             "sqrtPrice": "$ctx.sqrtPrice",
+            "observedAt": "$ctx.observedAt"
+          }
+        }
+      }
+    },
+    "position_snapshot": {
+      "extract": {
+        "position": "$update.pubkey",
+        "whirlpool": "$decoded.whirlpool",
+        "positionMint": "$decoded.position_mint",
+        "liquidity": "$decoded.liquidity",
+        "tickLowerIndex": "$decoded.tick_lower_index",
+        "tickUpperIndex": "$decoded.tick_upper_index",
+        "feeGrowthCheckpointA": "$decoded.fee_growth_checkpoint_a",
+        "feeOwedA": "$decoded.fee_owed_a",
+        "feeGrowthCheckpointB": "$decoded.fee_growth_checkpoint_b",
+        "feeOwedB": "$decoded.fee_owed_b",
+        "observedAt": "$update.eventTime"
+      },
+      "emit": {
+        "state": {
+          "recordKind": "account",
+          "recordName": "Position",
+          "subjectId": "$ctx.position",
+          "resourceId": "$ctx.position",
+          "eventTime": "$ctx.observedAt",
+          "payload": {
+            "position": "$ctx.position",
+            "whirlpool": "$ctx.whirlpool",
+            "positionMint": "$ctx.positionMint",
+            "liquidity": "$ctx.liquidity",
+            "tickLowerIndex": "$ctx.tickLowerIndex",
+            "tickUpperIndex": "$ctx.tickUpperIndex",
+            "feeGrowthCheckpointA": "$ctx.feeGrowthCheckpointA",
+            "feeOwedA": "$ctx.feeOwedA",
+            "feeGrowthCheckpointB": "$ctx.feeGrowthCheckpointB",
+            "feeOwedB": "$ctx.feeOwedB",
             "observedAt": "$ctx.observedAt"
           }
         }

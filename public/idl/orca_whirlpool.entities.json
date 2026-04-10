@@ -116,6 +116,108 @@
         }
       }
     },
+    "Position": {
+      "source": {
+        "from": "state",
+        "recordKind": "account",
+        "recordName": "Position"
+      },
+      "transform": {
+        "extract": {
+          "subjectId": "$raw.subject_id",
+          "resourceId": "$raw.resource_id",
+          "position": "$raw.subject_id",
+          "whirlpool": "$state.whirlpool",
+          "positionMint": "$state.positionMint",
+          "liquidity": "$state.liquidity",
+          "tickLowerIndex": "$state.tickLowerIndex",
+          "tickUpperIndex": "$state.tickUpperIndex",
+          "feeGrowthCheckpointA": "$state.feeGrowthCheckpointA",
+          "feeOwedA": "$state.feeOwedA",
+          "feeGrowthCheckpointB": "$state.feeGrowthCheckpointB",
+          "feeOwedB": "$state.feeOwedB",
+          "observedAt": "$state.observedAt",
+          "updatedAt": "$raw.updated_at",
+          "lastEventTime": "$raw.last_event_time"
+        }
+      },
+      "emit": {
+        "id": "position",
+        "indexes": [
+          [
+            "whirlpool",
+            "updatedAt:desc"
+          ],
+          [
+            "positionMint",
+            "updatedAt:desc"
+          ],
+          [
+            "liquidity:desc",
+            "updatedAt:desc"
+          ]
+        ],
+        "timeField": "updatedAt",
+        "defaultOrderBy": [
+          "updatedAt:desc"
+        ],
+        "fields": {
+          "subjectId": {
+            "type": "TEXT",
+            "filterable": true
+          },
+          "resourceId": {
+            "type": "TEXT"
+          },
+          "position": {
+            "type": "TEXT",
+            "primaryKey": true,
+            "filterable": true
+          },
+          "whirlpool": {
+            "type": "TEXT",
+            "filterable": true
+          },
+          "positionMint": {
+            "type": "TEXT",
+            "filterable": true
+          },
+          "liquidity": {
+            "type": "NUMERIC",
+            "filterable": true
+          },
+          "tickLowerIndex": {
+            "type": "INTEGER"
+          },
+          "tickUpperIndex": {
+            "type": "INTEGER"
+          },
+          "feeGrowthCheckpointA": {
+            "type": "NUMERIC"
+          },
+          "feeOwedA": {
+            "type": "NUMERIC"
+          },
+          "feeGrowthCheckpointB": {
+            "type": "NUMERIC"
+          },
+          "feeOwedB": {
+            "type": "NUMERIC"
+          },
+          "observedAt": {
+            "type": "TIMESTAMPTZ",
+            "filterable": true
+          },
+          "updatedAt": {
+            "type": "TIMESTAMPTZ",
+            "filterable": true
+          },
+          "lastEventTime": {
+            "type": "TIMESTAMPTZ"
+          }
+        }
+      }
+    },
     "Swap": {
       "source": {
         "from": "record",
