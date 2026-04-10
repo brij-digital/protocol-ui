@@ -4762,6 +4762,30 @@
         "divisor": "$slippage_denominator"
       },
       {
+        "name": "min_sqrt_price",
+        "kind": "coalesce",
+        "values": [
+          "4295048016"
+        ]
+      },
+      {
+        "name": "max_sqrt_price",
+        "kind": "coalesce",
+        "values": [
+          "79226673515401279992447579055"
+        ]
+      },
+      {
+        "name": "method",
+        "kind": "object.create",
+        "fields": {
+          "tokenMaxA": "$token_max_a",
+          "tokenMaxB": "$token_max_b",
+          "minSqrtPrice": "$min_sqrt_price",
+          "maxSqrtPrice": "$max_sqrt_price"
+        }
+      },
+      {
         "name": "position",
         "kind": "coalesce",
         "values": [
