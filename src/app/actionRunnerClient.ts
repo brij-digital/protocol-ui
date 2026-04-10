@@ -1,10 +1,8 @@
 import type { Connection, PublicKey } from '@solana/web3.js';
+import { runActionRunner, type ActionRunnerResult, type ActionRunnerSpec } from '@brij-digital/apppack-runtime/actionRunner';
 import {
   prepareRuntimeOperation,
-  runActionRunner,
   runRuntimeView,
-  type ActionRunnerResult,
-  type ActionRunnerSpec,
 } from '@brij-digital/apppack-runtime';
 
 type RunnerRegistryEntry = {

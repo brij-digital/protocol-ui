@@ -17,6 +17,9 @@ export default defineConfig(() => {
 
   return {
     base,
+    resolve: {
+      preserveSymlinks: true,
+    },
     plugins: [
       nodePolyfills({
         globals: {

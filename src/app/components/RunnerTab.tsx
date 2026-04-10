@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
-import type { ActionRunnerSpec } from '@brij-digital/apppack-runtime';
+import type { ActionRunnerSpec } from '@brij-digital/apppack-runtime/actionRunner';
 import { parseBuilderInputValue } from '../builderHelpers';
 import { loadActionRunnerSpecs, runActionRunnerSpec } from '../actionRunnerClient';
 import {
