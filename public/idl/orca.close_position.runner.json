@@ -1,0 +1,26 @@
+{
+  "schema": "solana-action-runner.v1",
+  "actionId": "orca.close_position",
+  "title": "Orca Close Position",
+  "description": "Prepare the Orca Whirlpool close position instruction for a position.",
+  "inputs": {
+    "position": {
+      "type": "pubkey",
+      "description": "Whirlpool position address."
+    }
+  },
+  "steps": [
+    {
+      "id": "close_position",
+      "kind": "write",
+      "protocolId": "orca-whirlpool-mainnet",
+      "operationId": "close_position",
+      "input": {
+        "position": "$input.position"
+      }
+    }
+  ],
+  "output": {
+    "draft": "$close_position.output"
+  }
+}

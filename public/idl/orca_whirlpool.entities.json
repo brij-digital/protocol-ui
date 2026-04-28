@@ -6,6 +6,7 @@
   ],
   "entities": {
     "Pool": {
+      "retention": "30d",
       "source": {
         "from": "state",
         "recordKind": "account",
@@ -116,19 +117,165 @@
         }
       }
     },
+    "PoolVolume1m": {
+      "retention": "365d",
+      "source": {
+        "from": "record",
+        "recordKind": "event",
+        "recordName": "SwapEvent"
+      },
+      "transform": {
+        "extract": {
+          "pool": "$raw.subject_id",
+          "aToB": "$payload.aToB",
+          "inputAmountAtomic": "$payload.inputAmountAtomic",
+          "outputAmountAtomic": "$payload.outputAmountAtomic",
+          "lpFeeAtomic": "$payload.lpFeeAtomic",
+          "protocolFeeAtomic": "$payload.protocolFeeAtomic",
+          "eventTime": "$raw.event_time"
+        },
+        "compute": [
+          {
+            "ref": "time.bucket",
+            "inputs": {
+              "value": "$ctx.eventTime",
+              "interval": "1m"
+            },
+            "output": "bucketStart"
+          },
+          {
+            "ref": "logic.if_then_else",
+            "inputs": {
+              "condition": "$ctx.aToB",
+              "then_value": "$ctx.inputAmountAtomic",
+              "else_value": "$ctx.outputAmountAtomic"
+            },
+            "output": "volumeTokenAAtomic"
+          },
+          {
+            "ref": "logic.if_then_else",
+            "inputs": {
+              "condition": "$ctx.aToB",
+              "then_value": "$ctx.outputAmountAtomic",
+              "else_value": "$ctx.inputAmountAtomic"
+            },
+            "output": "volumeTokenBAtomic"
+          }
+        ],
+        "groupBy": [
+          "pool",
+          "bucketStart"
+        ],
+        "reduce": {
+          "volumeTokenAAtomic": {
+            "op": "sum",
+            "value": "$ctx.volumeTokenAAtomic"
+          },
+          "volumeTokenBAtomic": {
+            "op": "sum",
+            "value": "$ctx.volumeTokenBAtomic"
+          },
+          "lpFeeAtomic": {
+            "op": "sum",
+            "value": "$ctx.lpFeeAtomic"
+          },
+          "protocolFeeAtomic": {
+            "op": "sum",
+            "value": "$ctx.protocolFeeAtomic"
+          },
+          "tradeCount": {
+            "op": "count"
+          },
+          "firstEventTime": {
+            "op": "min",
+            "value": "$ctx.eventTime"
+          },
+          "lastEventTime": {
+            "op": "max",
+            "value": "$ctx.eventTime"
+          }
+        }
+      },
+      "emit": {
+        "id": [
+          "pool",
+          "bucketStart"
+        ],
+        "indexes": [
+          [
+            "pool",
+            "bucketStart:desc"
+          ]
+        ],
+        "timeField": "bucketStart",
+        "defaultOrderBy": [
+          "bucketStart:desc"
+        ],
+        "fields": {
+          "pool": {
+            "type": "TEXT",
+            "primaryKey": true,
+            "filterable": true
+          },
+          "bucketStart": {
+            "type": "TIMESTAMPTZ",
+            "primaryKey": true,
+            "filterable": true
+          },
+          "volumeTokenAAtomic": {
+            "type": "NUMERIC"
+          },
+          "volumeTokenBAtomic": {
+            "type": "NUMERIC"
+          },
+          "lpFeeAtomic": {
+            "type": "NUMERIC"
+          },
+          "protocolFeeAtomic": {
+            "type": "NUMERIC"
+          },
+          "tradeCount": {
+            "type": "BIGINT"
+          },
+          "firstEventTime": {
+            "type": "TIMESTAMPTZ"
+          },
+          "lastEventTime": {
+            "type": "TIMESTAMPTZ"
+          }
+        }
+      }
+    },
     "Position": {
+      "retention": "30d",
       "source": {
         "from": "state",
         "recordKind": "account",
         "recordName": "Position"
       },
       "transform": {
+        "resolve": [
+          {
+            "name": "ownership",
+            "from": "state",
+            "recordKind": "state",
+            "recordName": "PositionOwnership",
+            "retention": "90d",
+            "where": {
+              "subject_id": "$raw.subject_id"
+            },
+            "optional": true
+          }
+        ],
         "extract": {
           "subjectId": "$raw.subject_id",
           "resourceId": "$raw.resource_id",
           "position": "$raw.subject_id",
           "whirlpool": "$state.whirlpool",
           "positionMint": "$state.positionMint",
+          "positionOwner": "$ownership.positionOwner",
+          "positionTokenAccount": "$ownership.positionTokenAccount",
+          "positionTokenProgram": "$ownership.positionTokenProgram",
           "liquidity": "$state.liquidity",
           "tickLowerIndex": "$state.tickLowerIndex",
           "tickUpperIndex": "$state.tickUpperIndex",
@@ -146,6 +293,10 @@
         "indexes": [
           [
             "whirlpool",
+            "updatedAt:desc"
+          ],
+          [
+            "positionOwner",
             "updatedAt:desc"
           ],
           [
@@ -179,6 +330,18 @@
             "filterable": true
           },
           "positionMint": {
+            "type": "TEXT",
+            "filterable": true
+          },
+          "positionOwner": {
+            "type": "TEXT",
+            "filterable": true
+          },
+          "positionTokenAccount": {
+            "type": "TEXT",
+            "filterable": true
+          },
+          "positionTokenProgram": {
             "type": "TEXT",
             "filterable": true
           },
@@ -219,6 +382,7 @@
       }
     },
     "Swap": {
+      "retention": "7d",
       "source": {
         "from": "record",
         "recordKind": "event",

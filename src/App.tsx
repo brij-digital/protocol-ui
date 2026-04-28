@@ -55,6 +55,13 @@ function App() {
     }
   };
 
+  const switchMode = (nextMode: AppMode) => {
+    setAppMode(nextMode);
+    if (nextMode === 'normal' && !NORMAL_TABS.includes(activeTab)) {
+      switchTab('runner');
+    }
+  };
+
   useEffect(() => {
     if (typeof window === 'undefined') {
       return undefined;
@@ -67,12 +74,6 @@ function App() {
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
-
-  useEffect(() => {
-    if (appMode === 'normal' && !NORMAL_TABS.includes(activeTab)) {
-      switchTab('runner');
-    }
-  }, [activeTab, appMode]);
 
   const visibleTabs = appMode === 'normal' ? NORMAL_TABS : [...NORMAL_TABS, ...ADVANCED_TABS];
 
@@ -95,7 +96,7 @@ function App() {
             role="tab"
             aria-selected={appMode === 'normal'}
             className={appMode === 'normal' ? 'active' : ''}
-            onClick={() => setAppMode('normal')}
+            onClick={() => switchMode('normal')}
           >
             Normal
           </button>
@@ -104,7 +105,7 @@ function App() {
             role="tab"
             aria-selected={appMode === 'advanced'}
             className={appMode === 'advanced' ? 'active' : ''}
-            onClick={() => setAppMode('advanced')}
+            onClick={() => switchMode('advanced')}
           >
             Advanced
           </button>

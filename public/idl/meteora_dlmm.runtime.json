@@ -120,7 +120,39 @@
       },
       "output": {
         "type": "object",
-        "source": "$input"
+        "source": "$input",
+        "object_schema": {
+          "entity_type": "meteora_dlmm_pool",
+          "identity_fields": [
+            "lb_pair"
+          ],
+          "fields": {
+            "lb_pair": {
+              "type": "pubkey"
+            },
+            "active_id": {
+              "type": "i32"
+            },
+            "bin_step": {
+              "type": "u16"
+            },
+            "token_x_mint": {
+              "type": "pubkey"
+            },
+            "token_y_mint": {
+              "type": "pubkey"
+            },
+            "reserve_x": {
+              "type": "pubkey"
+            },
+            "reserve_y": {
+              "type": "pubkey"
+            },
+            "oracle": {
+              "type": "pubkey"
+            }
+          }
+        }
       }
     },
     "position_info": {
@@ -133,7 +165,30 @@
       },
       "output": {
         "type": "object",
-        "source": "$input"
+        "source": "$input",
+        "object_schema": {
+          "entity_type": "meteora_dlmm_position",
+          "identity_fields": [
+            "position"
+          ],
+          "fields": {
+            "position": {
+              "type": "pubkey"
+            },
+            "lb_pair": {
+              "type": "pubkey"
+            },
+            "owner": {
+              "type": "pubkey"
+            },
+            "lower_bin_id": {
+              "type": "i32"
+            },
+            "upper_bin_id": {
+              "type": "i32"
+            }
+          }
+        }
       }
     }
   },

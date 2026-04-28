@@ -185,7 +185,27 @@
       },
       "output": {
         "type": "object",
-        "source": "$input"
+        "source": "$input",
+        "object_schema": {
+          "entity_type": "sanctum_pool",
+          "identity_fields": [
+            "pool_state"
+          ],
+          "fields": {
+            "pool_state": {
+              "type": "pubkey"
+            },
+            "lst_state_list": {
+              "type": "pubkey"
+            },
+            "pricing_program": {
+              "type": "pubkey"
+            },
+            "lp_token_mint": {
+              "type": "pubkey"
+            }
+          }
+        }
       }
     },
     "lst_state": {
@@ -198,7 +218,30 @@
       },
       "output": {
         "type": "object",
-        "source": "$input"
+        "source": "$input",
+        "object_schema": {
+          "entity_type": "sanctum_lst_state",
+          "identity_fields": [
+            "mint"
+          ],
+          "fields": {
+            "mint": {
+              "type": "pubkey"
+            },
+            "lst_state": {
+              "type": "pubkey"
+            },
+            "pool_reserves": {
+              "type": "pubkey"
+            },
+            "sol_value_calculator": {
+              "type": "pubkey"
+            },
+            "stake_pool": {
+              "type": "pubkey"
+            }
+          }
+        }
       }
     }
   },

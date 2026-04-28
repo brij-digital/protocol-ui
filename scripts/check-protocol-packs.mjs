@@ -203,13 +203,10 @@ function validateSteps(protocolId, sectionLabel, operationId, operation, transfo
 
 function validateWrite(protocolId, executionId, execution, instructionNames, transformNames) {
   const op = validateRuntimeInputs(protocolId, 'agentRuntime.writes', executionId, execution);
-  if (op.inputs !== undefined) {
-    fail(`${protocolId}.agentRuntime.writes.${executionId}.inputs is no longer allowed; write inputs come from Codama.`);
-  }
   validateSteps(protocolId, 'agentRuntime.writes', executionId, op, transformNames);
   if (op.instruction !== undefined) {
     const instruction = asString(op.instruction, `${protocolId}.agentRuntime.writes.${executionId}.instruction`);
-    if (!instructionNames.has(instruction)) {
+    if (!instructionNames.has(toSnakeCase(instruction))) {
       fail(`${protocolId}: execution ${executionId} references missing instruction ${instruction}.`);
     }
   }

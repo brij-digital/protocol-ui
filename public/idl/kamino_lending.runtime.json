@@ -241,7 +241,40 @@
       ],
       "output": {
         "type": "object",
-        "source": "$obligation_data"
+        "source": "$obligation_data",
+        "object_schema": {
+          "entity_type": "kamino_obligation",
+          "identity_fields": [
+            "owner",
+            "lendingMarket"
+          ],
+          "fields": {
+            "owner": {
+              "type": "pubkey"
+            },
+            "lendingMarket": {
+              "type": "pubkey"
+            },
+            "depositedValueSf": {
+              "type": "u128"
+            },
+            "borrowFactorAdjustedDebtValueSf": {
+              "type": "u128"
+            },
+            "borrowedAssetsMarketValueSf": {
+              "type": "u128"
+            },
+            "allowedBorrowValueSf": {
+              "type": "u128"
+            },
+            "unhealthyBorrowValueSf": {
+              "type": "u128"
+            },
+            "hasDebt": {
+              "type": "u8"
+            }
+          }
+        }
       }
     },
     "reserve_info": {
@@ -258,7 +291,24 @@
       ],
       "output": {
         "type": "object",
-        "source": "$reserve_data"
+        "source": "$reserve_data",
+        "object_schema": {
+          "entity_type": "kamino_reserve",
+          "identity_fields": [
+            "lendingMarket"
+          ],
+          "fields": {
+            "lendingMarket": {
+              "type": "pubkey"
+            },
+            "farmCollateral": {
+              "type": "pubkey"
+            },
+            "farmDebt": {
+              "type": "pubkey"
+            }
+          }
+        }
       }
     },
     "market_info": {
@@ -275,7 +325,36 @@
       ],
       "output": {
         "type": "object",
-        "source": "$market_data"
+        "source": "$market_data",
+        "object_schema": {
+          "entity_type": "kamino_lending_market",
+          "identity_fields": [
+            "lendingMarketOwner"
+          ],
+          "fields": {
+            "version": {
+              "type": "u64"
+            },
+            "bumpSeed": {
+              "type": "u64"
+            },
+            "lendingMarketOwner": {
+              "type": "pubkey"
+            },
+            "lendingMarketOwnerCached": {
+              "type": "pubkey"
+            },
+            "referralFeeBps": {
+              "type": "u16"
+            },
+            "emergencyMode": {
+              "type": "u8"
+            },
+            "borrowDisabled": {
+              "type": "u8"
+            }
+          }
+        }
       }
     }
   }

@@ -2,12 +2,20 @@
   "schema": "solana-action-runner-registry.v1",
   "runners": [
     {
+      "actionId": "orca.close_position",
+      "path": "/idl/orca.close_position.runner.json"
+    },
+    {
       "actionId": "orca.collect_fees",
       "path": "/idl/orca.collect_fees.runner.json"
     },
     {
       "actionId": "orca.collect_reward",
       "path": "/idl/orca.collect_reward.runner.json"
+    },
+    {
+      "actionId": "orca.open_centered_position_with_liquidity",
+      "path": "/idl/orca.open_centered_position_with_liquidity.runner.json"
     },
     {
       "actionId": "orca.quote_and_decrease_liquidity",

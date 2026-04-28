@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import {
   CandlestickSeries,
   ColorType,
@@ -324,8 +324,10 @@ export function TradingViewTestTab({ viewApiBaseUrl }: TradingViewTestTabProps) 
     }
   }
 
+  const loadInitialData = useEffectEvent(loadData);
+
   useEffect(() => {
-    void loadData();
+    void loadInitialData();
   }, []);
 
   return (

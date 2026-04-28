@@ -81,6 +81,10 @@
         }
       ]
     },
+    "retentionWindowSpec": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*(s|m|h|d)$"
+    },
     "runtimeInputSpec": {
       "type": "object",
       "required": ["type"],
@@ -440,7 +444,7 @@
     },
     "recordEmitSpec": {
       "type": "object",
-      "required": ["recordKind", "recordName", "subjectId", "payload"],
+      "required": ["recordKind", "recordName", "subjectId", "payload", "retention"],
       "properties": {
         "recordKind": {
           "type": "string"
@@ -466,6 +470,9 @@
         "eventTime": {
           "$ref": "#/$defs/stringOrTemplate"
         },
+        "retention": {
+          "$ref": "#/$defs/retentionWindowSpec"
+        },
         "payload": {
           "type": "object",
           "additionalProperties": { "$ref": "#/$defs/stringOrTemplate" }
@@ -475,7 +482,7 @@
     },
     "stateEmitSpec": {
       "type": "object",
-      "required": ["recordKind", "recordName", "subjectId", "payload"],
+      "required": ["recordKind", "recordName", "subjectId", "payload", "retention"],
       "properties": {
         "recordKind": {
           "type": "string"
@@ -497,6 +504,9 @@
         },
         "eventTime": {
           "$ref": "#/$defs/stringOrTemplate"
+        },
+        "retention": {
+          "$ref": "#/$defs/retentionWindowSpec"
         },
         "payload": {
           "type": "object",

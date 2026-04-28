@@ -278,6 +278,96 @@
         "tick_array_upper": "$tick_array_upper"
       }
     },
+    "increase_liquidity_for_open_position_v2": {
+      "instruction": "increase_liquidity_by_token_amounts_v2",
+      "inputs": {
+        "position": "pubkey",
+        "position_mint": "token_mint",
+        "whirlpool": "pubkey",
+        "tick_lower_index": "i32",
+        "tick_upper_index": "i32",
+        "method": "json"
+      },
+      "steps": [
+        {
+          "name": "wallet",
+          "kind": "wallet_pubkey"
+        },
+        {
+          "name": "whirlpool_data",
+          "kind": "decode_account",
+          "address": "$input.whirlpool",
+          "account_type": "Whirlpool"
+        },
+        {
+          "name": "position_mint_program",
+          "kind": "account_owner",
+          "address": "$input.position_mint"
+        },
+        {
+          "name": "token_program_a",
+          "kind": "account_owner",
+          "address": "$whirlpool_data.token_mint_a"
+        },
+        {
+          "name": "token_program_b",
+          "kind": "account_owner",
+          "address": "$whirlpool_data.token_mint_b"
+        },
+        {
+          "name": "position_token_account",
+          "kind": "ata",
+          "owner": "$wallet",
+          "mint": "$input.position_mint",
+          "token_program": "$position_mint_program"
+        },
+        {
+          "name": "token_owner_account_a",
+          "kind": "ata",
+          "owner": "$wallet",
+          "mint": "$whirlpool_data.token_mint_a",
+          "token_program": "$token_program_a"
+        },
+        {
+          "name": "token_owner_account_b",
+          "kind": "ata",
+          "owner": "$wallet",
+          "mint": "$whirlpool_data.token_mint_b",
+          "token_program": "$token_program_b"
+        },
+        {
+          "kind": "transform",
+          "transform": "planned_position__from_input_ticks"
+        },
+        {
+          "kind": "transform",
+          "transform": "increase_liquidity_by_token_amounts_v2__normalize_method"
+        },
+        {
+          "kind": "transform",
+          "transform": "position_range__derive_tick_arrays"
+        }
+      ],
+      "args": {
+        "method": "$method_borsh",
+        "remaining_accounts_info": null
+      },
+      "accounts": {
+        "whirlpool": "$input.whirlpool",
+        "token_program_a": "$token_program_a",
+        "token_program_b": "$token_program_b",
+        "position": "$input.position",
+        "position_token_account": "$position_token_account",
+        "token_mint_a": "$whirlpool_data.token_mint_a",
+        "token_mint_b": "$whirlpool_data.token_mint_b",
+        "token_owner_account_a": "$token_owner_account_a",
+        "token_owner_account_b": "$token_owner_account_b",
+        "token_vault_a": "$whirlpool_data.token_vault_a",
+        "token_vault_b": "$whirlpool_data.token_vault_b",
+        "tick_array_lower": "$tick_array_lower",
+        "tick_array_upper": "$tick_array_upper"
+      }
+    },
     "decrease_liquidity_v2": {
       "instruction": "decrease_liquidity_v2",
       "steps": [
@@ -4540,6 +4630,402 @@
         "divisor": "$sqrt_price_diff"
       }
     ],
+    "planned_position__from_input_ticks": [
+      {
+        "name": "position_data",
+        "kind": "object.create",
+        "fields": {
+          "address": "$input.position",
+          "whirlpool": "$input.whirlpool",
+          "position_mint": "$input.position_mint",
+          "tick_lower_index": "$input.tick_lower_index",
+          "tick_upper_index": "$input.tick_upper_index"
+        }
+      }
+    ],
+    "planned_position__from_derived_ticks": [
+      {
+        "name": "position_data",
+        "kind": "object.create",
+        "fields": {
+          "address": "$position",
+          "whirlpool": "$input.whirlpool",
+          "position_mint": "$input.position_mint",
+          "tick_lower_index": "$tick_lower_index",
+          "tick_upper_index": "$tick_upper_index"
+        }
+      }
+    ],
+    "position_ref__from_input": [
+      {
+        "name": "position",
+        "kind": "coalesce",
+        "values": [
+          "$input.position"
+        ]
+      }
+    ],
+    "positions_for_owner__candidate_positions": [
+      {
+        "name": "candidate_position_token_accounts",
+        "kind": "list.filter",
+        "items": "$owned_token_accounts",
+        "where": [
+          {
+            "path": "amount",
+            "op": ">",
+            "value": "0"
+          },
+          {
+            "path": "decimals",
+            "value": 0
+          }
+        ]
+      },
+      {
+        "name": "candidate_position_mints",
+        "kind": "list.map",
+        "items": "$candidate_position_token_accounts",
+        "item_as": "token_account",
+        "output": "$token_account.mint"
+      },
+      {
+        "name": "candidate_positions",
+        "kind": "pda(seed_spec)",
+        "program_id": "$protocol.programId",
+        "map_over": "$candidate_position_mints",
+        "seeds": [
+          {
+            "kind": "utf8",
+            "value": "position"
+          },
+          {
+            "kind": "item_pubkey"
+          }
+        ]
+      }
+    ],
+    "positions_for_owner__valid_position_addresses": [
+      {
+        "name": "valid_position_infos",
+        "kind": "list.filter",
+        "items": "$candidate_position_infos",
+        "where": [
+          {
+            "path": "exists",
+            "value": true
+          },
+          {
+            "path": "owner",
+            "value": "$protocol.programId"
+          }
+        ]
+      },
+      {
+        "name": "valid_position_addresses",
+        "kind": "list.map",
+        "items": "$valid_position_infos",
+        "item_as": "position_info",
+        "output": "$position_info.address"
+      }
+    ],
+    "positions_for_owner__normalize_rows": [
+      {
+        "name": "positions",
+        "kind": "list.map",
+        "items": "$position_accounts",
+        "item_as": "position_account",
+        "steps": [
+          {
+            "name": "position_row",
+            "kind": "object.create",
+            "fields": {
+              "position": "$position_account.address",
+              "whirlpool": "$position_account.whirlpool",
+              "positionMint": "$position_account.position_mint",
+              "positionOwner": "$input.owner",
+              "liquidity": "$position_account.liquidity",
+              "tickLowerIndex": "$position_account.tick_lower_index",
+              "tickUpperIndex": "$position_account.tick_upper_index",
+              "feeOwedA": "$position_account.fee_owed_a",
+              "feeOwedB": "$position_account.fee_owed_b"
+            }
+          }
+        ],
+        "output": "$position_row"
+      }
+    ],
+    "quote_open_centered_position_with_liquidity__derive_ticks": [
+      {
+        "name": "center_tick_array_index",
+        "kind": "math.floor_div",
+        "dividend": "$whirlpool_data.tick_current_index",
+        "divisor": "$whirlpool_data.tick_spacing"
+      },
+      {
+        "name": "center_tick_index",
+        "kind": "math.mul",
+        "values": [
+          "$center_tick_array_index",
+          "$whirlpool_data.tick_spacing"
+        ]
+      },
+      {
+        "name": "tick_offset",
+        "kind": "math.mul",
+        "values": [
+          "$input.tick_offset_steps",
+          "$whirlpool_data.tick_spacing"
+        ]
+      },
+      {
+        "name": "tick_lower_index",
+        "kind": "math.sub",
+        "values": [
+          "$center_tick_index",
+          "$tick_offset"
+        ]
+      },
+      {
+        "name": "tick_upper_index",
+        "kind": "math.add",
+        "values": [
+          "$center_tick_index",
+          "$tick_offset"
+        ]
+      }
+    ],
+    "quote_open_centered_position_with_liquidity__finalize": [
+      {
+        "name": "position",
+        "kind": "coalesce",
+        "values": [
+          "$position"
+        ]
+      },
+      {
+        "name": "position_mint",
+        "kind": "coalesce",
+        "values": [
+          "$input.position_mint"
+        ]
+      },
+      {
+        "name": "tick_lower_index",
+        "kind": "coalesce",
+        "values": [
+          "$tick_lower_index"
+        ]
+      },
+      {
+        "name": "tick_upper_index",
+        "kind": "coalesce",
+        "values": [
+          "$tick_upper_index"
+        ]
+      }
+    ],
+    "quote_close_position__quote_math": [
+      {
+        "name": "tick_lower_sqrt_price_x64",
+        "kind": "transform",
+        "transform": "quote_exact_in__tick_index_to_sqrt_price_x64",
+        "bindings": {
+          "tick_index": "$position_data.tick_lower_index"
+        },
+        "output": "$tick_sqrt_price_x64"
+      },
+      {
+        "name": "tick_upper_sqrt_price_x64",
+        "kind": "transform",
+        "transform": "quote_exact_in__tick_index_to_sqrt_price_x64",
+        "bindings": {
+          "tick_index": "$position_data.tick_upper_index"
+        },
+        "output": "$tick_sqrt_price_x64"
+      },
+      {
+        "name": "current_below_range",
+        "kind": "compare.lte",
+        "left": "$whirlpool_data.sqrt_price",
+        "right": "$tick_lower_sqrt_price_x64"
+      },
+      {
+        "name": "current_above_range",
+        "kind": "compare.gte",
+        "left": "$whirlpool_data.sqrt_price",
+        "right": "$tick_upper_sqrt_price_x64"
+      },
+      {
+        "name": "liquidity_amount",
+        "kind": "coalesce",
+        "values": [
+          "$position_data.liquidity"
+        ]
+      },
+      {
+        "name": "token_est_a_below",
+        "kind": "transform",
+        "transform": "quote_exact_in__amount_delta_a",
+        "bindings": {
+          "curr_liquidity": "$liquidity_amount",
+          "curr_sqrt_price": "$tick_lower_sqrt_price_x64",
+          "target_sqrt_price": "$tick_upper_sqrt_price_x64",
+          "round_up": false
+        },
+        "output": "$value"
+      },
+      {
+        "name": "token_est_a_in_range",
+        "kind": "transform",
+        "transform": "quote_exact_in__amount_delta_a",
+        "bindings": {
+          "curr_liquidity": "$liquidity_amount",
+          "curr_sqrt_price": "$whirlpool_data.sqrt_price",
+          "target_sqrt_price": "$tick_upper_sqrt_price_x64",
+          "round_up": false
+        },
+        "output": "$value"
+      },
+      {
+        "name": "token_est_b_in_range",
+        "kind": "transform",
+        "transform": "quote_exact_in__amount_delta_b",
+        "bindings": {
+          "curr_liquidity": "$liquidity_amount",
+          "curr_sqrt_price": "$tick_lower_sqrt_price_x64",
+          "target_sqrt_price": "$whirlpool_data.sqrt_price",
+          "round_up": false
+        },
+        "output": "$value"
+      },
+      {
+        "name": "token_est_b_above",
+        "kind": "transform",
+        "transform": "quote_exact_in__amount_delta_b",
+        "bindings": {
+          "curr_liquidity": "$liquidity_amount",
+          "curr_sqrt_price": "$tick_lower_sqrt_price_x64",
+          "target_sqrt_price": "$tick_upper_sqrt_price_x64",
+          "round_up": false
+        },
+        "output": "$value"
+      },
+      {
+        "name": "token_est_a_in_range_or_zero",
+        "kind": "logic.if",
+        "condition": "$current_above_range",
+        "then": "0",
+        "else": "$token_est_a_in_range"
+      },
+      {
+        "name": "token_est_a",
+        "kind": "logic.if",
+        "condition": "$current_below_range",
+        "then": "$token_est_a_below",
+        "else": "$token_est_a_in_range_or_zero"
+      },
+      {
+        "name": "token_est_b_in_range_or_zero",
+        "kind": "logic.if",
+        "condition": "$current_below_range",
+        "then": "0",
+        "else": "$token_est_b_in_range"
+      },
+      {
+        "name": "token_est_b",
+        "kind": "logic.if",
+        "condition": "$current_above_range",
+        "then": "$token_est_b_above",
+        "else": "$token_est_b_in_range_or_zero"
+      },
+      {
+        "name": "slippage_denominator",
+        "kind": "coalesce",
+        "values": [
+          "10000"
+        ]
+      },
+      {
+        "name": "slippage_numerator",
+        "kind": "math.sub",
+        "values": [
+          "$slippage_denominator",
+          "$input.slippage_bps"
+        ]
+      },
+      {
+        "name": "token_min_a",
+        "kind": "math.mul_div_floor",
+        "multiplicand": "$token_est_a",
+        "multiplier": "$slippage_numerator",
+        "divisor": "$slippage_denominator"
+      },
+      {
+        "name": "token_min_b",
+        "kind": "math.mul_div_floor",
+        "multiplicand": "$token_est_b",
+        "multiplier": "$slippage_numerator",
+        "divisor": "$slippage_denominator"
+      },
+      {
+        "name": "reward_info_0",
+        "kind": "list.get",
+        "values": "$whirlpool_data.reward_infos",
+        "index": 0
+      },
+      {
+        "name": "reward_info_1",
+        "kind": "list.get",
+        "values": "$whirlpool_data.reward_infos",
+        "index": 1
+      },
+      {
+        "name": "reward_info_2",
+        "kind": "list.get",
+        "values": "$whirlpool_data.reward_infos",
+        "index": 2
+      },
+      {
+        "name": "reward_0_active",
+        "kind": "compare.not_equals",
+        "left": "$reward_info_0.mint",
+        "right": "11111111111111111111111111111111"
+      },
+      {
+        "name": "reward_1_active",
+        "kind": "compare.not_equals",
+        "left": "$reward_info_1.mint",
+        "right": "11111111111111111111111111111111"
+      },
+      {
+        "name": "reward_2_active",
+        "kind": "compare.not_equals",
+        "left": "$reward_info_2.mint",
+        "right": "11111111111111111111111111111111"
+      },
+      {
+        "name": "position",
+        "kind": "coalesce",
+        "values": [
+          "$input.position"
+        ]
+      },
+      {
+        "name": "whirlpool",
+        "kind": "coalesce",
+        "values": [
+          "$position_data.whirlpool"
+        ]
+      },
+      {
+        "name": "slippage_bps",
+        "kind": "coalesce",
+        "values": [
+          "$input.slippage_bps"
+        ]
+      }
+    ],
     "quote_increase_liquidity__quote_math": [
       {
         "name": "token_a_specified",
@@ -4789,7 +5275,7 @@
         "name": "position",
         "kind": "coalesce",
         "values": [
-          "$input.position"
+          "$position"
         ]
       },
       {
@@ -7289,6 +7775,10 @@
         },
         {
           "kind": "transform",
+          "transform": "position_ref__from_input"
+        },
+        {
+          "kind": "transform",
           "transform": "quote_increase_liquidity__quote_math"
         }
       ],
@@ -8213,6 +8703,251 @@
             },
             "pool_fee_bps": {
               "type": "number"
+            }
+          }
+        }
+      }
+    },
+    "positions_for_owner": {
+      "inputs": {
+        "owner": "pubkey"
+      },
+      "steps": [
+        {
+          "name": "owned_token_accounts",
+          "kind": "token_accounts_by_owner",
+          "owner": "$input.owner"
+        },
+        {
+          "kind": "transform",
+          "transform": "positions_for_owner__candidate_positions"
+        },
+        {
+          "name": "candidate_position_infos",
+          "kind": "account_infos",
+          "addresses": "$candidate_positions"
+        },
+        {
+          "kind": "transform",
+          "transform": "positions_for_owner__valid_position_addresses"
+        },
+        {
+          "name": "position_accounts",
+          "kind": "decode_accounts",
+          "addresses": "$valid_position_addresses",
+          "account_type": "Position"
+        },
+        {
+          "kind": "transform",
+          "transform": "positions_for_owner__normalize_rows"
+        }
+      ],
+      "output": {
+        "type": "array",
+        "source": "$positions",
+        "item_schema": {
+          "entity_type": "orca_position_owner_view",
+          "identity_fields": [
+            "position"
+          ],
+          "fields": {
+            "position": {
+              "type": "pubkey"
+            },
+            "whirlpool": {
+              "type": "pubkey"
+            },
+            "positionMint": {
+              "type": "pubkey"
+            },
+            "positionOwner": {
+              "type": "pubkey"
+            },
+            "liquidity": {
+              "type": "u128"
+            },
+            "tickLowerIndex": {
+              "type": "i32"
+            },
+            "tickUpperIndex": {
+              "type": "i32"
+            },
+            "feeOwedA": {
+              "type": "u64"
+            },
+            "feeOwedB": {
+              "type": "u64"
+            }
+          }
+        }
+      }
+    },
+    "quote_open_centered_position_with_liquidity": {
+      "inputs": {
+        "whirlpool": "pubkey",
+        "position_mint": "token_mint",
+        "tick_offset_steps": "u16",
+        "specified_token_mint": "token_mint",
+        "specified_token_amount": "u64",
+        "slippage_bps": "u16"
+      },
+      "steps": [
+        {
+          "name": "wallet",
+          "kind": "wallet_pubkey"
+        },
+        {
+          "name": "whirlpool_data",
+          "kind": "decode_account",
+          "address": "$input.whirlpool",
+          "account_type": "Whirlpool"
+        },
+        {
+          "name": "position",
+          "kind": "pda",
+          "program_id": "$protocol.programId",
+          "seeds": [
+            "utf8:position",
+            "$input.position_mint"
+          ]
+        },
+        {
+          "kind": "transform",
+          "transform": "quote_open_centered_position_with_liquidity__derive_ticks"
+        },
+        {
+          "kind": "transform",
+          "transform": "planned_position__from_derived_ticks"
+        },
+        {
+          "kind": "transform",
+          "transform": "quote_increase_liquidity__quote_math"
+        },
+        {
+          "kind": "transform",
+          "transform": "quote_open_centered_position_with_liquidity__finalize"
+        }
+      ],
+      "output": {
+        "type": "object",
+        "source": "$derived",
+        "object_schema": {
+          "entity_type": "orca_quote_open_centered_position_with_liquidity",
+          "identity_fields": [
+            "position"
+          ],
+          "fields": {
+            "position": {
+              "type": "pubkey"
+            },
+            "position_mint": {
+              "type": "pubkey"
+            },
+            "whirlpool": {
+              "type": "pubkey"
+            },
+            "tick_lower_index": {
+              "type": "i32"
+            },
+            "tick_upper_index": {
+              "type": "i32"
+            },
+            "specified_token_mint": {
+              "type": "pubkey"
+            },
+            "specified_token_amount": {
+              "type": "u64"
+            },
+            "slippage_bps": {
+              "type": "u16"
+            },
+            "liquidity_delta": {
+              "type": "u128"
+            },
+            "token_est_a": {
+              "type": "u64"
+            },
+            "token_est_b": {
+              "type": "u64"
+            },
+            "token_max_a": {
+              "type": "u64"
+            },
+            "token_max_b": {
+              "type": "u64"
+            }
+          }
+        }
+      }
+    },
+    "quote_close_position": {
+      "inputs": {
+        "position": "pubkey",
+        "slippage_bps": "u16"
+      },
+      "steps": [
+        {
+          "name": "wallet",
+          "kind": "wallet_pubkey"
+        },
+        {
+          "name": "position_data",
+          "kind": "decode_account",
+          "address": "$input.position",
+          "account_type": "Position"
+        },
+        {
+          "name": "whirlpool_data",
+          "kind": "decode_account",
+          "address": "$position_data.whirlpool",
+          "account_type": "Whirlpool"
+        },
+        {
+          "kind": "transform",
+          "transform": "quote_close_position__quote_math"
+        }
+      ],
+      "output": {
+        "type": "object",
+        "source": "$derived",
+        "object_schema": {
+          "entity_type": "orca_quote_close_position",
+          "identity_fields": [
+            "position"
+          ],
+          "fields": {
+            "position": {
+              "type": "pubkey"
+            },
+            "whirlpool": {
+              "type": "pubkey"
+            },
+            "slippage_bps": {
+              "type": "u16"
+            },
+            "liquidity_amount": {
+              "type": "u128"
+            },
+            "token_est_a": {
+              "type": "u64"
+            },
+            "token_est_b": {
+              "type": "u64"
+            },
+            "token_min_a": {
+              "type": "u64"
+            },
+            "token_min_b": {
+              "type": "u64"
+            },
+            "reward_0_active": {
+              "type": "bool"
+            },
+            "reward_1_active": {
+              "type": "bool"
+            },
+            "reward_2_active": {
+              "type": "bool"
             }
           }
         }

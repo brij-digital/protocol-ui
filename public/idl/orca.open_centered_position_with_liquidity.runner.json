@@ -1,0 +1,86 @@
+{
+  "schema": "solana-action-runner.v1",
+  "actionId": "orca.open_centered_position_with_liquidity",
+  "title": "Orca Open Centered Position With Liquidity",
+  "description": "Quote a centered Orca Whirlpool position around the current tick, then prepare the open-position and increase-liquidity instructions.",
+  "inputs": {
+    "whirlpool": {
+      "type": "pubkey",
+      "description": "Whirlpool address."
+    },
+    "position_mint": {
+      "type": "token_mint",
+      "description": "Mint for the new position NFT."
+    },
+    "tick_offset_steps": {
+      "type": "u16",
+      "description": "Number of tick-spacing steps on each side of the centered range."
+    },
+    "specified_token_mint": {
+      "type": "token_mint",
+      "description": "Token mint used as the quote side."
+    },
+    "specified_token_amount": {
+      "type": "u64",
+      "description": "Token amount used to size the initial deposit."
+    },
+    "slippage_bps": {
+      "type": "u16",
+      "description": "Slippage tolerance in basis points.",
+      "default": "100"
+    },
+    "with_token_metadata_extension": {
+      "type": "bool",
+      "description": "Whether to request the token metadata extension during position mint creation.",
+      "default": true
+    }
+  },
+  "steps": [
+    {
+      "id": "quote",
+      "kind": "read",
+      "protocolId": "orca-whirlpool-mainnet",
+      "operationId": "quote_open_centered_position_with_liquidity",
+      "input": {
+        "whirlpool": "$input.whirlpool",
+        "position_mint": "$input.position_mint",
+        "tick_offset_steps": "$input.tick_offset_steps",
+        "specified_token_mint": "$input.specified_token_mint",
+        "specified_token_amount": "$input.specified_token_amount",
+        "slippage_bps": "$input.slippage_bps"
+      }
+    },
+    {
+      "id": "open_position",
+      "kind": "write",
+      "protocolId": "orca-whirlpool-mainnet",
+      "operationId": "open_position",
+      "input": {
+        "position_mint": "$input.position_mint",
+        "whirlpool": "$input.whirlpool",
+        "tick_lower_index": "$quote.output.tick_lower_index",
+        "tick_upper_index": "$quote.output.tick_upper_index",
+        "with_token_metadata_extension": "$input.with_token_metadata_extension"
+      }
+    },
+    {
+      "id": "increase_liquidity",
+      "kind": "write",
+      "protocolId": "orca-whirlpool-mainnet",
+      "operationId": "increase_liquidity_for_open_position_v2",
+      "input": {
+        "position": "$quote.output.position",
+        "position_mint": "$input.position_mint",
+        "whirlpool": "$input.whirlpool",
+        "tick_lower_index": "$quote.output.tick_lower_index",
+        "tick_upper_index": "$quote.output.tick_upper_index",
+        "method": "$quote.meta.derived.method"
+      }
+    }
+  ],
+  "output": {
+    "quote": "$quote.output",
+    "openPositionDraft": "$open_position.output",
+    "increaseLiquidityDraft": "$increase_liquidity.output"
+  }
+}

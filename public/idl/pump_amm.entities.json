@@ -6,6 +6,7 @@
   ],
   "entities": {
     "Pool": {
+      "retention": "30d",
       "source": {
         "from": "state",
         "recordKind": "account",
@@ -82,6 +83,7 @@
       }
     },
     "Trade": {
+      "retention": "7d",
       "source": {
         "from": "record",
         "recordKind": "event",
@@ -165,6 +167,7 @@
       }
     },
     "TradeVolume1m": {
+      "retention": "365d",
       "source": {
         "from": "record",
         "recordKind": "event",

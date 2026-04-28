@@ -2,15 +2,23 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Entity Definition Schema v1",
   "type": "object",
-  "required": ["source", "transform", "emit"],
+  "required": ["source", "transform", "emit", "retention"],
   "properties": {
     "$schema": { "type": "string" },
+    "retention": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*(s|m|h|d)$"
+    },
     "source": {
       "type": "object",
       "required": ["from", "recordName"],
       "properties": {
         "from": { "enum": ["state", "record"] },
         "recordKind": { "type": "string" },
+        "retention": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*(s|m|h|d)$"
+        },
         "sourceProtocolIds": {
           "type": "array",
           "minItems": 1,
@@ -31,6 +39,39 @@
         "extract": {
           "type": "object",
           "additionalProperties": true
+        },
+        "resolve": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "from", "recordName", "retention"],
+            "properties": {
+              "name": { "type": "string" },
+              "from": { "enum": ["state", "record"] },
+              "recordKind": { "type": "string" },
+              "retention": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]*(s|m|h|d)$"
+              },
+              "sourceProtocolIds": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "string" }
+              },
+              "recordName": {
+                "oneOf": [
+                  { "type": "string" },
+                  { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+                ]
+              },
+              "where": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "optional": { "type": "boolean" }
+            },
+            "additionalProperties": false
+          }
         },
         "compute": {
           "type": "array",

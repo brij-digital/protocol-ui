@@ -23,12 +23,21 @@
       "decoderRef": "pumpfun",
       "decodeTargets": [
         "instruction",
-        "log_event"
+        "log_event",
+        "account"
       ],
       "filters": {}
     }
   },
   "matchRules": [
+    {
+      "source": "pump_core_crawler",
+      "match": {
+        "decodedType": "account",
+        "name": "BondingCurve"
+      },
+      "pipeline": "curve_account_snapshot"
+    },
     {
       "source": "pump_core_crawler",
       "match": {
@@ -47,6 +56,44 @@
     }
   ],
   "pipelines": {
+    "curve_account_snapshot": {
+      "extract": {
+        "bondingCurve": "$update.pubkey",
+        "creator": "$decoded.creator",
+        "complete": "$decoded.complete",
+        "virtualTokenReservesAtomic": "$decoded.virtual_token_reserves",
+        "virtualSolReservesAtomic": "$decoded.virtual_sol_reserves",
+        "realTokenReservesAtomic": "$decoded.real_token_reserves",
+        "realSolReservesAtomic": "$decoded.real_sol_reserves",
+        "tokenTotalSupplyAtomic": "$decoded.token_total_supply",
+        "isMayhemMode": "$decoded.is_mayhem_mode",
+        "isCashbackCoin": "$decoded.is_cashback_coin",
+        "observedAt": "$update.eventTime"
+      },
+      "emit": {
+        "state": {
+          "recordKind": "account",
+          "recordName": "BondingCurveAccount",
+          "retention": "90d",
+          "subjectId": "$ctx.bondingCurve",
+          "resourceId": "$ctx.bondingCurve",
+          "eventTime": "$ctx.observedAt",
+          "payload": {
+            "bondingCurve": "$ctx.bondingCurve",
+            "creator": "$ctx.creator",
+            "complete": "$ctx.complete",
+            "virtualTokenReservesAtomic": "$ctx.virtualTokenReservesAtomic",
+            "virtualSolReservesAtomic": "$ctx.virtualSolReservesAtomic",
+            "realTokenReservesAtomic": "$ctx.realTokenReservesAtomic",
+            "realSolReservesAtomic": "$ctx.realSolReservesAtomic",
+            "tokenTotalSupplyAtomic": "$ctx.tokenTotalSupplyAtomic",
+            "isMayhemMode": "$ctx.isMayhemMode",
+            "isCashbackCoin": "$ctx.isCashbackCoin",
+            "observedAt": "$ctx.observedAt"
+          }
+        }
+      }
+    },
     "curve_create": {
       "extract": {
         "mint": "$decoded.mint",
@@ -76,6 +123,7 @@
         "state": {
           "recordKind": "state",
           "recordName": "BondingCurve",
+          "retention": "90d",
           "subjectId": "$ctx.mint",
           "resourceId": "$ctx.pool",
           "eventTime": "$ctx.observedAt",
@@ -143,6 +191,7 @@
         "record": {
           "recordKind": "event",
           "recordName": "TradeEvent",
+          "retention": "14d",
           "subjectId": "$ctx.mint",
           "resourceId": "$ctx.pool",
           "participantId": "$ctx.participant",
@@ -172,6 +221,7 @@
         "state": {
           "recordKind": "state",
           "recordName": "BondingCurve",
+          "retention": "90d",
           "subjectId": "$ctx.mint",
           "resourceId": "$ctx.pool",
           "signature": "$ctx.signature",

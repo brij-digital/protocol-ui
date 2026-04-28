@@ -20,6 +20,7 @@ export function readBuilderPath(value: unknown, path: string): unknown {
 export function getBuilderInputMode(
   _spec: RuntimeOperationSummary['inputs'][string],
 ): 'edit' | 'readonly' {
+  void _spec;
   return 'edit';
 }
 

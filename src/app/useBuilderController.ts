@@ -139,9 +139,11 @@ export function useBuilderController() {
 
   useEffect(() => {
     if (!builderProtocolId) {
-      setBuilderOperations([]);
-      setBuilderOperationId('');
-      setBuilderInputValues({});
+      queueMicrotask(() => {
+        setBuilderOperations([]);
+        setBuilderOperationId('');
+        setBuilderInputValues({});
+      });
       return;
     }
 
@@ -175,15 +177,29 @@ export function useBuilderController() {
   }, [builderProtocolId]);
 
   useEffect(() => {
+    let cancelled = false;
     if (!selectedBuilderOperation) {
-      setBuilderInputValues({});
-      return;
+      queueMicrotask(() => {
+        if (!cancelled) {
+          setBuilderInputValues({});
+        }
+      });
+      return () => {
+        cancelled = true;
+      };
     }
 
     const nextValues = Object.fromEntries(
       Object.keys(selectedBuilderOperation.inputs).map((inputName) => [inputName, '']),
     );
-    setBuilderInputValues(nextValues);
+    queueMicrotask(() => {
+      if (!cancelled) {
+        setBuilderInputValues(nextValues);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedBuilderOperation]);
 
   function handleBuilderProtocolSelect(nextProtocolId: string) {

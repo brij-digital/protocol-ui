@@ -4,5 +4,95 @@
   "sourceProtocolIds": [
     "pump-core-mainnet"
   ],
-  "entities": {}
+  "entities": {
+    "BondingCurveAccount": {
+      "retention": "30d",
+      "source": {
+        "from": "state",
+        "recordKind": "account",
+        "recordName": "BondingCurveAccount"
+      },
+      "transform": {
+        "extract": {
+          "bondingCurve": "$raw.subject_id",
+          "creator": "$state.creator",
+          "complete": "$state.complete",
+          "virtualTokenReservesAtomic": "$state.virtualTokenReservesAtomic",
+          "virtualSolReservesAtomic": "$state.virtualSolReservesAtomic",
+          "realTokenReservesAtomic": "$state.realTokenReservesAtomic",
+          "realSolReservesAtomic": "$state.realSolReservesAtomic",
+          "tokenTotalSupplyAtomic": "$state.tokenTotalSupplyAtomic",
+          "isMayhemMode": "$state.isMayhemMode",
+          "isCashbackCoin": "$state.isCashbackCoin",
+          "observedAt": "$state.observedAt",
+          "updatedAt": "$raw.updated_at",
+          "lastEventTime": "$raw.last_event_time"
+        }
+      },
+      "emit": {
+        "id": "bondingCurve",
+        "indexes": [
+          [
+            "creator",
+            "updatedAt:desc"
+          ],
+          [
+            "complete",
+            "updatedAt:desc"
+          ]
+        ],
+        "timeField": "updatedAt",
+        "defaultOrderBy": [
+          "updatedAt:desc"
+        ],
+        "fields": {
+          "bondingCurve": {
+            "type": "TEXT",
+            "primaryKey": true,
+            "filterable": true
+          },
+          "creator": {
+            "type": "TEXT",
+            "filterable": true
+          },
+          "complete": {
+            "type": "BOOLEAN",
+            "filterable": true
+          },
+          "virtualTokenReservesAtomic": {
+            "type": "NUMERIC"
+          },
+          "virtualSolReservesAtomic": {
+            "type": "NUMERIC"
+          },
+          "realTokenReservesAtomic": {
+            "type": "NUMERIC"
+          },
+          "realSolReservesAtomic": {
+            "type": "NUMERIC"
+          },
+          "tokenTotalSupplyAtomic": {
+            "type": "NUMERIC"
+          },
+          "isMayhemMode": {
+            "type": "BOOLEAN"
+          },
+          "isCashbackCoin": {
+            "type": "BOOLEAN"
+          },
+          "observedAt": {
+            "type": "TIMESTAMPTZ",
+            "filterable": true
+          },
+          "updatedAt": {
+            "type": "TIMESTAMPTZ",
+            "filterable": true
+          },
+          "lastEventTime": {
+            "type": "TIMESTAMPTZ"
+          }
+        }
+      }
+    }
+  }
 }
